@@ -1,0 +1,80 @@
+{
+  "name": "Collective Bargaining Agreement — Store Associates",
+  "union": "United Garment & Retail Workers, Local 88",
+  "local": "UGRW-88",
+  "effective": "2025-04-01",
+  "expires": "2028-03-31",
+  "covered_locations": [
+    "CC-110",
+    "CC-120",
+    "CC-130"
+  ],
+  "steps": [
+    {
+      "step": 1,
+      "min_years": 0,
+      "label": "0–1 yr"
+    },
+    {
+      "step": 2,
+      "min_years": 1,
+      "label": "1–2 yrs"
+    },
+    {
+      "step": 3,
+      "min_years": 2,
+      "label": "2–4 yrs"
+    },
+    {
+      "step": 4,
+      "min_years": 4,
+      "label": "4–7 yrs"
+    },
+    {
+      "step": 5,
+      "min_years": 7,
+      "label": "7+ yrs"
+    }
+  ],
+  "rates": {
+    "Sales Associate": [
+      18.5,
+      19.25,
+      20.15,
+      21.4,
+      22.6
+    ],
+    "Stock Associate": [
+      18.75,
+      19.5,
+      20.4,
+      21.65,
+      22.85
+    ],
+    "Visual Merchandiser": [
+      20.25,
+      21.1,
+      22.0,
+      23.3,
+      24.5
+    ],
+    "Lead Associate": [
+      22.5,
+      23.4,
+      24.35,
+      25.7,
+      27.0
+    ]
+  },
+  "step_basis": "Years of continuous service from union seniority date; step increase effective on the anniversary.",
+  "full_time_weekly_hours": 35,
+  "overtime": {
+    "weekly_after_hours": 35,
+    "multiplier": 1.5,
+    "sunday_multiplier": 2.0,
+    "saturday_multiplier": 1.5,
+    "saturday_premium_enabled": false,
+    "pyramiding": false,
+    "note": "Hours over 35 in the Sun–Sat week at time and a half; all Sunday hours at double time. Premium hours are not paid twice."
+  }
+}

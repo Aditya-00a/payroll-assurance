@@ -1,0 +1,55 @@
+{
+  "name": "Northloom Apparel Employee Handbook — Time Off & Timekeeping (rev. 2026-01)",
+  "expected_weekly_hours": {
+    "union_full_time": 35,
+    "non_union_full_time": 40,
+    "exempt_full_time": 40
+  },
+  "part_time_max_weekly_hours": 30,
+  "part_time_note": "Part-time associates are scheduled 20–30 hours. Regularly working over 30 hours moves an associate into the full-time benefits class.",
+  "flsa_overtime_weekly_after_hours": 40,
+  "flsa_overtime_multiplier": 1.5,
+  "daily_max_hours": 12,
+  "punch_rounding_minutes": 15,
+  "meal_punch_required_after_hours": 6,
+  "work_week": "Sunday 12:00 AM through Saturday 11:59 PM",
+  "valid_pay_codes": [
+    "REG",
+    "VAC",
+    "SICK",
+    "HOL",
+    "BRV"
+  ],
+  "company_holidays_2026": [
+    "2026-01-01",
+    "2026-05-25",
+    "2026-07-03",
+    "2026-09-07",
+    "2026-11-26",
+    "2026-12-25"
+  ],
+  "vacation": {
+    "accrual_per_pay_period_hours": {
+      "UNION_FT": 2.69,
+      "HOURLY_FT": 3.08,
+      "SALARIED": 4.62,
+      "UNION_PT": 0,
+      "HOURLY_PT": 0
+    },
+    "waiting_period_days": 90,
+    "carryover_cap_hours": 40,
+    "carryover_expires": "December 31 of the following year",
+    "draw_order": [
+      "carryover",
+      "current"
+    ],
+    "payout_on_termination": false
+  },
+  "sick": {
+    "method": "front_loaded",
+    "annual_hours_full_time": 40,
+    "annual_hours_part_time": 24,
+    "carryover": false,
+    "note": "Sick time is front-loaded on January 1. Unused sick time does not carry over and there is no sick carryover bank."
+  }
+}

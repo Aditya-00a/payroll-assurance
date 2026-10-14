@@ -1,0 +1,205 @@
+{
+  "issues": [
+    {
+      "emp": "E1007",
+      "check": "T1",
+      "note": "Check-in with no check-out on Tue 9/22"
+    },
+    {
+      "emp": "E1012",
+      "check": "T1",
+      "note": "Left for lunch Thu 9/17, no return punch; WFM credited 8.0h"
+    },
+    {
+      "emp": "E1015",
+      "check": "T2",
+      "note": "Two manager overrides with no punches"
+    },
+    {
+      "emp": "E1013",
+      "check": "T3",
+      "note": "WFM snapped a 9:38 punch-in to the 10:00 schedule start"
+    },
+    {
+      "emp": "E1009",
+      "check": "T4",
+      "note": "No-show on scheduled Sat 9/26"
+    },
+    {
+      "emp": "E1018",
+      "check": "T4",
+      "note": "Unscheduled Sunday shift 9/20"
+    },
+    {
+      "emp": "E1003",
+      "check": "T5",
+      "note": "28.0h vs 35h union week, no PTO coded"
+    },
+    {
+      "emp": "E1007",
+      "check": "T5",
+      "note": "Short week caused by the missing punch"
+    },
+    {
+      "emp": "E1009",
+      "check": "T5",
+      "note": "Short week caused by the no-show"
+    },
+    {
+      "emp": "E1037",
+      "check": "T5",
+      "note": "Exempt employee 32.5h vs 40h"
+    },
+    {
+      "emp": "E1025",
+      "check": "T7",
+      "note": "Part-time associate over 30h both weeks"
+    },
+    {
+      "emp": "E1024",
+      "check": "T8",
+      "note": "13.5h shift"
+    },
+    {
+      "emp": "E1030",
+      "check": "T9",
+      "note": "HOL coded 9/14; Labor Day was 9/7"
+    },
+    {
+      "emp": "E1011",
+      "check": "T10",
+      "note": "14h sick coded against an 8h balance"
+    },
+    {
+      "emp": "E1099",
+      "check": "R1",
+      "note": "Worked 40h in WFM, no payroll record"
+    },
+    {
+      "emp": "E1098",
+      "check": "R2",
+      "note": "Paid in payroll with no WFM profile or time (ghost)"
+    },
+    {
+      "emp": "E1028",
+      "check": "R2",
+      "note": "Active in payroll, no WFM time and no pay"
+    },
+    {
+      "emp": "E1033",
+      "check": "R3",
+      "note": "Worked 9/21\u20139/22, payroll hire date 9/23"
+    },
+    {
+      "emp": "E1022",
+      "check": "R4",
+      "note": "Time auto-filled after 9/18 termination"
+    },
+    {
+      "emp": "E1014",
+      "check": "P1",
+      "note": "Register rate 21.04 vs census 21.40"
+    },
+    {
+      "emp": "E1004",
+      "check": "P2",
+      "note": "Step 4 since 6/20 anniversary, still paid step 3"
+    },
+    {
+      "emp": "E1008",
+      "check": "P3",
+      "note": "Sick day also paid as regular hours"
+    },
+    {
+      "emp": "E1020",
+      "check": "P4",
+      "note": "46h week paid as straight time"
+    },
+    {
+      "emp": "E1018",
+      "check": "P4",
+      "note": "Sunday hours paid at 1.5x instead of 2.0x"
+    },
+    {
+      "emp": "E1031",
+      "check": "P5",
+      "note": "Exempt store manager paid overtime"
+    },
+    {
+      "emp": "E1016",
+      "check": "P7",
+      "note": "Medicare not withheld"
+    },
+    {
+      "emp": "E1001",
+      "check": "P9",
+      "note": "Carryover 48h over the 40h cap"
+    },
+    {
+      "emp": "E1005",
+      "check": "P9",
+      "note": "Vacation used but balance not decremented"
+    },
+    {
+      "emp": "E1006",
+      "check": "P9",
+      "note": "Vacation drawn from current instead of carryover"
+    },
+    {
+      "emp": "E1021",
+      "check": "F2",
+      "note": "ACH $200 less than register net"
+    },
+    {
+      "emp": "E1012",
+      "check": "F3",
+      "note": "ACH sent to old account after bank change"
+    },
+    {
+      "emp": "E1012",
+      "check": "F4",
+      "note": "R03 return"
+    },
+    {
+      "emp": "E1098",
+      "check": "F5",
+      "note": "Shares bank account with payroll specialist E1036"
+    },
+    {
+      "emp": null,
+      "check": "F6",
+      "note": "NJ employer SUI not remitted"
+    },
+    {
+      "emp": null,
+      "check": "G3",
+      "note": "CC-140 not mapped, posted to suspense"
+    },
+    {
+      "emp": null,
+      "check": "G4",
+      "note": "Employer tax expense missing NJ SUI"
+    },
+    {
+      "emp": null,
+      "check": "G5",
+      "note": "Taxes payable missing NJ SUI"
+    },
+    {
+      "emp": null,
+      "check": "G7",
+      "note": "Vacation accrual overstated (E1005 balance)"
+    }
+  ],
+  "clean_controls": [
+    "E1002",
+    "E1010",
+    "E1017",
+    "E1019",
+    "E1023",
+    "E1026",
+    "E1032",
+    "E1034",
+    "E1035"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Payroll GL mapping — Northloom Apparel (entity 100)",
+  "accounts": {
+    "1010": "Cash — Payroll Account",
+    "2200": "Payroll Taxes Payable",
+    "2210": "401(k) Deferrals Payable",
+    "2220": "Medical Premiums Payable",
+    "2310": "Accrued Vacation",
+    "6010": "Wages — Union Hourly",
+    "6020": "Wages — Non-Union Hourly",
+    "6030": "Salaries — Exempt",
+    "6040": "Overtime & Premium Pay",
+    "6050": "Paid Time Off",
+    "6060": "Vacation Accrual Expense",
+    "6100": "Employer Payroll Taxes",
+    "9999": "Suspense — Unmapped"
+  },
+  "wage_account_by_class": {
+    "UNION": "6010",
+    "HOURLY": "6020",
+    "SALARIED": "6030"
+  },
+  "premium_account": "6040",
+  "pto_account": "6050",
+  "employer_tax_account": "6100",
+  "vacation_accrual_expense_account": "6060",
+  "vacation_liability_account": "2310",
+  "liability_accounts": {
+    "taxes": "2200",
+    "k401": "2210",
+    "medical": "2220"
+  },
+  "cash_account": "1010",
+  "suspense_account": "9999",
+  "cost_centers": {
+    "CC-110": "SoHo Flagship",
+    "CC-120": "Williamsburg",
+    "CC-130": "Jersey City",
+    "CC-310": "Secaucus Distribution Center",
+    "CC-900": "Corporate — Merchandising & Admin"
+  }
+}

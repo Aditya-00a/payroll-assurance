@@ -1,0 +1,351 @@
+emp_id,employee_name,work_date,shift_start,shift_end,meal_minutes,scheduled_hours,location,schedule_source
+E1001,Maya Chen,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-18,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-19,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-25,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1001,Maya Chen,2026-09-26,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-13,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-14,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-20,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-21,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1002,Luis Ortega,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-14,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-18,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-21,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1003,Priya Natarajan,2026-09-25,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1004,Jamal Wright,2026-09-15,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-16,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-17,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-18,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-19,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-22,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-23,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-24,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-25,11:00,19:00,60,7.00,Williamsburg,WFM
+E1004,Jamal Wright,2026-09-26,11:00,19:00,60,7.00,Williamsburg,WFM
+E1005,Sofia Alvarez,2026-09-14,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-18,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-21,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1005,Sofia Alvarez,2026-09-25,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1006,Kevin O'Brien,2026-09-14,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-15,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-16,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-17,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-18,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-21,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-22,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-23,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-24,07:00,15:00,60,7.00,Williamsburg,WFM
+E1006,Kevin O'Brien,2026-09-25,07:00,15:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-14,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-15,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-16,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-17,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-18,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-21,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-22,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-23,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-24,11:00,19:00,60,7.00,Williamsburg,WFM
+E1007,Aaliyah Brooks,2026-09-25,11:00,19:00,60,7.00,Williamsburg,WFM
+E1008,Marcus Lee,2026-09-14,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-15,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-16,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-17,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-18,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-21,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-22,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-23,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-24,07:00,15:00,60,7.00,Jersey City,WFM
+E1008,Marcus Lee,2026-09-25,07:00,15:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-15,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-16,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-17,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-18,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-19,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-22,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-23,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-24,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-25,10:00,18:00,60,7.00,Jersey City,WFM
+E1009,Hannah Kim,2026-09-26,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-13,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-16,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-17,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-18,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-19,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-20,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-23,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-24,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-25,10:00,18:00,60,7.00,Jersey City,WFM
+E1010,Tomás Rivera,2026-09-26,10:00,18:00,60,7.00,Jersey City,WFM
+E1011,Grace Okafor,2026-09-14,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-18,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-21,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1011,Grace Okafor,2026-09-25,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-14,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-15,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-16,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-17,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-18,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-21,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-22,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-23,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-24,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1012,Diego Santos,2026-09-25,10:00,18:00,60,7.00,SoHo Flagship,WFM
+E1013,Nina Petrova,2026-09-14,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-15,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-16,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-17,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-18,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-21,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-22,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-23,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-24,10:00,18:00,60,7.00,Williamsburg,WFM
+E1013,Nina Petrova,2026-09-25,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-15,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-16,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-17,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-18,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-19,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-22,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-23,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-24,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-25,10:00,18:00,60,7.00,Williamsburg,WFM
+E1014,Andre Johnson,2026-09-26,10:00,18:00,60,7.00,Williamsburg,WFM
+E1015,Chloe Martin,2026-09-14,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-15,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-16,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-17,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-18,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-21,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-22,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-23,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-24,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1015,Chloe Martin,2026-09-25,11:00,19:00,60,7.00,SoHo Flagship,WFM
+E1016,Ryan Patel,2026-09-14,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-15,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-16,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-17,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-18,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-21,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-22,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-23,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-24,07:00,15:00,60,7.00,Jersey City,WFM
+E1016,Ryan Patel,2026-09-25,07:00,15:00,60,7.00,Jersey City,WFM
+E1017,Isabella Rossi,2026-09-13,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-16,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-17,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-18,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-19,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-20,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-23,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-24,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-25,11:00,19:00,60,7.00,Williamsburg,WFM
+E1017,Isabella Rossi,2026-09-26,11:00,19:00,60,7.00,Williamsburg,WFM
+E1018,Ethan Brown,2026-09-14,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-15,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-16,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-17,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-18,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-21,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-22,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-23,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-24,10:00,18:00,60,7.00,Jersey City,WFM
+E1018,Ethan Brown,2026-09-25,10:00,18:00,60,7.00,Jersey City,WFM
+E1019,Zoe Turner,2026-09-13,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-17,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-18,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-19,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-20,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-24,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-25,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1019,Zoe Turner,2026-09-26,12:00,18:00,0,6.00,SoHo Flagship,WFM
+E1020,Omar Haddad,2026-09-14,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-15,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-16,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-17,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-18,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-21,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-22,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-23,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-24,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-25,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1020,Omar Haddad,2026-09-26,07:00,13:00,0,6.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-14,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-15,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-16,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-17,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-18,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-21,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-22,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-23,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-24,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1021,Bianca Lopez,2026-09-25,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-14,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-15,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-16,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-17,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-18,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-21,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-22,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-23,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-24,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1022,Carlos Mendez,2026-09-25,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-14,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-15,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-16,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-17,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-18,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-19,07:00,11:00,0,4.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-21,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-22,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-23,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-24,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1023,Fatima Diallo,2026-09-25,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1024,Jack Wilson,2026-09-14,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-15,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-16,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-17,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-18,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-21,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-22,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-23,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-24,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1024,Jack Wilson,2026-09-25,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1025,Liam Murphy,2026-09-13,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-14,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-17,12:00,15:30,0,3.50,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-18,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-19,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-20,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-21,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-24,12:00,17:00,0,5.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-25,11:00,18:30,30,7.00,Williamsburg,WFM
+E1025,Liam Murphy,2026-09-26,11:00,18:30,30,7.00,Williamsburg,WFM
+E1026,Ava Nguyen,2026-09-14,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-15,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-16,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-17,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-21,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-22,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-23,12:00,18:00,0,6.00,Jersey City,WFM
+E1026,Ava Nguyen,2026-09-24,12:00,18:00,0,6.00,Jersey City,WFM
+E1027,Mei Lin,2026-09-13,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-16,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-17,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-18,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-19,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-20,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-23,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-24,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-25,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1027,Mei Lin,2026-09-26,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-13,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-18,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-19,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-20,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-25,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1029,Elena Popescu,2026-09-26,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1030,Noah Fischer,2026-09-17,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1030,Noah Fischer,2026-09-18,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1030,Noah Fischer,2026-09-19,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1030,Noah Fischer,2026-09-24,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1030,Noah Fischer,2026-09-25,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1030,Noah Fischer,2026-09-26,07:00,15:30,30,8.00,Secaucus Distribution Center,Excel upload
+E1031,Rachel Adler,2026-09-14,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-15,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-16,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-17,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-18,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-21,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-22,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-23,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-24,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1031,Rachel Adler,2026-09-25,09:00,18:00,60,8.00,SoHo Flagship,WFM
+E1032,David Kowalski,2026-09-14,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-15,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-16,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-17,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-18,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-21,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-22,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-23,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-24,08:00,19:00,60,10.00,Jersey City,WFM
+E1032,David Kowalski,2026-09-25,08:00,19:00,60,10.00,Jersey City,WFM
+E1033,Jasmine Carter,2026-09-21,09:00,18:00,60,8.00,Williamsburg,WFM
+E1033,Jasmine Carter,2026-09-22,09:00,18:00,60,8.00,Williamsburg,WFM
+E1033,Jasmine Carter,2026-09-23,09:00,18:00,60,8.00,Williamsburg,WFM
+E1033,Jasmine Carter,2026-09-24,09:00,18:00,60,8.00,Williamsburg,WFM
+E1033,Jasmine Carter,2026-09-25,09:00,18:00,60,8.00,Williamsburg,WFM
+E1034,Owen Price,2026-09-14,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-15,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-16,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-17,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-18,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-21,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-22,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-23,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-24,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1034,Owen Price,2026-09-25,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1035,Laura Benson,2026-09-14,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-15,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-16,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-17,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-18,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-21,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-22,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-23,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-24,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1035,Laura Benson,2026-09-25,07:00,16:00,60,8.00,Secaucus Distribution Center,Excel upload
+E1036,Renee Walsh,2026-09-14,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-15,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-16,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-17,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-18,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-21,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-22,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-23,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-24,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1036,Renee Walsh,2026-09-25,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-14,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-15,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-16,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-17,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-18,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-21,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-22,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-23,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-24,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1037,Victor Huang,2026-09-25,09:00,18:00,60,8.00,Corporate — Merchandising & Admin,WFM
+E1099,Kayla Simmons,2026-09-21,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1099,Kayla Simmons,2026-09-22,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1099,Kayla Simmons,2026-09-23,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1099,Kayla Simmons,2026-09-24,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
+E1099,Kayla Simmons,2026-09-25,10:00,18:30,30,8.00,Hudson Yards Pop-up,WFM
