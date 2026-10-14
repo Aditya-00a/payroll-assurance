@@ -1,14 +1,26 @@
-# Payroll Assurance Pipeline
+# Rollcall Payroll Assurance
 
-A demo of one transaction set validated end to end, as described in the WFM/payroll call:
+Validates every pay cycle end to end, **WFM → Payroll → Treasury → Finance**, and gates payroll release on the results. It covers time sheets, pre-payroll checks, the payroll register, funding and GL posting.
 
-**WFM → Payroll → Treasury → Finance** — time sheets, pre-payroll validation, the payroll register, funding, and GL posting.
+The workspace opens on a fictional sample cycle: Northloom Apparel, a clothing retailer with NY and NJ stores, a distribution center and a pop-up. The pay period runs Sun 2026-09-13 to Sat 2026-09-26, with a pay date of Fri 2026-10-02. There are 38 people on payroll plus one person who exists only in WFM. Issues are seeded on purpose so every check has something to find.
 
-The demo runs on a fictional clothing retailer (Northloom Apparel: NY and NJ stores, a distribution center, and a pop-up). The sample pay cycle is Sun 2026-09-13 to Sat 2026-09-26, with a pay date of Fri 2026-10-02. There are 38 people on payroll plus one person who exists only in WFM. Issues are seeded on purpose so the engine has something to find.
+## What it does
+
+- **Overview.** Shows release readiness, a progress bar of pre-release blockers cleared, blockers by owner, cycle totals and key dates (funding, settlement, GL post, ACH returns), checks by stage, open dollar exposure, and recent activity.
+- **Exceptions.** The work queue. Filter by status, severity, stage, owner or search. The detail panel shows evidence (expected vs actual, impact), the recommended action, owner reassignment, notes and full history. Bulk actions: assign, start review, resolve, accept risk. Accepting a risk requires a reason.
+- **Release gate.** *Release payroll* stays locked until every blocker in time, roster and register checks is resolved or accepted as a risk. Approval asks you to confirm the accepted risks and records the approver, a note and the totals. A released cycle can be reopened with a reason.
+- **People.** Register gross vs validated gross for everyone. Click a person for the timecard (scheduled vs worked), pay rebuilt from WFM time and contract rates, PTO balances and deposits.
+- **Controls.** All 38 checks by stage, each with its rule and its result.
+- **Data sources.** Each source is set to *File* or *API*. Upload CSV, JSON or the printed PDF register (read with pdf.js). Columns are validated and every check re-runs. *Start a new cycle* clears the WFM, payroll, bank and GL data so you can load your own files. Policies and rule changes carry over.
+- **Rules.** Thresholds come from the union agreement and the handbook. Every change re-runs the checks and is logged.
+- **Reports.** Release brief (.txt), exception register with statuses and notes (.csv), pay variance (.csv) and audit trail (.csv).
+- **Activity.** An append-only log of every status change, note, reassignment, rule change, data load, re-run and release.
+
+Statuses, notes, releases, rule changes and uploaded files are stored in the browser (localStorage). Files are read client-side and are not sent anywhere. In the sample workspace, the API connectors return the sample cycle.
 
 ## Run it
 
-Open `public/index.html` in a browser, or use the Vercel deployment. Everything runs client-side. The sample cycle loads automatically. On the **Data intake** tab you can choose *Batch upload* or *API* for each source (the API connection is simulated in the demo) and upload replacement CSV, JSON or PDF files. To demo a batch upload, use the files in `data/`.
+Use the Vercel deployment, or open `public/index.html` in a browser. To try a batch upload, use the files in `data/`.
 
 ```
 python3 generator/generate_data.py   # regenerate data/ and app/sample-data.js
@@ -18,6 +30,10 @@ python3 build_dist.py                # rebuild public/ (the static site Vercel s
 ```
 
 Vercel deploys `public/` as a static site with no build step. After you change anything in `app/`, run `python3 build_dist.py` and commit `public/` along with it.
+
+## Branding
+
+The brand tokens are at the top of the `:root` block in `app/index.html`: `--brand`, `--brand-ink` and `--brand-soft`. The logo mark is the inline SVG in `.logo`. The product name lives in the `<title>` and `.logo .name`. To rebrand, swap those values.
 
 ## Where each point from the call lands
 
@@ -47,7 +63,7 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 
 ## Files
 
-- `app/` — the demo source (`index.html`, `app.js`, `engine.js`, and `sample-data.js` with the sample files embedded). `index.html` is in claude.ai artifact form, with no `<html>` wrapper.
+- `app/` — source. `index.html` is the shell and styles, `app.js` holds the pages, workflow, release gate and persistence, `engine.js` holds the checks, and `sample-data.js` has the sample files embedded. `index.html` is written without an `<html>` wrapper; `build_dist.py` adds one.
 - `public/` — the built static site for Vercel, made by `build_dist.py`
 - `data/` — the sample files to upload: census, schedules, time records, register (CSV and PDF), bank activity, GL journal, union agreement, handbook, GL mapping. `seeded_issues.json` lists what was planted.
 - `generator/generate_data.py` — builds the sample cycle from the same rules the engine checks

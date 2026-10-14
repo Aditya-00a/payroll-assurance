@@ -12,7 +12,7 @@ import shutil
 
 root = pathlib.Path(__file__).resolve().parent
 src = (root / 'app/index.html').read_text()
-i = src.index('<header class="top">')
+i = src.index('<div class="shell"')
 head = src[:i].replace('<meta charset="utf-8">\n', '')
 body = src[i:].replace(
     '<script src="sample-data.js"></script>',
