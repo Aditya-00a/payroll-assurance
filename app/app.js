@@ -57,7 +57,7 @@
   const KIND_SHORT = { underpaid: 'owed', overpaid: 'overpaid', tax: 'tax', cash: 'deposit', gl: 'GL', liability: 'PTO' };
   const KIND_WORD = { underpaid: 'owed to employee', overpaid: 'overpaid', tax: 'tax exposure', cash: 'deposit', gl: 'GL', liability: 'PTO liability' };
   const SEV_LABEL = { blocker: 'Blocker', review: 'Review', info: 'Info' };
-  // Variance Voice review: the reviewer approves, dismisses or escalates each explained exception.
+  // Review: the reviewer approves, dismisses or escalates each exception.
   const STATUS_LABEL = { open: 'Open', escalated: 'Escalated', approved: 'Approved', dismissed: 'Dismissed' };
   const STATUS_VERB = { open: 'Reopened', escalated: 'Escalated', approved: 'Approved', dismissed: 'Dismissed' };
   const LEGACY_STATUS = { review: 'escalated', resolved: 'approved', accepted: 'dismissed' };
@@ -66,6 +66,51 @@
   const PRE = ['time', 'roster', 'payroll'];
   const FLAG_LABEL = { MISSING_OUT: 'No check-out', MISSING_IN: 'No check-in', MISSING_MEAL_IN: 'No meal return', MISSING_MEAL_OUT: 'No meal out', NO_MEAL: 'No meal', OVERRIDE: 'Override', NO_PUNCH: 'No punches' };
   const OWNERS = ['Payroll', 'HR', 'Store manager', 'WFM admin', 'Treasury', 'GL accounting'];
+
+  // Roles and what each may do. Payroll admins always hold every permission.
+  const ROLES = [
+    { id: 'admin', label: 'Payroll admin', desc: 'runs the cycle and owns team, roles and policies' },
+    { id: 'approver', label: 'Payroll approver', desc: 'clears blockers and releases payroll' },
+    { id: 'reviewer', label: 'Reviewer', desc: 'works the exceptions in their queue' },
+    { id: 'viewer', label: 'Viewer', desc: 'read-only, for audit and finance' },
+  ];
+  const ROLE_OF = Object.fromEntries(ROLES.map((r) => [r.id, r]));
+  const CAPS = [
+    { id: 'review', label: 'Approve, escalate and reassign exceptions', verb: 'work exceptions' },
+    { id: 'dismiss', label: 'Dismiss exceptions with a reason', verb: 'dismiss exceptions' },
+    { id: 'dismissLarge', label: 'Dismiss blockers at or above the dismissal limit', verb: 'dismiss large blockers' },
+    { id: 'release', label: 'Release payroll', verb: 'release payroll' },
+    { id: 'reopen', label: 'Reopen a released cycle', verb: 'reopen a released cycle' },
+    { id: 'rules', label: 'Change rules and thresholds', verb: 'change rules' },
+    { id: 'data', label: 'Import data and start new cycles', verb: 'load or replace cycle data' },
+    { id: 'ai', label: 'Ask the AI for explanations and causes', verb: 'use the AI' },
+    { id: 'unmask', label: 'Show real names in AI output', verb: 'show real names' },
+    { id: 'export', label: 'Download reports, registers and logs', verb: 'download data' },
+    { id: 'admin', label: 'Manage team, roles and policies', verb: 'change admin settings' },
+  ];
+  const CAP_OF = Object.fromEntries(CAPS.map((c) => [c.id, c]));
+  const ROLE_CAPS = {
+    admin: CAPS.map((c) => c.id),
+    approver: ['review', 'dismiss', 'dismissLarge', 'release', 'reopen', 'data', 'ai', 'unmask', 'export'],
+    reviewer: ['review', 'dismiss', 'ai', 'export'],
+    viewer: ['export'],
+  };
+  const defaultPerms = () => Object.fromEntries(ROLES.map((r) => [r.id, Object.fromEntries(CAPS.map((c) => [c.id, ROLE_CAPS[r.id].includes(c.id)]))]));
+  const defaultPolicy = () => ({ perms: defaultPerms(), sod: true, lockAfterRelease: true, dismissLimit: 500, approveNote: false, slaBlockerH: 24, slaReviewH: 72, aiExplain: true, aiClusters: true, fixThreshold: 3, cutoffDays: 2, cutoffTime: '10:00', pin: null });
+  const defaultTeam = (name) => [
+    { id: 'u1', name: name || 'Payroll ops', role: 'admin', queue: 'Payroll', active: true },
+    { id: 'u2', name: 'Payroll approver', role: 'approver', queue: 'Payroll', active: true },
+    { id: 'u3', name: 'Payroll reviewer', role: 'reviewer', queue: 'Payroll', active: true },
+    { id: 'u4', name: 'HR partner', role: 'reviewer', queue: 'HR', active: true },
+    { id: 'u5', name: 'Store operations', role: 'reviewer', queue: 'Store manager', active: true },
+    { id: 'u6', name: 'Timekeeping admin', role: 'reviewer', queue: 'WFM admin', active: true },
+    { id: 'u7', name: 'Treasury analyst', role: 'reviewer', queue: 'Treasury', active: true },
+    { id: 'u8', name: 'GL accountant', role: 'reviewer', queue: 'GL accounting', active: true },
+    { id: 'u9', name: 'Internal audit', role: 'viewer', queue: '', active: true },
+  ];
+  // Actions gated by one permission each, checked before the click handler runs them.
+  const DATA_ACTIONS = new Set(['load-sample', 'new-cycle', 'confirm-new-cycle', 'import-load', 'sync', 'sample', 'sample-pdf', 'mode']);
+  const EXPORT_ACTIONS = new Set(['export-ex', 'export-ex-all', 'export-variance', 'export-audit', 'download-brief', 'copy-brief', 'backup-export']);
 
   const svg = (d, s) => `<svg width="${s || 16}" height="${s || 16}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICON = {
@@ -79,6 +124,11 @@
     rules: svg('<rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V2.8h6V4M9 10h6M9 14h6M9 18h3"/>'),
     sliders: svg('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
     menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>', 18),
+    quality: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 9.8"/>'),
+    dollar: svg('<path d="M12 3v18"/><path d="M16.5 7.5c-.7-1.4-2.4-2.2-4.5-2.2-2.6 0-4.3 1.3-4.3 3.1 0 4.4 9 2.4 9 6.9 0 1.9-1.9 3.3-4.6 3.3-2.3 0-4.1-1-4.8-2.5"/>'),
+    match: svg('<path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/>'),
+    repeat: svg('<path d="m17 2 3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="m7 22-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/>'),
+    key: svg('<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16.5 6.5 19 9M14 9l2 2"/>'),
     chevron: svg('<path d="m6 9 6 6 6-6"/>', 14),
     refresh: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>', 14),
     check: svg('<path d="M5 12.5 10 17l9-10"/>', 14),
@@ -93,24 +143,27 @@
   const NAV = [
     { group: 'Pay cycle', items: [
       { id: 'overview', label: 'Overview', icon: 'overview' },
+      { id: 'exceptions', label: 'Review queue', icon: 'flag' },
       { id: 'people', label: 'People', icon: 'people' },
     ] },
-    { group: 'Payroll Integrity AI', items: [
-      { id: 'feedpulse', label: 'FeedPulse', num: 1 },
-      { id: 'runradar', label: 'RunRadar', num: 2 },
-      { id: 'exceptions', label: 'Variance Voice', num: 3 },
-      { id: 'threeway', label: 'Three-Way True', num: 4 },
-      { id: 'fixflow', label: 'FixFlow Clusters', num: 5 },
+    { group: 'Checks', items: [
+      { id: 'feedpulse', label: 'Data quality', icon: 'quality' },
+      { id: 'runradar', label: 'Pay accuracy', icon: 'dollar' },
+      { id: 'threeway', label: 'Bank and ledger', icon: 'match' },
+      { id: 'fixflow', label: 'Repeat issues', icon: 'repeat' },
     ] },
     { group: 'Records', items: [
       { id: 'reports', label: 'Reports', icon: 'file' },
-      { id: 'activity', label: 'Activity', icon: 'clock' },
+      { id: 'activity', label: 'Activity log', icon: 'clock' },
     ] },
-    { group: 'Configure', items: [
+    { group: 'Setup', items: [
       { id: 'sources', label: 'Data sources', icon: 'db' },
       { id: 'rules', label: 'Rules', icon: 'rules' },
-      { id: 'controls', label: 'Controls', icon: 'shield' },
+      { id: 'controls', label: 'All checks', icon: 'shield' },
       { id: 'settings', label: 'Settings', icon: 'sliders' },
+    ] },
+    { group: 'Admin', items: [
+      { id: 'admin', label: 'Admin console', icon: 'key' },
     ] },
   ];
   const PAGES = NAV.flatMap((g) => g.items.map((i) => i.id));
@@ -122,7 +175,7 @@
 
   const STORE_KEY = 'rollcall.payroll-assurance.v1';
   const FILES_KEY = 'rollcall.payroll-assurance.sources.v1';
-  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {} });
+  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {}, team: defaultTeam('Payroll ops'), userId: 'u1', policy: defaultPolicy() });
   let store = loadStore();
 
   function loadStore() {
@@ -135,11 +188,25 @@
             if (LEGACY_STATUS[it.status]) it.status = LEGACY_STATUS[it.status];
             (it.events || []).forEach((e) => { if (LEGACY_STATUS[e.from]) e.from = LEGACY_STATUS[e.from]; if (LEGACY_STATUS[e.to]) e.to = LEGACY_STATUS[e.to]; });
           }));
-          return Object.assign(freshStore(), s);
+          return hydrate(s);
         }
       }
     } catch (e) { /* storage unavailable: run in memory */ }
     return freshStore();
+  }
+  // Fill in team, roles and policies for stores saved before they existed.
+  function hydrate(s) {
+    const out = Object.assign(freshStore(), s);
+    if (!Array.isArray(s.team) || !s.team.length) out.team = defaultTeam(s.user);
+    const saved = s.policy || {};
+    const perms = defaultPerms();
+    ROLES.forEach((r) => Object.assign(perms[r.id], (saved.perms || {})[r.id] || {}));
+    CAPS.forEach((c) => { perms.admin[c.id] = true; });
+    ROLES.forEach((r) => { if (r.id !== 'admin') perms[r.id].admin = false; });
+    out.policy = Object.assign(defaultPolicy(), saved, { perms });
+    if (!out.team.some((m) => m.id === out.userId)) out.userId = (out.team.find((m) => m.name === out.user) || out.team[0]).id;
+    out.user = out.team.find((m) => m.id === out.userId).name;
+    return out;
   }
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* in memory only */ }
@@ -319,8 +386,9 @@
     const post = r.exceptions.filter((x) => x.severity === 'blocker' && !isPre(x));
     const postOpen = post.filter(isOpen);
     const released = cyc().released;
-    const st = released ? 'released' : !stagesRan ? 'nodata' : preOpen.length ? 'blocked' : 'ready';
-    return { state: st, pre, preOpen, dismissed, approved, post, postOpen, released, stagesRan };
+    const hold = !released && cyc().hold ? cyc().hold : null;
+    const st = released ? 'released' : !stagesRan ? 'nodata' : hold ? 'hold' : preOpen.length ? 'blocked' : 'ready';
+    return { state: st, pre, preOpen, dismissed, approved, post, postOpen, released, stagesRan, hold };
   }
 
   function openImpact() {
@@ -344,7 +412,7 @@
   // Shell
   // ----------------------------------------------------------------------------------
 
-  const STATE_WORD = { blocked: 'Release blocked', ready: 'Ready to release', released: 'Released', nodata: 'Waiting for data' };
+  const STATE_WORD = { blocked: 'Release blocked', ready: 'Ready to release', released: 'Released', nodata: 'Waiting for data', hold: 'Release on hold' };
 
   function periodText(p) {
     return `${shortDate(p.start)} – ${shortDate(p.end)}, ${p.end.slice(0, 4)}`;
@@ -360,7 +428,7 @@
   function renderWorkspace() {
     $('#workspace').innerHTML = `<span class="ws-mark" aria-hidden="true">${esc(initials(store.workspace))}</span>
       <span><b>${esc(store.workspace)}</b><small>${isSampleWorkspace() ? 'Sample workspace · fictional data' : 'Your files'}</small></span>`;
-    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Working as <b>${esc(store.user)}</b>. Statuses, notes and approvals are saved in this browser.`;
+    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Working as <b>${esc(store.user)}</b> · ${esc(roleLabel(me()))}. Statuses, notes and approvals are saved in this browser.`;
   }
 
   function navBadge(id) {
@@ -373,12 +441,13 @@
     if (id === 'controls') return `<span class="badge">${r.totals.checksRun}/${E.CHECKS.length}</span>`;
     if (id === 'sources') return `<span class="badge">${SOURCES.filter((s) => state.src[s.key] && (state.src[s.key].rows || state.src[s.key].json)).length}/${SOURCES.length}</span>`;
     if (id === 'rules') { const n = Object.keys(store.settings).length; return n ? `<span class="badge">${n} changed</span>` : ''; }
+    if (id === 'admin') { const late = r.exceptions.filter(pastSla).length; return late ? `<span class="badge crit" title="Overdue items">${late}</span>` : cyc().hold ? '<span class="badge">Hold</span>' : ''; }
     return '';
   }
 
   function renderNav() {
     $('#nav').innerHTML = NAV.map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => `
-      <a href="#${i.id}" ${state.page === i.id ? 'aria-current="page"' : ''}>${i.num ? appNum(i.num) : ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
+      <a href="#${i.id}" ${state.page === i.id ? 'aria-current="page"' : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
   }
 
   function renderTopbar() {
@@ -386,7 +455,7 @@
     const rel = rd.released;
     let releaseBtn;
     if (rd.state === 'released') releaseBtn = `<button class="btn" type="button" data-action="release-info">${ICON.check} Released</button>`;
-    else releaseBtn = `<button class="btn primary" type="button" data-action="release" ${rd.state === 'ready' ? '' : 'aria-disabled="true"'} title="${rd.state === 'ready' ? 'Approve and release this batch' : rd.state === 'nodata' ? 'Load the cycle data first' : `Clear ${plural(rd.preOpen.length, 'blocker')} first`}">Release payroll</button>`;
+    else releaseBtn = `<button class="btn primary" type="button" data-action="release" ${rd.state === 'ready' ? '' : 'aria-disabled="true"'} title="${rd.state === 'ready' ? 'Approve and release this batch' : rd.state === 'nodata' ? 'Load the cycle data first' : rd.state === 'hold' ? 'Release is on hold' : `Clear ${plural(rd.preOpen.length, 'blocker')} first`}">Release payroll</button>`;
     $('#topbar').innerHTML = `
       <button class="btn small menu-btn" type="button" data-action="nav-toggle" aria-label="Open navigation" aria-expanded="${$('#shell').classList.contains('nav-open')}">${ICON.menu}</button>
       <button class="cycle-btn" type="button" data-action="cycle-menu" aria-haspopup="true" aria-expanded="false">
@@ -401,7 +470,7 @@
   }
 
   function renderPage() {
-    const fn = { feedpulse: renderFeedpulse, runradar: renderRunradar, threeway: renderThreeway, fixflow: renderFixflow, overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings }[state.page];
+    const fn = { feedpulse: renderFeedpulse, runradar: renderRunradar, threeway: renderThreeway, fixflow: renderFixflow, overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings, admin: renderAdmin }[state.page];
     fn();
   }
 
@@ -419,6 +488,7 @@
     state.page = next;
     closeNav();
     closePopover();
+    hideTip();
     renderShell();
     renderPage();
     if (changed) window.scrollTo(0, 0);
@@ -450,7 +520,7 @@
     const out = [];
     if (r.stages.some((s) => s.ran)) out.push({ date: p.end, title: 'Pay period closes', sub: `${shortDate(p.start)} – ${shortDate(p.end)} · ${F.fmtH(sum(r.employees, (e) => e.wfmWorked + e.wfmPto))} approved in WFM` });
     const fund = bank.filter((b) => b.txn_type === 'NET_PAY_FUNDING' || b.txn_type === 'TAX_FUNDING').map((b) => b.value_date).sort()[0];
-    if (fund) out.push({ date: fund, title: 'Funding impounded', sub: `${F.money(r.funding.netFunding)} net pay · ${F.money(r.funding.taxFunding)} tax` });
+    if (fund) out.push({ date: fund, title: 'Payroll funded', sub: `${F.money(r.funding.netFunding)} net pay · ${F.money(r.funding.taxFunding)} tax` });
     if (p.payDate) out.push({ date: p.payDate, title: 'Direct deposits settle', sub: `${plural(bank.filter((b) => b.txn_type === 'ACH_CREDIT').length, 'deposit')} · ${F.money(r.funding.achTotal)}` });
     const glDate = gl.map((g) => g.post_date).filter(Boolean).sort()[0];
     if (glDate) out.push({ date: glDate, title: 'Payroll journal posted', sub: `${gl[0].je_id || 'Journal'} · ${plural(gl.length, 'line')}` });
@@ -464,8 +534,11 @@
     const pct = rd.pre.length ? Math.round((cleared / rd.pre.length) * 100) : rd.stagesRan ? 100 : 0;
     let text, actions;
     if (rd.state === 'blocked') {
-      text = `${plural(rd.preOpen.length, 'blocker')} in time, roster and register checks ${rd.preOpen.length === 1 ? 'is' : 'are'} open. Approve or dismiss each one in Variance Voice to release this batch.`;
+      text = `${plural(rd.preOpen.length, 'blocker')} in time, roster and register checks ${rd.preOpen.length === 1 ? 'is' : 'are'} open. Approve or dismiss each one in the review queue to release this batch.`;
       actions = `<button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button><button class="btn" type="button" data-action="release" aria-disabled="true">Release payroll</button>`;
+    } else if (rd.state === 'hold') {
+      text = `A payroll admin put release on hold (${rd.hold.by}, ${stamp(rd.hold.at)}): “${rd.hold.reason}”.${rd.preOpen.length ? ` ${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} also open.` : ' Every pre-release blocker is cleared.'}`;
+      actions = `${rd.preOpen.length ? '<button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button>' : ''}${can('admin') ? '<button class="btn" type="button" data-action="admin-tab" data-tab="policies">Lift the hold</button>' : ''}`;
     } else if (rd.state === 'ready') {
       text = `${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} are cleared${rd.dismissed.length ? `, ${rd.dismissed.length} dismissed with a reason` : ''}.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${plural(rd.postOpen.length, 'funding and GL blocker', 'funding and GL blockers')} stay open and are tracked after settlement.` : ''}`;
       actions = `<button class="btn primary" type="button" data-action="release">Release payroll</button><a class="btn" href="#exceptions">Review exceptions</a>`;
@@ -478,7 +551,8 @@
       actions = `<button class="btn primary" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button><button class="btn" type="button" data-action="load-sample">Load sample cycle</button>`;
     }
     const owners = byOwner(rd.preOpen);
-    const top = (rd.state === 'blocked' ? rd.preOpen : rd.dismissed).slice().sort((a, b) => (b.impact ? b.impact.amount : 0) - (a.impact ? a.impact.amount : 0)).slice(0, 4);
+    const listOpen = rd.state === 'blocked' || (rd.state === 'hold' && rd.preOpen.length > 0);
+    const top = (listOpen ? rd.preOpen : rd.dismissed).slice().sort((a, b) => (b.impact ? b.impact.amount : 0) - (a.impact ? a.impact.amount : 0)).slice(0, 4);
     const missing = SOURCES.filter((s) => s.group === 'records' && !(state.src[s.key] && state.src[s.key].rows));
     const oi = openImpact();
     const dates = keyDates();
@@ -502,8 +576,8 @@
           <div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Pre-release blockers cleared"><i style="width:${pct}%"></i></div>
           <div class="progress-meta"><span>${cleared} of ${plural(rd.pre.length, 'pre-release blocker')} cleared</span><span>${rd.approved.length} approved · ${rd.dismissed.length} dismissed</span></div></div>
           ${owners.length ? `<div><span class="eyebrow">Open blockers by owner</span><div class="owner-row" style="margin-top:6px">${owners.map(([o, l]) => `<button type="button" data-action="filter-owner" data-owner="${esc(o)}" data-pre="1">${esc(o)} <b>${l.length}</b></button>`).join('')}</div></div>` : ''}
-          ${top.length ? `<div><span class="eyebrow">${rd.state === 'blocked' ? 'Largest open blockers' : 'Dismissed with a reason'}</span><ul class="mini-list" style="margin-top:6px">${top.map((x) => `<li><button type="button" data-action="goto-ex" data-key="${esc(x.key)}" data-scope="pre">
-            <span class="pill ${rd.state === 'blocked' ? 'blocker' : 'info'}">${esc(x.check)}</span>
+          ${top.length ? `<div><span class="eyebrow">${listOpen ? 'Largest open blockers' : 'Dismissed with a reason'}</span><ul class="mini-list" style="margin-top:6px">${top.map((x) => `<li><button type="button" data-action="goto-ex" data-key="${esc(x.key)}" data-scope="pre">
+            <span class="pill ${listOpen ? 'blocker' : 'info'}">${esc(x.check)}</span>
             <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')} · ${esc(ownerOf(x))}</span></span>
             <span class="mono">${x.impact ? F.money(x.impact.amount) : '—'}</span></button></li>`).join('')}</ul></div>` : ''}`}
           <div class="actions-row">${actions}</div>
@@ -522,7 +596,7 @@
 
       ${showcaseHtml()}
 
-      <div class="group-title"><h3>Open exposure</h3><span class="muted">Dollar impact of exceptions that are not yet approved or dismissed</span></div>
+      <div class="group-title"><h3>Open dollar impact</h3><span class="muted">Dollar impact of exceptions not yet approved or dismissed</span></div>
       <div class="kpis">${KINDS.map((k) => {
         const v = oi.amount[k.kind];
         return `<button class="kpi" type="button" data-action="kind" data-kind="${k.kind}">
@@ -534,9 +608,9 @@
 
       <div class="grid ov-bottom" style="margin-top:16px">
         <section class="card">
-          <div class="card-head"><h3>Open items by owner</h3><a class="more" href="#exceptions">Exception queue</a></div>
+          <div class="card-head"><h3>Open items by owner</h3><a class="more" href="#exceptions">Review queue</a></div>
           ${ownerRows.length ? `<div class="table-wrap"><table>
-            <thead><tr><th>Owner</th><th class="n">Blockers</th><th class="n">Review</th><th class="n">Exposure</th></tr></thead>
+            <thead><tr><th>Owner</th><th class="n">Blockers</th><th class="n">Review</th><th class="n">Dollar impact</th></tr></thead>
             <tbody>${ownerRows.map(([o, l]) => `<tr class="clickable" data-action="filter-owner" data-owner="${esc(o)}">
               <td><b>${esc(o)}</b></td>
               <td class="n">${l.filter((x) => x.severity === 'blocker').length || '<span class="muted">0</span>'}</td>
@@ -594,7 +668,7 @@
     const stageOpts = [['', 'All stages'], ['pre', 'Before release'], ['post', 'After settlement']].concat(E.STAGES.map((s) => [s.id, s.title]));
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><span class="eyebrow">${appNum(3)} Payroll Integrity AI</span><h1>Variance Voice</h1><p>Why did it happen? One explanation per exception from FeedPulse, RunRadar and Three-Way True, citing the source records and the policy clause, with an owner and next step. The reviewer approves, dismisses or escalates; blockers before release must be approved or dismissed before payroll can be released.</p></div>
+        <div><span class="eyebrow">Step 3 of 5</span><h1>Review queue</h1><p>Every exception the checks found. Select one to see why it happened, the records behind it and the policy that applies, then approve, dismiss or escalate it. Blockers in the time, roster and register checks must be approved or dismissed before payroll can be released.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="export-ex">${ICON.download} Export CSV</button></div>
       </div>
       <div class="toolbar">
@@ -700,6 +774,8 @@
       approved: [['open', 'Reopen', '']],
       dismissed: [['open', 'Reopen', '']],
     }[st];
+    const lockWhy = changeBlock(x, null);
+    const dWhy = !lockWhy && (st === 'open' || st === 'escalated') ? changeBlock(x, 'dismissed') : '';
     const ev = [];
     if (x.expected) ev.push(['Expected', x.expected]);
     if (x.actual) ev.push(['Actual', x.actual]);
@@ -722,13 +798,14 @@
         <div class="ev">${ev.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
         ${x.action ? `<section><h4>Recommended action</h4><p>${esc(x.action)}</p></section>` : ''}
         <section><h4>Work this item</h4>
-          <div class="actions-row">${btns.map(([to, l, cls]) => `<button class="btn small ${cls}" type="button" data-action="set-status" data-to="${to}">${l}</button>`).join('')}</div>
+          <div class="actions-row">${btns.map(([to, l, cls]) => `<button class="btn small ${cls}" type="button" data-action="set-status" data-to="${to}" ${changeBlock(x, to) ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+          ${lockWhy || dWhy ? `<p class="muted" style="font-size:var(--t-xs);margin-top:6px">${esc(lockWhy || dWhy)}</p>` : ''}
           <label class="field" for="ownerOne" style="margin-top:10px">Owner
-            <select id="ownerOne" data-key="${esc(x.key)}">${ownerOptions().concat(ownerOf(x) === 'Unassigned' ? ['Unassigned'] : []).map((o) => `<option ${ownerOf(x) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+            <select id="ownerOne" data-key="${esc(x.key)}" ${lockWhy ? 'disabled' : ''}>${ownerOptions().concat(ownerOf(x) === 'Unassigned' ? ['Unassigned'] : []).map((o) => `<option ${ownerOf(x) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
           </label>
         </section>
         <section><h4><label for="noteText">Note</label></h4>
-          <textarea class="text" id="noteText" placeholder="Context, a ticket number, or the fix applied. Saved with the next action, or on its own."></textarea>
+          <textarea class="text" id="noteText" ${can('review') ? '' : 'disabled'} placeholder="Context, a ticket number, or the fix applied. Saved with the next action, or on its own."></textarea>
           <p class="form-err" id="noteErr" hidden></p>
           <div class="actions-row" style="margin-top:8px"><button class="btn small" type="button" data-action="add-note">Add note</button></div>
         </section>
@@ -890,7 +967,7 @@
   function renderControls() {
     const r = state.result;
     $('#page').innerHTML = `
-      <div class="page-head"><div><h1>Controls</h1><p>${E.CHECKS.length} checks across five stages, from WFM time through the payroll register, treasury funding and GL posting. Each reads the loaded data sources and the thresholds on the Rules page. Select a check to see what it found.</p></div></div>
+      <div class="page-head"><div><h1>All checks</h1><p>${E.CHECKS.length} checks across five stages, from WFM time through the payroll register, treasury funding and GL posting. Each reads the loaded data sources and the thresholds on the Rules page. Select a check to see what it found.</p></div></div>
       <div class="check-stages">${r.stages.map((s) => {
         const cs = r.checks.filter((c) => c.stage === s.id);
         const pass = cs.filter((c) => c.ran && (c.status === 'pass' || c.status === 'note')).length;
@@ -1289,6 +1366,7 @@
 
   async function enqueueFiles(files, forceKind) {
     if (!files.length) return;
+    if (!allow('data')) return;
     if (state.page !== 'sources' && !forceKind) go('sources');
     state.importBusy = `Reading ${plural(files.length, 'file')}…`;
     renderImportQueue();
@@ -1574,21 +1652,23 @@
   function renderRules() {
     const def = policyDefaults();
     const cfg = state.result.config;
+    const ro = can('rules') ? '' : 'disabled';
     const ua = input().agreement || {};
     const glm = input().glMap || {};
     const control = (f) => {
       const id = 'rule-' + f.key;
-      if (f.type === 'bool') return `<input type="checkbox" id="${id}" data-rule="${f.key}" ${cfg[f.key] ? 'checked' : ''}>`;
-      if (f.type === 'select') return `<select id="${id}" data-rule="${f.key}">${f.options.map(([v, l]) => `<option value="${esc(v)}" ${String(cfg[f.key]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-      return `<input type="number" inputmode="decimal" id="${id}" data-rule="${f.key}" value="${esc(ruleValue(f, cfg))}" step="${f.step || 1}" min="0">`;
+      if (f.type === 'bool') return `<input type="checkbox" id="${id}" data-rule="${f.key}" ${cfg[f.key] ? 'checked' : ''} ${ro}>`;
+      if (f.type === 'select') return `<select id="${id}" data-rule="${f.key}" ${ro}>${f.options.map(([v, l]) => `<option value="${esc(v)}" ${String(cfg[f.key]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      return `<input type="number" inputmode="decimal" id="${id}" data-rule="${f.key}" value="${esc(ruleValue(f, cfg))}" step="${f.step || 1}" min="0" ${ro}>`;
     };
     const steps = ua.steps || [];
     const rates = ua.rates || {};
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><h1>Rules</h1><p>Thresholds start from the loaded union agreement and employee handbook. Change one and every check re-runs; exceptions, exposure and the release brief update with it. Changes are logged.</p></div>
-        <div class="actions"><button class="btn small" type="button" data-action="reset-rules" ${Object.keys(store.settings).length ? '' : 'disabled'}>Reset all to policy</button></div>
+        <div><h1>Rules</h1><p>Thresholds start from the loaded union agreement and employee handbook. Change one and every check re-runs; exceptions, dollar impact and the release brief update with it. Changes are logged.</p></div>
+        <div class="actions"><button class="btn small" type="button" data-action="reset-rules" ${Object.keys(store.settings).length && can('rules') ? '' : 'disabled'}>Reset all to policy</button></div>
       </div>
+      ${can('rules') ? '' : `<div class="notice" style="margin-bottom:12px"><span>View only: your role (${esc(roleLabel(me()))}) can’t change rules.</span></div>`}
       <div class="rules">
         ${RULE_GROUPS.map((g) => `<section class="rule-card"><div><h4>${esc(g.title)}</h4><p class="src">${esc(g.src)}</p></div>
           ${g.fields.map((f) => `<div class="rule"><label for="rule-${f.key}">${esc(f.label)}${f.unit && f.type !== 'bool' && f.type !== 'select' ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</label>${control(f)}<p class="hint ${Object.prototype.hasOwnProperty.call(store.settings, f.key) ? 'changed' : ''}" id="hint-${f.key}">${hintHtml(f, def)}</p></div>`).join('')}
@@ -1624,6 +1704,7 @@
 
   let rerunTimer = null;
   function onRuleInput(el) {
+    if (!allow('rules')) { renderRules(); return; }
     const key = el.dataset.rule;
     const f = RULE_FIELDS.find((x) => x.key === key);
     const def = policyDefaults();
@@ -1657,19 +1738,18 @@
   }
 
   // ----------------------------------------------------------------------------------
-  // Payroll Integrity AI: five applications over one engine run.
+  // The checks: one engine run, shown as five steps of the pay cycle.
   // Rules calculate the dollars; the AI explains and groups; a reviewer approves.
   // ----------------------------------------------------------------------------------
 
   const APPS = [
-    { id: 'feedpulse', num: 1, name: 'FeedPulse', q: 'Is the data on time and complete?', tag: 'detect late input', span: [0, 1], bar: 'feeds on time, roster, punches' },
-    { id: 'runradar', num: 2, name: 'RunRadar', q: 'Which exceptions change someone’s pay?', tag: 'size payroll impact', span: [0, 1], bar: 'hours, OT, rates, PTO priced in $' },
-    { id: 'exceptions', num: 3, name: 'Variance Voice', q: 'Why did it happen?', tag: 'explain with evidence', span: [0, 3], bar: 'explains each exception with records and policy clauses' },
-    { id: 'threeway', num: 4, name: 'Three-Way True', q: 'Do payroll, payments and the ledger agree?', tag: 'reconcile outputs', span: [1, 3], bar: 'register ties to ACH, tax remittances and GL' },
-    { id: 'fixflow', num: 5, name: 'FixFlow Clusters', q: 'What keeps going wrong?', tag: 'find recurring failures', span: [0, 3], bar: 'recurring root causes across pay periods' },
+    { id: 'feedpulse', num: 1, name: 'Data quality', q: 'Did the data arrive complete and on time?' },
+    { id: 'runradar', num: 2, name: 'Pay accuracy', q: 'Is everyone paid the right amount?' },
+    { id: 'exceptions', num: 3, name: 'Review queue', q: 'Has a person checked every exception?' },
+    { id: 'threeway', num: 4, name: 'Bank and ledger', q: 'Do payroll, the bank and the ledger agree?' },
+    { id: 'fixflow', num: 5, name: 'Repeat issues', q: 'What keeps going wrong?' },
   ];
   const APP_BY_ID = Object.fromEntries(APPS.map((a) => [a.id, a]));
-  const HOPS = [['WFM', 'time records'], ['Payroll', 'pay register'], ['Treasury', 'ACH, taxes'], ['Finance', 'GL postings']];
   const RUNRADAR_TIME = new Set(['T5', 'T6', 'T7', 'T10']);
   const appOf = (x) => {
     const c = typeof x === 'string' ? x : x.check;
@@ -1677,9 +1757,8 @@
     if (c[0] === 'P' || RUNRADAR_TIME.has(c)) return 'runradar';
     return 'feedpulse';
   };
-  const APP_NAME = { feedpulse: 'FeedPulse', runradar: 'RunRadar', threeway: 'Three-Way True' };
-  const appChip = (id) => `<span class="appchip" data-app="${id}"><b>${APP_BY_ID[id === 'variance' ? 'exceptions' : id].num}</b>${esc(APP_NAME[id] || APP_BY_ID[id].name)}</span>`;
-  const appNum = (n) => `<span class="appnum" aria-hidden="true">${n}</span>`;
+  const APP_NAME = { feedpulse: 'Data quality', runradar: 'Pay accuracy', threeway: 'Bank and ledger' };
+  const appChip = (id) => `<span class="appchip" data-app="${id}">${esc(APP_NAME[id] || APP_BY_ID[id === 'variance' ? 'exceptions' : id].name)}</span>`;
 
   // ---- Policy clauses cited by each check
   const CHECK_CLAUSES = {
@@ -1889,7 +1968,7 @@
       const j = await callAi('explain', aiExplainPayload(x));
       aiStore().explain[aiKey(x)] = { at: nowIso(), model: j.model, data: j.data };
       save();
-      log('AI explanation', `${exLabel(x)} — Variance Voice explained with ${j.model}`, { ref: x.key, by: 'Rollcall' });
+      log('AI explanation', `${exLabel(x)} — explained by ${j.model}`, { ref: x.key, by: 'Rollcall' });
       state.aiError = null;
     } catch (e) { state.aiError = { key, message: e.message }; }
     state.aiBusy = null;
@@ -1927,14 +2006,15 @@
     const policyHtml = fromAi && data.policy
       ? `<blockquote class="clause"><b>${esc(data.policy.clause)}</b> ${citeHtml(data.policy.how_it_applies, unmask)}</blockquote>`
       : cl.map((c) => `<blockquote class="clause"><b>${esc(c.id)} ${esc(c.title)}</b> <span class="muted">${esc(c.doc)}</span><br>${esc(c.text)}</blockquote>`).join('');
-    const aiBtn = state.ai && state.ai.available
+    const aiBtn = state.ai && state.ai.available && store.policy.aiExplain && can('ai')
       ? `<button class="btn small ${fromAi ? '' : 'primary'}" type="button" data-action="ai-explain" data-key="${esc(x.key)}" ${busy ? 'disabled' : ''}>${busy ? 'Explaining…' : fromAi ? 'Explain again' : 'Explain with AI'}</button>`
       : '';
     const sourceLine = fromAi
-      ? `Written by ${esc(cached.model || 'the AI')} from the masked records below · ${esc(stamp(cached.at))}`
-      : state.ai && state.ai.available ? 'Assembled from the records by the rules. Ask the AI for a written explanation.' : 'Assembled from the records by the rules. The AI service is not connected on this deployment.';
-    return `<section class="vv" aria-label="Variance Voice explanation">
-      <div class="vv-head">${appNum(3)}<b>Variance Voice</b><span class="spacer"></span>${fromAi ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
+      ? `Written by ${esc(cached.model || 'the AI')} from the records below, with names hidden · ${esc(stamp(cached.at))}`
+      : !store.policy.aiExplain ? 'Put together from the records by the rules. AI explanations are turned off by a payroll admin.'
+        : state.ai && state.ai.available ? `Put together from the records by the rules.${can('ai') ? ' Ask the AI for a written explanation.' : ''}` : 'Put together from the records by the rules. The AI service isn’t connected on this deployment.';
+    return `<section class="vv" aria-label="Why it happened">
+      <div class="vv-head"><b>Why it happened</b><span class="spacer"></span>${fromAi && can('unmask') ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
       <p class="vv-source">${sourceLine}</p>
       ${err ? `<p class="form-err">${esc(err)}</p>` : ''}
       ${fromAi ? `<p class="vv-summary">${citeHtml(data.summary, unmask)}</p>` : ''}
@@ -1949,19 +2029,19 @@
           <div class="evid-fields">${Object.entries(e.fields).map(([k, v]) => `<span><i>${esc(k)}</i> ${esc(v)}</span>`).join('')}</div></div></div>`;
       }).join('')}</div>` : '<p class="muted">This check works on totals; the figures are in the finding above.</p>'}
     </section>
-    <details class="ai-sees"><summary>What the AI sees (masked)</summary>
+    <details class="ai-sees"><summary>What the AI sees (names hidden)</summary>
       <p class="muted" style="font-size:var(--t-xs);margin:6px 0">Names, employee IDs, bank accounts and routing numbers are replaced with synthetic values before anything leaves the browser. Dollar figures come from the rules.</p>
       <pre>${esc(JSON.stringify(aiExplainPayload(x), null, 2))}</pre></details>`;
   }
 
-  // ---- FeedPulse: is the data on time and complete?
+  // ---- Data quality: is the data on time and complete?
   const FEED_KEYS = ['time', 'schedules', 'census'];
   const SAMPLE_RECEIVED = { census: '2026-09-28T08:30:00', time: '2026-09-28T09:12:00', schedules: '2026-09-28T14:40:00', register: '2026-09-29T16:05:00', bank: '2026-10-06T07:00:00', gl: '2026-10-02T18:20:00' };
   function addDaysIso(d, n) { const t = new Date(d + 'T00:00:00'); t.setDate(t.getDate() + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
   function feedStatus(key) {
     const s = state.src[key] || {};
     const p = state.result.period;
-    const due = `${addDaysIso(p.end, 2)}T10:00:00`;
+    const due = `${addDaysIso(p.end, store.policy.cutoffDays)}T${store.policy.cutoffTime}:00`;
     const rows = s.rows || [];
     const loaded = !!s.rows;
     const received = !loaded ? null : s.origin === 'sample' ? SAMPLE_RECEIVED[key] : (s.received || s.at);
@@ -1980,7 +2060,7 @@
     }
     const alerts = [];
     if (!loaded) alerts.push({ sev: 'blocker', text: `${SRC[key].title} not received` });
-    if (late) alerts.push({ sev: 'review', text: `${SRC[key].title} arrived ${fmtLate(late)} after the ${shortDate(due.slice(0, 10))} 10:00 cutoff` });
+    if (late) alerts.push({ sev: 'review', text: `${SRC[key].title} arrived ${fmtLate(late)} after the ${shortDate(due.slice(0, 10))} ${due.slice(11, 16)} cutoff` });
     blanks.forEach(([c, n]) => alerts.push({ sev: 'review', text: `${plural(n, 'record')} with no ${c}` }));
     if (outside) alerts.push({ sev: 'review', text: `${plural(outside, 'record')} dated outside the pay period` });
     if (dupes) alerts.push({ sev: 'review', text: `${plural(dupes, 'duplicate record')}` });
@@ -1999,11 +2079,11 @@
     const order = ['T1', 'T2', 'T9', 'R1', 'R2', 'R3', 'R5', 'R4', 'T3', 'T4', 'T8'];
     const checkIds = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">${appNum(1)} Payroll Integrity AI</span><h1>FeedPulse</h1><p>Is the data on time and complete? FeedPulse watches the WFM time records, schedules and payroll census before payroll runs: late or missing files, people in WFM but not in payroll, time outside employment dates, missed punches, manager overrides and miscoded time.</p></div></div>
+      <div class="page-head"><div><span class="eyebrow">Step 1 of 5</span><h1>Data quality</h1><p>Did this cycle’s data arrive complete and on time? Before payroll runs, we check the time records, schedules and employee list for late or missing files, people in timekeeping but not in payroll, time outside employment dates, missed punches, manager overrides and miscoded time.</p></div></div>
       <section class="card">
-        <div class="card-head"><h3>Feeds</h3><span class="muted" style="font-size:var(--t-sm)">WFM close cutoff ${esc(F.fmtDate(feeds[0].due.slice(0, 10)))} 10:00</span></div>
+        <div class="card-head"><h3>Files received</h3><span class="muted" style="font-size:var(--t-sm)">Due by ${esc(F.fmtDate(feeds[0].due.slice(0, 10)))} ${esc(feeds[0].due.slice(11, 16))}</span></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Feed</th><th>Source</th><th>Received</th><th>Status</th><th class="n">Records</th><th class="n">Complete</th><th>Checks</th></tr></thead>
+          <thead><tr><th>File</th><th>Source</th><th>Received</th><th>Status</th><th class="n">Records</th><th class="n">Complete</th><th>Checks</th></tr></thead>
           <tbody>${feeds.map((f) => `<tr>
             <td><b>${esc(SRC[f.key].title)}</b><br><span class="muted mono" style="font-size:var(--t-xs)">${esc(f.source.name || '—')}</span></td>
             <td>${esc(SRC[f.key].sys)}</td>
@@ -2014,12 +2094,12 @@
             <td class="wrap">${f.loaded ? [f.outside ? `${f.outside} out of period` : '', f.dupes ? `${f.dupes} duplicates` : '', f.blanks.length ? `${f.blanks.length} required fields blank` : ''].filter(Boolean).join(' · ') || '<span class="muted">Period covered, no duplicates</span>' : `<a href="#sources">Load it</a>`}</td>
           </tr>`).join('')}</tbody></table></div>
       </section>
-      ${alerts.length ? `<div class="group-title"><h3>Feed alerts</h3><span class="muted">${plural(alerts.length, 'alert')}</span></div>
+      ${alerts.length ? `<div class="group-title"><h3>File alerts</h3><span class="muted">${plural(alerts.length, 'alert')}</span></div>
         <div class="alerts">${alerts.map((a) => `<div class="alert ${a.sev}"><span class="pill ${a.sev}">${a.sev === 'blocker' ? 'Missing' : 'Alert'}</span><span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
-      <div class="group-title"><h3>Data exceptions</h3><span class="muted">${open.length} open of ${list.length} · select one to see Variance Voice’s explanation</span></div>
+      <div class="group-title"><h3>Data exceptions</h3><span class="muted">${open.length} open of ${list.length} · select one to see why it happened</span></div>
       <div class="check-stages">${checkIds.map((id) => `<section class="check-stage">
         <header><span class="id mono">${id}</span><h3>${esc(CHECK_OF[id].title)}</h3><span class="sys">${esc(CHECK_OF[id].rule(r.config))}</span><span class="res">${groups[id].filter(isOpen).length} open</span></header>
-        <ul>${groups[id].map((x) => exLine(x)).join('')}</ul></section>`).join('') || '<div class="table-wrap"><div class="empty"><h3>No data exceptions</h3><p>Every FeedPulse check passed.</p></div></div>'}</div>`;
+        <ul>${groups[id].map((x) => exLine(x)).join('')}</ul></section>`).join('') || '<div class="table-wrap"><div class="empty"><h3>No data exceptions</h3><p>Every data check passed.</p></div></div>'}</div>`;
   }
 
   function exLine(x, extra) {
@@ -2032,7 +2112,7 @@
     </button></li>`;
   }
 
-  // ---- RunRadar: which exceptions change someone's pay?
+  // ---- Pay accuracy: which exceptions change someone's pay?
   const RR_GROUPS = [
     { id: 'hours', label: 'Hours against class', checks: ['T5', 'T7', 'P3', 'P10'] },
     { id: 'ot', label: 'Overtime and premiums', checks: ['T6', 'P4', 'P5'] },
@@ -2054,7 +2134,7 @@
     const top5 = sum(priced.slice(0, 5), (x) => x.impact.amount);
     const label = { underpaid: 'Owed to employees', overpaid: 'Overpaid', tax: 'Tax exposure', liability: 'PTO liability' };
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">${appNum(2)} Payroll Integrity AI</span><h1>RunRadar</h1><p>Which exceptions change someone’s pay? RunRadar checks validated time against each class (35h union, 40h full time, the 30h part-time cap), overtime (1.5× over 35 union and 40 non-exempt, 2× on Sunday, none for exempt salaried staff), rates against the census and union scale, and PTO drawn from the right bucket. The rules price every exception in dollars.</p></div></div>
+      <div class="page-head"><div><span class="eyebrow">Step 2 of 5</span><h1>Pay accuracy</h1><p>Which problems change someone’s pay? We check hours against each pay class (35 hours for union staff, 40 for full time, the 30-hour part-time cap), overtime (1.5× over 35 hours for union staff and over 40 for other hourly staff, 2× on Sundays, none for salaried exempt staff), pay rates against the employee list and the union scale, and whether time off came out of the right balance. The rules put a dollar amount on every problem.</p></div></div>
       <div class="kpis rr-kpis">${payKinds.map((k) => `<div class="kpi"><span class="label">${label[k]}</span><span class="value ${tot[k] ? '' : 'zero'}">${F.money(tot[k])}</span><span class="sub">open, from ${plural(openPriced.filter((x) => x.impact.kind === k).length, 'exception')}</span></div>`).join('')}</div>
       <section class="card" style="margin-top:16px">
         <div class="card-head"><h3>Ranked by dollar impact</h3><span class="muted" style="font-size:var(--t-sm)">${priced.length ? `The top 5 carry ${Math.round((top5 / all) * 100)}% of ${F.money(all)}` : 'Nothing priced'}</span></div>
@@ -2073,7 +2153,7 @@
         <div class="check-stages"><section class="check-stage"><ul>${unpriced.map((x) => exLine(x, `<span class="muted amt" style="font-size:var(--t-xs)">${esc(rrGroupOf(x.check).label)}</span>`)).join('')}</ul></section></div>` : ''}`;
   }
 
-  // ---- Three-Way True: do payroll, payments and the ledger agree?
+  // ---- Bank and ledger: do payroll, payments and the ledger agree?
   function threeWayRows() {
     const r = state.result, i = input();
     const num = E.util.num, r2 = E.util.r2;
@@ -2088,7 +2168,7 @@
     const glWages = r2(sum(wageAccts, dr));
     const suspense = dr(glm.suspense_account);
     const rows = [
-      { item: 'Net pay', payroll: reg.net, bank: bsum('NET_PAY_FUNDING'), bankLabel: 'Impound', gl: cr(glm.cash_account), glLabel: `${glm.cash_account} cash`, checks: ['F1', 'G6'] },
+      { item: 'Net pay', payroll: reg.net, bank: bsum('NET_PAY_FUNDING'), bankLabel: 'Funding pull', gl: cr(glm.cash_account), glLabel: `${glm.cash_account} cash`, checks: ['F1', 'G6'] },
       { item: 'Net pay settled by ACH', payroll: reg.net, bank: r2(bsum('ACH_CREDIT') - bsum('ACH_RETURN')), bankLabel: 'ACH credits less returns', gl: null, checks: ['F2', 'F3', 'F4'] },
       { item: 'Withholdings and employer taxes', payroll: r2(reg.eeTax + reg.erTax), bank: bsum('TAX_REMIT'), bankLabel: 'Tax remittances', gl: cr(L.taxes), glLabel: `${L.taxes} taxes payable`, checks: ['F6', 'G5'] },
     ].concat((r.funding.taxes || []).map((t) => ({ item: `· ${t.jurisdiction}`, sub: true, payroll: t.expected, bank: t.remitted, bankLabel: 'Remitted', gl: null, checks: ['F6'] })), [
@@ -2117,14 +2197,14 @@
     const matched = regRows.filter((x) => Math.abs((ach[x.emp_id] || 0) - num(x.net_pay)) < 0.01 && !returned.has(x.emp_id)).length;
     const money = (v) => (v === null || v === undefined ? '<span class="muted">—</span>' : F.money(v));
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">${appNum(4)} Payroll Integrity AI</span><h1>Three-Way True</h1><p>Do payroll, payments and the ledger agree? After funding and posting, Three-Way True matches net pay to the ACH file and bank activity, withholdings and employer taxes to the remittances, and the register to the GL postings. Every break gets an owner.</p></div></div>
+      <div class="page-head"><div><span class="eyebrow">Step 4 of 5</span><h1>Bank and ledger</h1><p>Do payroll, the bank and the general ledger agree? After payroll is funded and posted, we match net pay to the direct deposits and bank activity, taxes and deductions to the payments sent, and the payroll register to the ledger entries. Every difference gets an owner.</p></div></div>
       <div class="kpis tw-kpis">
-        <div class="kpi"><span class="label">Lines that tie</span><span class="value">${rows.filter((x) => !x.break).length} of ${rows.length}</span><span class="sub">register · bank · GL</span></div>
-        <div class="kpi"><span class="label">Breaks</span><span class="value ${breaks.length ? '' : 'zero'}" style="${breaks.length ? 'color:var(--crit)' : ''}">${breaks.filter(isOpen).length}</span><span class="sub">open, ${breaks.length} found</span></div>
+        <div class="kpi"><span class="label">Totals that match</span><span class="value">${rows.filter((x) => !x.break).length} of ${rows.length}</span><span class="sub">register · bank · GL</span></div>
+        <div class="kpi"><span class="label">Differences</span><span class="value ${breaks.length ? '' : 'zero'}" style="${breaks.length ? 'color:var(--crit)' : ''}">${breaks.filter(isOpen).length}</span><span class="sub">open, ${breaks.length} found</span></div>
         <div class="kpi"><span class="label">Deposits matching the register</span><span class="value">${matched} of ${regRows.length}</span><span class="sub">by employee</span></div>
       </div>
       <section class="card" style="margin-top:16px">
-        <div class="card-head"><h3>Register · bank · ledger</h3></div>
+        <div class="card-head"><h3>Payroll register, bank and ledger side by side</h3></div>
         <div class="table-wrap"><table class="tw-table">
           <thead><tr><th>Line</th><th class="n">Payroll register</th><th class="n">Bank and ACH</th><th class="n">General ledger</th><th>Result</th></tr></thead>
           <tbody>${rows.map((row) => `<tr class="${row.sub ? 'sub' : ''}">
@@ -2132,14 +2212,14 @@
             <td class="n">${money(row.payroll)}</td>
             <td class="n">${money(row.bank)}${row.bank !== null && row.bankLabel ? `<br><small class="muted">${esc(row.bankLabel)}</small>` : ''}</td>
             <td class="n">${money(row.gl)}${row.gl !== null && row.glLabel ? `<br><small class="muted">${esc(row.glLabel)}</small>` : ''}</td>
-            <td>${row.break ? `<span class="pill blocker">Break ${F.signedMoney(row.break)}</span>` : '<span class="pill pass">Ties</span>'}${row.open.length && !row.sub ? `<br><button class="linkish" type="button" data-action="goto-ex" data-key="${esc(row.open[0].key)}" style="font-size:var(--t-xs)">${esc(row.open[0].check)} · ${esc(ownerOf(row.open[0]))}</button>` : ''}</td>
+            <td>${row.break ? `<span class="pill blocker">Off by ${F.signedMoney(row.break)}</span>` : '<span class="pill pass">Matches</span>'}${row.open.length && !row.sub ? `<br><button class="linkish" type="button" data-action="goto-ex" data-key="${esc(row.open[0].key)}" style="font-size:var(--t-xs)">${esc(row.open[0].check)} · ${esc(ownerOf(row.open[0]))}</button>` : ''}</td>
           </tr>`).join('')}</tbody></table></div>
       </section>
-      <div class="group-title"><h3>Break report</h3><span class="muted">${breaks.filter(isOpen).length} open · each with an owner</span></div>
-      <div class="check-stages"><section class="check-stage"><ul>${breaks.map((x) => exLine(x)).join('') || '<li><div class="empty"><p>No breaks. The register, payments and ledger agree.</p></div></li>'}</ul></section></div>`;
+      <div class="group-title"><h3>Differences to fix</h3><span class="muted">${breaks.filter(isOpen).length} open · each with an owner</span></div>
+      <div class="check-stages"><section class="check-stage"><ul>${breaks.map((x) => exLine(x)).join('') || '<li><div class="empty"><p>No differences. The payroll register, the bank and the ledger agree.</p></div></li>'}</ul></section></div>`;
   }
 
-  // ---- FixFlow Clusters: what keeps going wrong?
+  // ---- Repeat issues: what keeps going wrong?
   const FIX_TYPES = {
     meal_return: { label: 'Missed lunch check-ins', by: 'store' },
     missing_out: { label: 'Missing check-outs', by: 'store' },
@@ -2249,7 +2329,7 @@
   }
 
   async function clustersWithAi() {
-    const thr = state.fixThreshold || 3;
+    const thr = state.fixThreshold || store.policy.fixThreshold;
     const { periods, recurring } = fixClusters(thr);
     if (!recurring.length) return;
     state.aiBusy = 'clusters';
@@ -2267,7 +2347,7 @@
       const data = { clusters: ((j.data && j.data.clusters) || []).map((x) => Object.assign({}, x, { id: ids[x.id] || x.id })) };
       aiStore().clusters = { at: nowIso(), model: j.model, data };
       save();
-      log('AI root causes', `FixFlow Clusters named root causes for ${plural(recurring.length, 'recurring issue')} with ${j.model}`, { by: 'Rollcall' });
+      log('AI root causes', `Suggested causes for ${plural(recurring.length, 'repeat issue')} with ${j.model}`, { by: 'Rollcall' });
       state.aiError = null;
     } catch (e) { state.aiError = { key: 'clusters', message: e.message }; }
     state.aiBusy = null;
@@ -2275,7 +2355,7 @@
   }
 
   function renderFixflow() {
-    const thr = state.fixThreshold || 3;
+    const thr = state.fixThreshold || store.policy.fixThreshold;
     const { periods, recurring, watch } = fixClusters(thr);
     const N = periods.length;
     const ai = aiStore().clusters;
@@ -2289,21 +2369,21 @@
         <header><div><h4>${esc(c.label)}</h4><p class="muted">${c.by === 'store' ? `Store: ${esc(c.dim)}` : c.by === 'manager' ? `Entered by: ${esc(c.dim)}` : `Across ${esc([...c.stores].join(', ') || 'the company')}`} · ${plural(c.occurrences, 'occurrence')}${c.people.size ? ` · ${plural(c.people.size, 'person', 'people')}` : ''}${c.amount ? ` · ${F.money(c.amount)}` : ''}</p></div>
           <span class="pill ${c.periods >= thr ? 'blocker' : 'review'}">${c.periods} of ${N} periods</span></header>
         <div class="heat-row"><span class="muted" style="font-size:var(--t-2xs)">${esc(periods[0].cycle)}</span>${heat(c)}<span class="muted" style="font-size:var(--t-2xs)">${esc(periods[N - 1].cycle)}</span></div>
-        <div class="rc"><span>Root cause</span><p>${esc(unmask ? m.unmask(rc.root_cause) : rc.root_cause)}</p></div>
-        <div class="rc"><span>Recommended fix</span><p>${esc(unmask ? m.unmask(rc.fix) : rc.fix)}</p></div>
-        <footer><span class="muted" style="font-size:var(--t-xs)">${aiFor(c) ? `Named by ${esc(ai.model || 'the AI')}` : 'Named by the rules'} · owner ${esc(c.owner)}</span>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period’s ${c.currentKeys.length === 1 ? 'exception' : `${c.currentKeys.length} exceptions`}</button>` : ''}</footer>
+        <div class="rc"><span>Likely cause</span><p>${esc(unmask ? m.unmask(rc.root_cause) : rc.root_cause)}</p></div>
+        <div class="rc"><span>Suggested fix</span><p>${esc(unmask ? m.unmask(rc.fix) : rc.fix)}</p></div>
+        <footer><span class="muted" style="font-size:var(--t-xs)">${aiFor(c) ? `Written by ${esc(ai.model || 'the AI')}` : 'Written by the rules'} · owner ${esc(c.owner)}</span>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period’s ${c.currentKeys.length === 1 ? 'exception' : `${c.currentKeys.length} exceptions`}</button>` : ''}</footer>
       </article>`;
     };
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">${appNum(5)} Payroll Integrity AI</span><h1>FixFlow Clusters</h1><p>What keeps going wrong? FixFlow Clusters reads the exceptions from the last ${N} pay periods, groups them by store, manager and type, flags patterns seen in ${thr} or more periods, and names the root cause and a fix.</p></div>
+      <div class="page-head"><div><span class="eyebrow">Step 5 of 5</span><h1>Repeat issues</h1><p>What keeps going wrong? We look at the exceptions from the last ${N} pay periods, group them by store, manager and type, flag anything seen in ${thr} or more periods, and suggest the cause and a fix.</p></div>
         <div class="actions"><label class="field" for="fixThr">Flag at
           <select id="fixThr">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === thr ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select></label>
-          ${state.ai && state.ai.available && recurring.length ? `<button class="btn small primary" type="button" data-action="ai-clusters" ${state.aiBusy === 'clusters' ? 'disabled' : ''}>${state.aiBusy === 'clusters' ? 'Naming…' : ai ? 'Name root causes again' : 'Name root causes with AI'}</button>` : ''}</div>
+          ${state.ai && state.ai.available && store.policy.aiClusters && can('ai') && recurring.length ? `<button class="btn small primary" type="button" data-action="ai-clusters" ${state.aiBusy === 'clusters' ? 'disabled' : ''}>${state.aiBusy === 'clusters' ? 'Writing…' : ai ? 'Suggest causes again' : 'Suggest causes with AI'}</button>` : ''}</div>
       </div>
       ${state.aiError && state.aiError.key === 'clusters' ? `<p class="form-err" style="margin-bottom:10px">${esc(state.aiError.message)}</p>` : ''}
-      <div class="notice" style="margin-bottom:14px"><span>Periods: ${periods.map((pp) => `<b class="mono">${esc(pp.cycle)}</b>${pp.current ? ' (this cycle)' : ''}`).join(' · ')}.${isSampleWorkspace() ? ' The five earlier periods are the sample workspace’s exception history.' : ' Earlier periods come from cycles released in this browser.'}${ai ? ` Root causes named by ${esc(ai.model || 'the AI')} · ${esc(stamp(ai.at))}.` : ''}</span></div>
-      <div class="group-title"><h3>Recurring issues</h3><span class="muted">${plural(recurring.length, 'pattern')} seen in ${thr} or more periods</span></div>
-      <div class="clusters">${recurring.map(card).join('') || '<div class="table-wrap"><div class="empty"><h3>Nothing recurring</h3><p>No exception pattern shows up in enough periods.</p></div></div>'}</div>
+      <div class="notice" style="margin-bottom:14px"><span>Periods: ${periods.map((pp) => `<b class="mono">${esc(pp.cycle)}</b>${pp.current ? ' (this cycle)' : ''}`).join(' · ')}.${isSampleWorkspace() ? ' The five earlier periods are the sample workspace’s exception history.' : ' Earlier periods come from cycles released in this browser.'}${ai ? ` Causes written by ${esc(ai.model || 'the AI')} · ${esc(stamp(ai.at))}.` : ''}</span></div>
+      <div class="group-title"><h3>Repeating issues</h3><span class="muted">${plural(recurring.length, 'issue')} seen in ${thr} or more periods</span></div>
+      <div class="clusters">${recurring.map(card).join('') || '<div class="table-wrap"><div class="empty"><h3>No repeat issues</h3><p>No exception shows up in enough pay periods to count as repeating.</p></div></div>'}</div>
       ${watch.length ? `<div class="group-title"><h3>Watch list</h3><span class="muted">Seen in 2 periods: not yet a pattern</span></div>
         <div class="table-wrap"><table>
           <thead><tr><th>Issue</th><th>Where</th><th>By period</th><th class="n">Occurrences</th><th>Owner</th><th></th></tr></thead>
@@ -2311,36 +2391,35 @@
             <td>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
   }
 
-  // ---- Overview: the flow from the use case, with live status for each application
+  // ---- Overview: the five steps of one pay cycle, with live status for each
   function appStatus() {
     const r = state.result;
     const feeds = FEED_KEYS.map(feedStatus);
     const by = (id) => r.exceptions.filter((x) => appOf(x) === id && x.severity !== 'info');
     const fp = by('feedpulse'), rr = by('runradar'), tw = by('threeway');
     const all = r.exceptions.filter((x) => x.severity !== 'info');
-    const fx = fixClusters(state.fixThreshold || 3);
+    const fx = fixClusters(state.fixThreshold || store.policy.fixThreshold);
     const st = (list) => (list.some((x) => isOpen(x) && x.severity === 'blocker') ? 'fail' : list.some(isOpen) ? 'warn' : 'pass');
     const rrMoney = sum(rr.filter((x) => isOpen(x) && x.impact), (x) => x.impact.amount);
     return {
-      feedpulse: { state: feeds.some((f) => !f.loaded) ? 'fail' : st(fp), text: `${feeds.filter((f) => f.loaded && !f.late).length} of ${feeds.length} feeds on time · ${fp.filter(isOpen).length} data exceptions open` },
-      runradar: { state: st(rr), text: `${rr.filter((x) => x.impact).length} exceptions priced · ${F.money(rrMoney)} open` },
+      feedpulse: { state: feeds.some((f) => !f.loaded) ? 'fail' : st(fp), text: `${feeds.filter((f) => f.loaded && !f.late).length} of ${feeds.length} files on time · ${fp.filter(isOpen).length} data exceptions open` },
+      runradar: { state: st(rr), text: `${plural(rr.filter((x) => x.impact).length, 'pay error')} found · ${F.money(rrMoney)} still open` },
       exceptions: { state: st(all), text: `${all.length - all.filter(isOpen).length} of ${all.length} reviewed · ${all.filter(isOpen).length} open` },
-      threeway: { state: st(tw), text: `${threeWayRows().filter((x) => !x.break).length} of ${threeWayRows().length} lines tie · ${tw.filter(isOpen).length} breaks open` },
-      fixflow: { state: fx.recurring.length ? 'warn' : 'pass', text: `${plural(fx.recurring.length, 'recurring issue')} across ${fx.periods.length} periods` },
+      threeway: { state: st(tw), text: `${threeWayRows().filter((x) => !x.break).length} of ${threeWayRows().length} totals match · ${tw.filter(isOpen).length} differences open` },
+      fixflow: { state: fx.recurring.length ? 'warn' : 'pass', text: `${plural(fx.recurring.length, 'repeat issue')} across ${fx.periods.length} pay periods` },
     };
   }
+  const STEP_PILL = { pass: ['pass', 'OK'], warn: ['review', 'Review'], fail: ['blocker', 'Action needed'] };
   function flowHtml() {
     const s = appStatus();
     return `<section class="card flow-card" aria-labelledby="flowTitle">
-      <div class="card-head"><h3 id="flowTitle">Payroll Integrity AI</h3><span class="muted" style="font-size:var(--t-sm)">Five applications check one pay cycle from time clock to ledger</span></div>
-      <div class="flow">
-        <div class="flow-lab"><b>Pay cycle</b></div>
-        ${HOPS.map(([a, b], k) => `<div class="hop" style="grid-column:${k + 2}"><b>${a}</b><span>${b}</span></div>`).join('')}
-        ${APPS.map((a) => `<div class="flow-lab app"><span>${appNum(a.num)}<b>${esc(a.name)}</b></span><small>${esc(a.tag)}</small></div>
-          <button class="flow-bar" type="button" data-action="go-page" data-page="${a.id}" data-state="${s[a.id].state}" style="grid-column:${a.span[0] + 2} / ${a.span[1] + 3}">
-            <span class="fb-top">${esc(a.bar)}</span><span class="fb-live"><i aria-hidden="true"></i>${esc(s[a.id].text)}</span></button>`).join('')}
-      </div>
-      <div class="guardrails"><span>Rules calculate the dollars</span><span>AI explains and groups</span><span>A reviewer approves before release</span><span>Demo data is synthetic and masked</span></div>
+      <div class="card-head"><h3 id="flowTitle">How this pay cycle is checked</h3><span class="muted" style="font-size:var(--t-sm)">Five steps, from the time clock to the general ledger</span></div>
+      <ol class="steps">${APPS.map((a) => `<li><button class="step" type="button" data-action="go-page" data-page="${a.id}" data-state="${s[a.id].state}">
+        <span class="step-top"><span class="step-n" aria-hidden="true">${a.num}</span><b>${esc(a.name)}</b></span>
+        <span class="step-q">${esc(a.q)}</span>
+        <span class="step-live"><span class="pill ${STEP_PILL[s[a.id].state][0]}">${STEP_PILL[s[a.id].state][1]}</span><span>${esc(s[a.id].text)}</span></span>
+      </button></li>`).join('')}</ol>
+      <div class="guardrails"><span>Rules calculate every dollar</span><span>The AI only explains</span><span>A person approves before payroll is released</span><span>Names are hidden from the AI</span></div>
     </section>`;
   }
 
@@ -2357,8 +2436,8 @@
   function showcaseHtml() {
     if (!isSampleWorkspace()) return '';
     const items = SHOWCASE.map((s) => Object.assign({ x: s.find ? state.result.exceptions.find(s.find) : null }, s)).filter((s) => s.page || s.x);
-    return `<section class="card showcase" style="margin-top:16px"><div class="card-head"><h3>Showcase walkthrough</h3><span class="muted" style="font-size:var(--t-sm)">The use case’s demo cases, in order</span></div>
-      <ol class="sc-list">${items.map((s) => `<li><button type="button" ${s.page ? `data-action="go-page" data-page="${s.page}"` : `data-action="goto-ex" data-key="${esc(s.x.key)}"`}>${appNum(s.app)}<span>${esc(s.label)}</span>${s.x ? statusPill(statusOf(s.x)) : '<span class="muted" style="font-size:var(--t-xs)">FixFlow</span>'}</button></li>`).join('')}</ol></section>`;
+    return `<section class="card showcase" style="margin-top:16px"><div class="card-head"><h3>Sample cases to try</h3><span class="muted" style="font-size:var(--t-sm)">Problems planted in the sample data. Select one to see what was found.</span></div>
+      <ol class="sc-list">${items.map((s) => `<li><button type="button" ${s.page ? `data-action="go-page" data-page="${s.page}"` : `data-action="goto-ex" data-key="${esc(s.x.key)}"`}><span class="sc-t">${esc(s.label)}<small>${esc(APPS[s.app - 1].name)}</small></span>${s.x ? statusPill(statusOf(s.x)) : '<span class="muted" style="font-size:var(--t-xs)">View</span>'}</button></li>`).join('')}</ol></section>`;
   }
 
   // ----------------------------------------------------------------------------------
@@ -2382,12 +2461,13 @@
     let first;
     if (rd.state === 'nodata') first = 'WAITING FOR DATA. Load the census, time records and payroll register to evaluate this cycle.';
     else if (rd.state === 'blocked') first = `HOLD. ${rd.preOpen.length} of ${plural(rd.pre.length, 'pre-release blocker')} open${rd.pre.length - rd.preOpen.length ? ` (${rd.pre.length - rd.preOpen.length} cleared)` : ''}; ${rd.postOpen.length} funding and GL blockers and ${review.length} review items also open.`;
+    else if (rd.state === 'hold') first = `ON HOLD. ${rd.hold.by} put release on hold: “${rd.hold.reason}”. ${rd.preOpen.length} of ${plural(rd.pre.length, 'pre-release blocker')} open.`;
     else if (rd.state === 'ready') first = `READY TO RELEASE. ${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} cleared: ${rd.approved.length} approved, ${rd.dismissed.length} dismissed with a reason.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${rd.postOpen.length} funding and GL blockers tracked after settlement.` : ''}`;
     else first = `RELEASED ${stamp(rd.released.at)} by ${rd.released.by}${rd.released.note ? ` — “${rd.released.note}”` : ''}.${rd.postOpen.length ? ` ${rd.postOpen.length} funding and GL blockers still open.` : ''}`;
     const money = KINDS.filter((k) => imp[k.kind]);
     const second = money.length
-      ? `Open exposure: ${money.map((k) => `${F.money(imp[k.kind])} ${k.kind === 'underpaid' ? `owed to ${plural(oi.people.underpaid, 'employee')}` : k.kind === 'overpaid' ? `overpaid across ${plural(oi.people.overpaid, 'employee')}` : k.label.toLowerCase()}`).join('; ')}.`
-      : 'No open dollar exposure.';
+      ? `Open dollar impact: ${money.map((k) => `${F.money(imp[k.kind])} ${k.kind === 'underpaid' ? `owed to ${plural(oi.people.underpaid, 'employee')}` : k.kind === 'overpaid' ? `overpaid across ${plural(oi.people.overpaid, 'employee')}` : k.label.toLowerCase()}`).join('; ')}.`
+      : 'No open dollar impact.';
     return { r, t, p, rd, review, dismissed, approved, line, dismissedLine, lead: [first, second] };
   }
 
@@ -2395,7 +2475,7 @@
     const m = briefModel();
     const section = (title, groups, fn) => groups.length ? `<h4>${esc(title)}</h4>${groups.map(([o, list]) => `<h5>${esc(o)} · ${list.length}</h5><ul>${list.map((x) => `<li>${esc((fn || m.line)(x))}</li>`).join('')}</ul>`).join('')}` : '';
     const reports = [
-      { title: 'Release brief', desc: 'Readiness, open exposure and every open item by owner, for the payroll manager, controller and store operations.', btns: `<button class="btn small" type="button" data-action="download-brief">${ICON.download} .txt</button><button class="btn small" type="button" data-action="copy-brief">Copy</button>` },
+      { title: 'Release brief', desc: 'Readiness, open dollar impact and every open item by owner, for the payroll manager, controller and store operations.', btns: `<button class="btn small" type="button" data-action="download-brief">${ICON.download} .txt</button><button class="btn small" type="button" data-action="copy-brief">Copy</button>` },
       { title: 'Exception register', desc: `All ${state.result.exceptions.length} exceptions with status, owner, expected vs actual, impact and notes.`, btns: `<button class="btn small" type="button" data-action="export-ex-all">${ICON.download} .csv</button>` },
       { title: 'Pay variance', desc: 'Register gross against validated gross for every employee, with hours from WFM and the register.', btns: `<button class="btn small" type="button" data-action="export-variance">${ICON.download} .csv</button>` },
       { title: 'Audit trail', desc: 'Every status change, note, reassignment, rule change, data load, re-run and release for this cycle.', btns: `<button class="btn small" type="button" data-action="export-audit">${ICON.download} .csv</button>` },
@@ -2483,7 +2563,7 @@
     const list = store.audit.filter((a) => scope === 'all' || a.cycle === cycleId());
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><h1>Activity</h1><p>An append-only log of who did what: status changes, notes, reassignments, rule changes, data loads, check runs and releases.</p></div>
+        <div><h1>Activity log</h1><p>An append-only log of who did what: status changes, notes, reassignments, rule changes, data loads, check runs and releases.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="export-audit">${ICON.download} Export CSV</button></div>
       </div>
       <div class="toolbar"><div class="seg" role="group" aria-label="Scope">
@@ -2503,8 +2583,11 @@
     $('#page').innerHTML = `
       <div class="page-head"><div><h1>Settings</h1><p>Preferences for this browser.</p></div></div>
       <div class="settings">
-        <section class="card"><div class="card-head"><h3>You</h3></div><div class="card-body">
-          <label for="setName">Your name</label>
+        <section class="card"><div class="card-head"><h3>You</h3><span class="pill plain">${esc(roleLabel(me()))}</span></div><div class="card-body">
+          <label for="setUser">Working as</label>
+          <select id="setUser">${store.team.filter((m) => m.active !== false || m.id === store.userId).map((m) => `<option value="${esc(m.id)}" ${m.id === store.userId ? 'selected' : ''}>${esc(m.name)} · ${esc(roleLabel(m))}</option>`).join('')}</select>
+          <p class="muted" style="font-size:var(--t-sm)">${esc(capsText(me()))}.${store.policy.pin ? ' Switching to a payroll admin asks for the admin PIN.' : ''}${can('admin') ? ' Manage the team in the <a href="#admin">Admin console</a>.' : ''}</p>
+          <label for="setName">Your display name</label>
           <input class="text" id="setName" value="${esc(store.user)}" autocomplete="name">
           <p class="muted" style="font-size:var(--t-sm)">Shown on status changes, notes and release approvals.</p>
         </div></section>
@@ -2514,7 +2597,7 @@
           <p class="muted" style="font-size:var(--t-sm)">Used in the sidebar, the release brief and exports.</p>
         </div></section>
         <section class="card"><div class="card-head"><h3>AI service</h3></div><div class="card-body">
-          <p style="font-size:var(--t-sm)">${state.ai && state.ai.available ? `<span class="conn ok">Connected</span> Variance Voice and FixFlow Clusters use ${esc(state.ai.model || 'the AI')}. Only masked records are sent.` : '<span class="conn idle">Not connected</span> Explanations and root causes are assembled from the records by the rules. Add a GROQ_API_KEY to the Vercel project to turn on the AI.'}</p>
+          <p style="font-size:var(--t-sm)">${state.ai && state.ai.available ? `<span class="conn ok">Connected</span> AI explanations and suggested causes use ${esc(state.ai.model || 'the AI')}. Names are hidden before anything is sent.` : '<span class="conn idle">Not connected</span> Explanations and root causes are assembled from the records by the rules. Add a GROQ_API_KEY to the Vercel project to turn on the AI.'}</p>
           <label for="setAiCode">Access code <span class="muted" style="font-weight:500">(only if the deployment sets AI_ACCESS_CODE · kept for this session)</span></label>
           <input class="text" id="setAiCode" type="password" autocomplete="off" value="${esc(state.aiCode || '')}">
         </div></section>
@@ -2523,9 +2606,713 @@
         </div></section>
         <section class="card"><div class="card-head"><h3>Data in this browser</h3></div><div class="card-body">
           <p style="font-size:var(--t-sm)">${plural(Object.keys(store.cycles).length, 'cycle')}, ${plural(store.audit.length, 'activity entry', 'activity entries')} and ${plural(Object.keys(store.settings).length, 'rule change')} are stored here. Clearing them resets statuses, notes, releases and the activity log, and reloads the sample cycle.</p>
-          <div><button class="btn small danger" type="button" data-action="reset-workspace">Clear workspace data…</button></div>
+          ${can('admin') ? '<div><button class="btn small danger" type="button" data-action="reset-workspace">Clear workspace data…</button></div>' : '<p class="muted" style="font-size:var(--t-sm)">Only a payroll admin can clear workspace data. Backups are in the Admin console.</p>'}
         </div></section>
       </div>`;
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Team, roles and policies: who may do what, and the controls a payroll admin sets.
+  // They apply to everyone working in this browser; in production people sign in via SSO.
+  // ----------------------------------------------------------------------------------
+
+  function me() { return store.team.find((m) => m.id === store.userId) || store.team[0]; }
+  const roleLabel = (m) => (ROLE_OF[m && m.role] || { label: (m && m.role) || 'Unknown' }).label;
+  const permsOf = (role) => store.policy.perms[role] || {};
+  function can(cap) {
+    const m = me();
+    return !!(m && m.active !== false && permsOf(m.role)[cap]);
+  }
+  const capsOf = (m) => CAPS.filter((c) => permsOf(m.role)[c.id]);
+  const capsText = (m) => { const l = capsOf(m); return l.length ? `Can ${l.map((c) => c.verb).join(', ')}` : 'Read only'; };
+  const upper = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const ACT = { approved: 'Approve', dismissed: 'Dismiss', escalated: 'Escalate', open: 'Reopen' };
+
+  // A blocked action is logged and explained; nothing changes.
+  function blocked(what, why, msg) {
+    log('Action blocked', `${what} · ${why}`);
+    toast(msg || why);
+  }
+  function allow(cap) {
+    if (can(cap)) return true;
+    const role = roleLabel(me());
+    blocked(upper(CAP_OF[cap].verb), `not permitted for the ${role} role`, `Your role (${role}) can’t ${CAP_OF[cap].verb}. Ask a payroll admin, or switch user in Settings.`);
+    return false;
+  }
+
+  const bigBlocker = (x) => x.severity === 'blocker' && !!x.impact && x.impact.amount >= store.policy.dismissLimit;
+  // Why this user can't move an exception to `to` (null = reassign), or '' when they can.
+  function changeBlock(x, to) {
+    const role = roleLabel(me());
+    if (!can('review')) return `Your role (${role}) can’t work exceptions.`;
+    if (cyc().released && store.policy.lockAfterRelease && isPre(x)) return `${cycleId()} is released, so pre-release items are locked. Reopen the cycle to change them.`;
+    if (to === 'dismissed' && !can('dismiss')) return `Your role (${role}) can’t dismiss exceptions.`;
+    if (to === 'dismissed' && bigBlocker(x) && !can('dismissLarge')) return `Blockers of ${F.money(store.policy.dismissLimit)} or more need a payroll approver or admin to dismiss.`;
+    return '';
+  }
+  function partition(keys, to) {
+    const ok = [], why = {};
+    keys.forEach((k) => {
+      const x = exByKey(k);
+      if (!x) return;
+      const w = changeBlock(x, to);
+      if (w) why[w] = (why[w] || 0) + 1;
+      else ok.push(x);
+    });
+    return { ok, skipped: sum(Object.values(why), (n) => n), reason: Object.keys(why)[0] || '' };
+  }
+  const skippedText = (pt) => (pt.skipped ? ` · ${pt.skipped} skipped. ${pt.reason}` : '');
+
+  // Review SLA: hours since the rules first found the item.
+  const slaH = (x) => (x.severity === 'blocker' ? store.policy.slaBlockerH : store.policy.slaReviewH);
+  const ageH = (x) => { const s = item(x).seen; return s ? Math.max(0, (Date.now() - new Date(s).getTime()) / 3.6e6) : 0; };
+  const pastSla = (x) => isOpen(x) && x.severity !== 'info' && ageH(x) > slaH(x);
+  const hrs = (h) => (h >= 48 ? `${Math.round(h / 24)}d` : h >= 1 ? `${Math.round(h)}h` : `${Math.max(1, Math.round(h * 60))}m`);
+
+  // Release separation of duties: the releaser didn't dismiss a pre-release blocker themselves.
+  function sodConflicts() {
+    if (!store.policy.sod) return [];
+    return readiness().dismissed.filter((x) => {
+      const ev = item(x).events.filter((e) => e.type === 'status' && e.to === 'dismissed').slice(-1)[0];
+      return ev && ev.by === store.user;
+    });
+  }
+
+  // SHA-256 for the admin PIN. crypto.subtle needs a secure context; this works everywhere.
+  function sha256(str) {
+    const K = [], H = [];
+    const frac = (x) => ((x - Math.floor(x)) * 4294967296) | 0;
+    for (let n = 2, c = 0; c < 64; n++) {
+      let prime = true;
+      for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; }
+      if (!prime) continue;
+      if (c < 8) H[c] = frac(Math.sqrt(n));
+      K[c++] = frac(Math.cbrt(n));
+    }
+    const bytes = Array.from(new TextEncoder().encode(str));
+    const bits = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 7; i >= 0; i--) bytes.push(i > 3 ? 0 : (bits >>> (i * 8)) & 0xff);
+    const rotr = (x, r) => (x >>> r) | (x << (32 - r));
+    const W = new Array(64);
+    for (let i = 0; i < bytes.length; i += 64) {
+      for (let t = 0; t < 16; t++) W[t] = (bytes[i + 4 * t] << 24) | (bytes[i + 4 * t + 1] << 16) | (bytes[i + 4 * t + 2] << 8) | bytes[i + 4 * t + 3];
+      for (let t = 16; t < 64; t++) {
+        const s0 = rotr(W[t - 15], 7) ^ rotr(W[t - 15], 18) ^ (W[t - 15] >>> 3);
+        const s1 = rotr(W[t - 2], 17) ^ rotr(W[t - 2], 19) ^ (W[t - 2] >>> 10);
+        W[t] = (W[t - 16] + s0 + W[t - 7] + s1) | 0;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let t = 0; t < 64; t++) {
+        const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + W[t]) | 0;
+        const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      [a, b, c, d, e, f, g, h].forEach((v, k) => { H[k] = (H[k] + v) | 0; });
+    }
+    return H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('');
+  }
+  const pinHash = (pin) => sha256(`rollcall-pin:${pin}`);
+
+  // ---- Working as: switching user, with the admin PIN in front of admin accounts.
+  function switchUser(id, el) {
+    const m = store.team.find((x) => x.id === id);
+    if (el) el.value = store.userId;
+    if (!m || m.id === store.userId) return;
+    if (permsOf(m.role).admin && store.policy.pin && !can('admin')) { pinModal(m, el); return; }
+    doSwitch(m);
+  }
+  function doSwitch(m) {
+    const was = me();
+    store.userId = m.id;
+    store.user = m.name;
+    log('Switched user', `${was.name} (${roleLabel(was)}) → ${m.name} (${roleLabel(m)})`);
+    state.unmask = state.unmask && can('unmask');
+    renderAll();
+    toast(`Working as ${m.name} · ${roleLabel(m)}`);
+  }
+  function pinModal(m, opener) {
+    openModal(`<div class="mh"><h2 id="modalTitle">Admin PIN</h2></div>
+      <div class="mb"><p>Enter the admin PIN to work as <b>${esc(m.name)}</b> (${esc(roleLabel(m))}).</p>
+        <label for="pinIn"><b>PIN</b></label>
+        <input class="text" id="pinIn" type="password" inputmode="numeric" autocomplete="off" autofocus>
+        <p class="form-err" id="pinErr" hidden></p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="pin-ok" data-id="${esc(m.id)}">Continue</button></div>`, opener);
+    const f = $('#pinIn');
+    if (f) f.focus();
+  }
+  function checkPin(id) {
+    const m = store.team.find((x) => x.id === id);
+    const v = ($('#pinIn').value || '').trim();
+    if (!m) { closeModal(); return; }
+    if (pinHash(v) !== store.policy.pin) {
+      log('Action blocked', `Switch to ${m.name} · wrong admin PIN`);
+      const e = $('#pinErr');
+      e.textContent = 'That PIN is not right.';
+      e.hidden = false;
+      $('#pinIn').select();
+      return;
+    }
+    closeModal();
+    doSwitch(m);
+  }
+
+  // ---- Release hold: set per cycle by a payroll admin.
+  function holdModal(opener) {
+    openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Put release on hold</h2></div>
+      <div class="mb"><p>Nobody can release ${esc(cycleId())} while the hold is on, even with every blocker cleared. Reviewers keep working exceptions.</p>
+        <label for="holdNote"><b>Reason</b></label>
+        <textarea class="text" id="holdNote" autofocus placeholder="e.g. Waiting on treasury to confirm the funding wire"></textarea>
+        <p class="form-err" id="holdErr" hidden></p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="hold-confirm">Put on hold</button></div>`, opener);
+  }
+  function confirmHold() {
+    if (!allow('admin')) { closeModal(); return; }
+    const reason = ($('#holdNote').value || '').trim();
+    if (!reason) { const e = $('#holdErr'); e.textContent = 'Give a reason for the hold.'; e.hidden = false; $('#holdNote').focus(); return; }
+    cyc().hold = { at: nowIso(), by: store.user, reason };
+    log('Release hold', `${cycleId()} on hold — “${reason}”`);
+    closeModal();
+    renderAll();
+    toast(`${cycleId()} release is on hold`);
+  }
+  function liftHold() {
+    if (!allow('admin')) return;
+    const h = cyc().hold;
+    if (!h) return;
+    cyc().hold = null;
+    log('Hold lifted', `${cycleId()} hold lifted (set by ${h.by}: “${h.reason}”)`);
+    renderAll();
+    toast('Hold lifted');
+  }
+
+  function escalatePastSla() {
+    const keys = state.result.exceptions.filter((x) => pastSla(x) && statusOf(x) === 'open').map((x) => x.key);
+    const pt = partition(keys, 'escalated');
+    pt.ok.forEach((x) => setStatus(x, 'escalated', `Overdue: open ${hrs(ageH(x))}, due within ${slaH(x)}h`));
+    if (pt.skipped) log('Action blocked', `Escalate ${plural(pt.skipped, 'overdue item')} · ${pt.reason}`);
+    afterWorkflow();
+    toast(`Escalated ${plural(pt.ok.length, 'overdue item')}${skippedText(pt)}`);
+  }
+
+  // ---- Team and permissions
+  const activeAdmins = () => store.team.filter((m) => m.role === 'admin' && m.active !== false);
+  function teamChange(el) {
+    if (!allow('admin')) { renderAdmin(); return; }
+    const m = store.team.find((x) => x.id === el.dataset.team);
+    if (!m) return;
+    const f = el.dataset.field;
+    const v = f === 'active' ? el.checked : el.value.trim();
+    const label = { name: 'name', role: 'role', queue: 'queue', active: 'status' }[f];
+    const show = (val) => (f === 'role' ? (ROLE_OF[val] || {}).label : f === 'active' ? (val !== false ? 'active' : 'inactive') : f === 'queue' ? val || 'no queue' : val);
+    const refuse = f === 'name' && !v ? 'A team member needs a name.'
+      : f === 'name' && store.team.some((x) => x.id !== m.id && x.name.toLowerCase() === v.toLowerCase()) ? `${v} is already on the team.`
+        : m.id === store.userId && (f === 'role' || f === 'active') ? 'Ask another payroll admin to change your own role or status.'
+          : m.role === 'admin' && m.active !== false && activeAdmins().length === 1 && ((f === 'role' && v !== 'admin') || (f === 'active' && !v)) ? 'Keep at least one active payroll admin.' : '';
+    if (refuse) { toast(refuse); renderAdmin(); return; }
+    const was = m[f];
+    if (was === v) return;
+    m[f] = v;
+    if (m.id === store.userId && f === 'name') store.user = v;
+    log('Team changed', `${m.name}: ${label} ${show(was)} → ${show(v)}`);
+    renderShell();
+    renderAdmin();
+    toast(`${m.name}: ${label} ${show(v)}`);
+  }
+  function addMember() {
+    if (!allow('admin')) return;
+    const name = ($('#tmName').value || '').trim();
+    const role = $('#tmRole').value, queue = $('#tmQueue').value;
+    const err = $('#tmErr');
+    const refuse = !name ? 'Enter a name.' : store.team.some((x) => x.name.toLowerCase() === name.toLowerCase()) ? `${name} is already on the team.` : '';
+    if (refuse) { err.textContent = refuse; err.hidden = false; $('#tmName').focus(); return; }
+    store.team.push({ id: `u${Date.now().toString(36)}`, name, role, queue, active: true });
+    log('Team changed', `Added ${name} as ${ROLE_OF[role].label}${queue ? `, ${queue} queue` : ''}`);
+    renderShell();
+    renderAdmin();
+    toast(`Added ${name}`);
+  }
+  function removeMember(id) {
+    if (!allow('admin')) return;
+    const m = store.team.find((x) => x.id === id);
+    if (!m) return;
+    if (m.id === store.userId) { toast('You can’t remove yourself.'); return; }
+    if (m.role === 'admin' && m.active !== false && activeAdmins().length === 1) { toast('Keep at least one active payroll admin.'); return; }
+    store.team = store.team.filter((x) => x.id !== id);
+    log('Team changed', `Removed ${m.name} (${roleLabel(m)})`);
+    renderShell();
+    renderAdmin();
+    toast(`Removed ${m.name}`);
+  }
+  function permChange(el) {
+    if (!allow('admin')) { renderAdmin(); return; }
+    const [role, cap] = el.dataset.perm.split('|');
+    if (role === 'admin' || cap === 'admin' || !ROLE_OF[role] || !CAP_OF[cap]) return;
+    store.policy.perms[role][cap] = el.checked;
+    log('Permission changed', `${ROLE_OF[role].label}: ${el.checked ? 'can' : 'can no longer'} ${CAP_OF[cap].verb}`);
+    renderShell();
+    toast(`${ROLE_OF[role].label}: ${el.checked ? 'can' : 'can no longer'} ${CAP_OF[cap].verb}`);
+  }
+  function setPin() {
+    if (!allow('admin')) return;
+    const v = ($('#pinNew').value || '').trim();
+    const err = $('#pinSetErr');
+    if (!/^\d{4,12}$/.test(v)) { err.textContent = 'Use 4 to 12 digits.'; err.hidden = false; $('#pinNew').focus(); return; }
+    const had = !!store.policy.pin;
+    store.policy.pin = pinHash(v);
+    log('Admin PIN', had ? 'Admin PIN changed' : 'Admin PIN set');
+    renderAdmin();
+    toast(had ? 'Admin PIN changed' : 'Admin PIN set');
+  }
+  function clearPin() {
+    if (!allow('admin')) return;
+    store.policy.pin = null;
+    log('Admin PIN', 'Admin PIN removed');
+    renderAdmin();
+    toast('Admin PIN removed');
+  }
+
+  // ---- Policies
+  const POLICY_LABEL = {
+    sod: 'Different person must release', lockAfterRelease: 'Lock pre-release items after release', dismissLimit: 'Dismissal limit',
+    approveNote: 'Note to approve a blocker', slaBlockerH: 'Blockers due within', slaReviewH: 'Review items due within', aiExplain: 'AI explanations',
+    aiClusters: 'AI-suggested causes', fixThreshold: 'Count an issue as repeating at', cutoffDays: 'Data due', cutoffTime: 'Data due by',
+  };
+  function polFmt(key, v) {
+    if (typeof v === 'boolean') return v ? 'on' : 'off';
+    if (key === 'dismissLimit') return F.money(v);
+    if (key === 'slaBlockerH' || key === 'slaReviewH') return `${v}h`;
+    if (key === 'cutoffDays') return `${plural(v, 'day')} after period end`;
+    if (key === 'fixThreshold') return `${v}+ periods`;
+    return String(v);
+  }
+  function policyChange(el) {
+    if (!allow('admin')) { renderAdmin(); return; }
+    const key = el.dataset.policy;
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (key === 'cutoffTime') { v = el.value; if (!/^\d{2}:\d{2}$/.test(v)) return; }
+    else {
+      v = Number(el.value);
+      if (el.value === '' || !Number.isFinite(v) || v < 0) { el.value = store.policy[key]; return; }
+      if (key === 'slaBlockerH' || key === 'slaReviewH') v = Math.max(1, Math.round(v));
+      if (key === 'cutoffDays') v = Math.min(14, Math.round(v));
+      el.value = v;
+    }
+    const was = store.policy[key];
+    if (was === v) return;
+    store.policy[key] = v;
+    if (key === 'fixThreshold') state.fixThreshold = null;
+    log('Policy changed', `${POLICY_LABEL[key]}: ${polFmt(key, was)} → ${polFmt(key, v)}`);
+    renderShell();
+    toast(`${POLICY_LABEL[key]}: ${polFmt(key, v)}`);
+  }
+
+  // ---- Backup and restore
+  function backupJson() {
+    let sources = null;
+    try { sources = JSON.parse(localStorage.getItem(FILES_KEY) || 'null'); } catch (e) { sources = null; }
+    return JSON.stringify({ app: 'rollcall-payroll-assurance', version: 1, exported: nowIso(), workspace: store.workspace, store, sources });
+  }
+  let pendingRestore = null;
+  async function readRestore(file) {
+    if (!allow('admin')) return;
+    let b = null;
+    try { b = JSON.parse(await file.text()); } catch (e) { b = null; }
+    if (!b || b.app !== 'rollcall-payroll-assurance' || !b.store || b.store.v !== 1) { toast('That file isn’t a Rollcall payroll assurance backup.'); return; }
+    pendingRestore = b;
+    const s = b.store;
+    openModal(`<div class="mh"><h2 id="modalTitle">Restore from backup?</h2></div>
+      <div class="mb">
+        <div class="ev">
+          <div><span>Workspace</span><b>${esc(s.workspace || '—')}</b></div>
+          <div><span>Exported</span><b>${esc(stamp(b.exported))}</b></div>
+          <div><span>Cycles</span><b>${Object.keys(s.cycles || {}).length}</b></div>
+          <div><span>Activity entries</span><b>${(s.audit || []).length}</b></div>
+        </div>
+        <p>This replaces everything in this browser with the backup: statuses, notes, releases, team, roles, policies, rule changes, the activity log and imported files. It can’t be undone; download a backup of the current data first if you need it.</p>
+      </div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="restore-confirm">Restore</button></div>`);
+  }
+  function confirmRestore() {
+    const b = pendingRestore;
+    pendingRestore = null;
+    if (!b || !allow('admin')) { closeModal(); return; }
+    const by = store.user;
+    store = hydrate(b.store);
+    try {
+      if (b.sources) localStorage.setItem(FILES_KEY, JSON.stringify(b.sources));
+      else localStorage.removeItem(FILES_KEY);
+    } catch (e) { /* imported files stay in memory only */ }
+    restoreSources();
+    state.detail = null;
+    state.sel.clear();
+    state.importQueue = [];
+    state.result = null;
+    state.fixThreshold = null;
+    recompute();
+    log('Backup restored', `${b.store.workspace || 'Workspace'} backup from ${stamp(b.exported)}, restored by ${by}`);
+    closeModal();
+    renderAll();
+    toast('Backup restored');
+  }
+
+  // ---- One tooltip for every chart mark. Lines come from data-tip; the first line is the value.
+  let tipEl = null;
+  function showTip(el, x, y) {
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+    tipEl.textContent = '';
+    el.dataset.tip.split('\n').forEach((line, k) => { const n = document.createElement(k ? 'span' : 'b'); n.textContent = line; tipEl.appendChild(n); });
+    tipEl.hidden = false;
+    const r = tipEl.getBoundingClientRect();
+    tipEl.style.left = `${Math.min(window.innerWidth - r.width - 8, Math.max(8, x + 12))}px`;
+    tipEl.style.top = `${y - r.height - 12 < 8 ? y + 16 : y - r.height - 12}px`;
+  }
+  const hideTip = () => { if (tipEl) tipEl.hidden = true; };
+  document.addEventListener('pointermove', (ev) => {
+    const el = ev.target.closest && ev.target.closest('[data-tip]');
+    if (el && ev.pointerType !== 'touch') showTip(el, ev.clientX, ev.clientY); else hideTip();
+  });
+  document.addEventListener('focusin', (ev) => {
+    const el = ev.target.closest && ev.target.closest('[data-tip]');
+    if (el && el.matches(':focus-visible')) { const r = el.getBoundingClientRect(); showTip(el, r.left + r.width / 2, r.top); } else hideTip();
+  });
+  document.addEventListener('focusout', hideTip);
+  document.addEventListener('scroll', hideTip, true);
+
+  // ----------------------------------------------------------------------------------
+  // Admin console: what a payroll admin watches, and the controls they set
+  // ----------------------------------------------------------------------------------
+
+  const ADMIN_TABS = [['monitor', 'Monitor'], ['team', 'Team and access'], ['policies', 'Policies'], ['data', 'Data and audit']];
+  const ADMIN_ACTIONS = new Set(['Action blocked', 'Switched user', 'Name changed', 'Team changed', 'Permission changed', 'Policy changed', 'Admin PIN',
+    'Release hold', 'Hold lifted', 'Payroll released', 'Cycle reopened', 'Rule changed', 'Backup exported', 'Backup restored', 'Workspace cleared']);
+
+  function renderAdmin() {
+    const tab = ADMIN_TABS.some(([id]) => id === state.adminTab) ? state.adminTab : 'monitor';
+    const body = { monitor: adminMonitor, team: adminTeam, policies: adminPolicies, data: adminData }[tab]();
+    $('#page').innerHTML = `
+      <div class="page-head">
+        <div><span class="eyebrow">Admin console · ${esc(cycleId())}</span><h1>Payroll admin</h1>
+        <p>Watch the cycle across every queue and application, and set who can do what: team and roles, release controls, review policy and the AI. Every change here is logged.</p></div>
+        <div class="actions"><span class="who-chip">${esc(store.user)} · ${esc(roleLabel(me()))}</span></div>
+      </div>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Admin console section">${ADMIN_TABS.map(([id, l]) => `<button type="button" data-action="admin-tab" data-tab="${id}" aria-pressed="${tab === id}">${l}</button>`).join('')}</div>
+        ${tab !== 'monitor' && !can('admin') ? `<span class="muted" style="font-size:var(--t-sm)">View only: your role (${esc(roleLabel(me()))}) can’t change admin settings.</span>` : ''}
+      </div>
+      ${body}`;
+  }
+
+  function niceTicks(max) {
+    const raw = Math.max(1, max) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = Math.max(1, [1, 2, 5, 10].map((k) => k * mag).find((s) => s >= raw));
+    const top = Math.max(step, Math.ceil(max / step) * step);
+    const ticks = [];
+    for (let v = 0; v <= top; v += step) ticks.push(v);
+    return { top, ticks };
+  }
+
+  function adminMonitor() {
+    const r = state.result, rd = readiness(), p = r.period;
+    const work = r.exceptions.filter((x) => x.severity !== 'info');
+    const open = work.filter(isOpen);
+    const escalated = open.filter((x) => statusOf(x) === 'escalated');
+    const late = open.filter(pastSla);
+    const lateOpen = late.filter((x) => statusOf(x) === 'open');
+    const nextDue = open.filter((x) => !pastSla(x)).map((x) => slaH(x) - ageH(x)).sort((a, b) => a - b)[0];
+    const priced = open.filter((x) => x.impact);
+    const exposure = sum(priced, (x) => x.impact.amount);
+    const done = work.length - open.length;
+    const pct = work.length ? Math.round((done / work.length) * 100) : 100;
+    const aiN = Object.keys(aiStore().explain).length;
+    const aiOn = !!(state.ai && state.ai.available && store.policy.aiExplain);
+    const thr = state.fixThreshold || store.policy.fixThreshold;
+    const fx = fixClusters(thr);
+    const apps = appStatus();
+
+    const tile = (label, value, sub, o) => {
+      o = o || {};
+      const tag = o.action ? 'button' : 'div';
+      return `<${tag} class="kpi" ${o.action ? `type="button" ${o.action}` : ''}><span class="label">${esc(label)}</span><span class="value ${o.cls || ''}">${value}</span><span class="sub">${esc(sub)}</span></${tag}>`;
+    };
+    const line = {
+      hold: rd.hold ? `Held by ${rd.hold.by}, ${stamp(rd.hold.at)}: “${rd.hold.reason}”.${rd.preOpen.length ? ` ${plural(rd.preOpen.length, 'pre-release blocker')} also open.` : ' Every pre-release blocker is cleared.'}` : '',
+      blocked: `${plural(rd.preOpen.length, 'pre-release blocker')} open across ${plural(byOwner(rd.preOpen).length, 'queue')}. Release opens when each one is approved or dismissed.`,
+      ready: `Every pre-release blocker is cleared${rd.dismissed.length ? `, ${rd.dismissed.length} dismissed with a reason` : ''}. ${can('release') ? 'You can release this batch.' : 'Waiting for a payroll approver or admin to release.'}`,
+      released: rd.released ? `Released ${stamp(rd.released.at)} by ${rd.released.by}.${rd.postOpen.length ? ` ${plural(rd.postOpen.length, 'funding and GL blocker', 'funding and GL blockers')} open for treasury and accounting.` : ''}` : '',
+      nodata: 'Waiting for the census, time records and payroll register.',
+    }[rd.state];
+    const btns = [];
+    if (rd.preOpen.length && !rd.released) btns.push('<button class="btn small" type="button" data-action="go-blockers">Work the blockers</button>');
+    if (lateOpen.length && can('review')) btns.push(`<button class="btn small" type="button" data-action="sla-escalate">Escalate ${plural(lateOpen.length, 'overdue item')}</button>`);
+    if (can('admin') && !rd.released && rd.state !== 'nodata') btns.push(rd.hold ? '<button class="btn small primary" type="button" data-action="hold-lift">Lift hold</button>' : '<button class="btn small" type="button" data-action="hold-open">Put release on hold…</button>');
+
+    // Stage meters: reviewed out of found, per stage.
+    const stages = E.STAGES.map((s) => {
+      const list = work.filter((x) => x.stage === s.id);
+      const c = { approved: 0, dismissed: 0, escalated: 0, open: 0 };
+      list.forEach((x) => { c[statusOf(x)]++; });
+      const ran = (r.stages.find((z) => z.id === s.id) || {}).ran;
+      return { s, total: list.length, c, done: c.approved + c.dismissed, ran };
+    });
+    const meter = (g) => {
+      const w = g.total ? Math.round((g.done / g.total) * 100) : g.ran ? 100 : 0;
+      const tip = g.total ? `${g.done} of ${g.total} reviewed\n${g.s.title}\n${g.c.approved} approved · ${g.c.dismissed} dismissed\n${g.c.escalated} escalated · ${g.c.open} open` : `${g.ran ? 'Nothing found' : 'No data'}\n${g.s.title}`;
+      return `<li><button class="stg" type="button" data-action="stage" data-stage="${g.s.id}" data-tip="${esc(tip)}">
+        <span class="stg-name"><b>${esc(g.s.title)}</b><small>${esc(g.s.phase)}${PRE.includes(g.s.id) ? ' · gates release' : ' · after settlement'}</small></span>
+        <span class="meter" aria-hidden="true"><i style="width:${w}%"></i></span>
+        <span class="stg-val"><b>${g.total ? `${g.done} of ${g.total}` : g.ran ? 'Clean' : 'No data'}</b><small>${g.total ? `${g.c.open + g.c.escalated} open${g.c.escalated ? ` · ${g.c.escalated} escalated` : ''}` : g.ran ? 'nothing found' : 'not loaded'}</small></span>
+      </button></li>`;
+    };
+
+    // Repeat issues per pay period, with the current period emphasized.
+    const per = fx.periods.map((pp, k) => ({
+      cycle: pp.cycle, current: !!pp.current, n: sum(fx.recurring, (c) => c.perPeriod[k]),
+      parts: fx.recurring.filter((c) => c.perPeriod[k]).map((c) => `${c.label}${c.by !== 'type' && c.dim ? `, ${c.dim}` : ''}: ${c.perPeriod[k]}`),
+    }));
+    const peak = Math.max(0, ...per.map((x) => x.n));
+    const { top, ticks } = niceTicks(peak);
+    const peakIdx = per.findIndex((x) => x.n === peak);
+    const shortCycle = (c) => c.replace(/^PR-\d{4}-/, 'PR ');
+    const chart = fx.recurring.length ? `<div class="colchart">
+        <div class="cc-plot">
+          ${ticks.map((v) => `<span class="cc-grid" style="bottom:${(v / top) * 100}%"><em>${v}</em></span>`).join('')}
+          <div class="cc-cols">${per.map((x, k) => `<button type="button" class="cc-col${x.current ? ' cur' : ''}" aria-label="${esc(`${x.cycle}${x.current ? ' (this cycle)' : ''}: ${x.n} occurrences`)}" data-tip="${esc([`${x.n} ${x.n === 1 ? 'occurrence' : 'occurrences'}`, `${x.cycle}${x.current ? ' · this cycle' : ''}`].concat(x.parts).join('\n'))}">
+            <span class="cc-bar" style="height:${top ? (x.n / top) * 100 : 0}%">${x.current || k === peakIdx ? `<b>${x.n}</b>` : ''}</span></button>`).join('')}</div>
+        </div>
+        <div class="cc-x" aria-hidden="true">${per.map((x) => `<span class="${x.current ? 'cur' : ''}">${esc(shortCycle(x.cycle))}</span>`).join('')}</div>
+      </div>
+      <details class="tview"><summary>Table view</summary><div class="table-wrap"><table>
+        <thead><tr><th>Period</th><th class="n">Occurrences</th><th>Patterns</th></tr></thead>
+        <tbody>${per.map((x) => `<tr><td class="mono">${esc(x.cycle)}${x.current ? ' <span class="pill plain">This cycle</span>' : ''}</td><td class="n">${x.n}</td><td class="wrap">${esc(x.parts.join('; ') || '—')}</td></tr>`).join('')}</tbody></table></div></details>`
+      : '<div class="empty"><h3>No repeat issues</h3><p>No exception shows up in enough pay periods to count as repeating.</p></div>';
+
+    // Queues: open work by owner, with who covers each queue.
+    const queues = [...new Set(OWNERS.concat(open.map(ownerOf)))].map((o) => {
+      const l = open.filter((x) => ownerOf(x) === o);
+      return {
+        o, l, people: store.team.filter((m) => m.active !== false && m.queue === o).map((m) => m.name),
+        esc: l.filter((x) => statusOf(x) === 'escalated').length, blockers: l.filter((x) => x.severity === 'blocker').length,
+        late: l.filter(pastSla).length, oldest: l.length ? Math.max(...l.map(ageH)) : 0, exposure: sum(l.filter((x) => x.impact), (x) => x.impact.amount),
+      };
+    }).filter((q) => q.l.length || q.people.length).sort((a, b) => b.blockers - a.blockers || b.l.length - a.l.length || a.o.localeCompare(b.o));
+
+    const feedRow = (def) => {
+      if (FEED_KEYS.includes(def.key)) {
+        const f = feedStatus(def.key);
+        return { def, at: f.received, pill: !f.loaded ? ['blocker', 'Missing'] : f.late ? ['review', `Late ${fmtLate(f.late)}`] : ['pass', 'On time'] };
+      }
+      const s = state.src[def.key] || {};
+      return { def, at: s.rows ? (s.origin === 'sample' ? SAMPLE_RECEIVED[def.key] : s.received || s.at) : null, pill: s.rows ? ['pass', 'Loaded'] : ['blocker', 'Missing'] };
+    };
+    const adminLog = store.audit.filter((a) => ADMIN_ACTIONS.has(a.action)).slice(0, 8);
+
+    return `
+      <section class="card adm-status" data-state="${rd.state}">
+        <div class="adm-status-main">
+          <span class="status-chip ${rd.state}">${STATE_WORD[rd.state]}</span>
+          <p>${esc(line)}</p>
+          ${btns.length ? `<div class="actions-row">${btns.join('')}</div>` : ''}
+        </div>
+        <div class="facts adm-facts">
+          <div><span>Pay date</span><b>${p.payDate ? esc(F.fmtDate(p.payDate)) : '—'}</b></div>
+          <div><span>Net pay</span><b>${F.money(r.regTotals.net)}</b></div>
+          <div><span>Employees paid</span><b>${r.totals.onRegister}</b></div>
+          <div><span>Checks last run</span><b>${esc(clock(state.lastRun))}</b></div>
+        </div>
+      </section>
+
+      <div class="kpis">
+        ${tile('Pre-release blockers', String(rd.preOpen.length), `open of ${rd.pre.length} · ${rd.preOpen.length ? 'release blocked' : 'gate clear'}`, { action: 'data-action="go-blockers"', cls: rd.preOpen.length ? 'crit' : 'zero' })}
+        ${tile('Awaiting review', String(open.length), `${escalated.length} escalated`, { action: 'data-action="go-page" data-page="exceptions"', cls: open.length ? '' : 'zero' })}
+        ${tile('Reviewed', `${pct}%`, `${done} of ${work.length} items`)}
+        ${tile('Open dollar impact', F.money(exposure), `from ${plural(priced.length, 'priced item')}`, { action: 'data-action="go-page" data-page="runradar"', cls: exposure ? '' : 'zero' })}
+        ${tile('Overdue', String(late.length), late.length ? `oldest open ${hrs(Math.max(...late.map(ageH)))}` : nextDue !== undefined ? `next due in ${hrs(nextDue)}` : 'nothing open', { cls: late.length ? 'crit' : 'zero' })}
+        ${tile('AI explanations', String(aiN), aiOn ? 'this cycle' : store.policy.aiExplain ? 'AI service not connected' : 'turned off in Policies', { cls: aiN ? '' : 'zero' })}
+      </div>
+
+      <div class="grid adm-2">
+        <section class="card">
+          <div class="card-head"><h3>Review progress by stage</h3><span class="muted" style="font-size:var(--t-sm)">Approved or dismissed, of everything found</span></div>
+          <ul class="stg-list">${stages.map(meter).join('')}</ul>
+          <details class="tview"><summary>Table view</summary><div class="table-wrap"><table>
+            <thead><tr><th>Stage</th><th class="n">Found</th><th class="n">Approved</th><th class="n">Dismissed</th><th class="n">Escalated</th><th class="n">Open</th></tr></thead>
+            <tbody>${stages.map((g) => `<tr><td>${esc(g.s.title)}</td><td class="n">${g.total}</td><td class="n">${g.c.approved}</td><td class="n">${g.c.dismissed}</td><td class="n">${g.c.escalated}</td><td class="n">${g.c.open}</td></tr>`).join('')}</tbody></table></div></details>
+        </section>
+        <section class="card">
+          <div class="card-head"><h3>Repeat issues by pay period</h3><a class="more" href="#fixflow">Repeat issues</a></div>
+          <p class="card-sub">How often the ${plural(fx.recurring.length, 'repeat issue')} showed up each period (an issue counts once it’s seen in ${thr} or more periods)</p>
+          ${chart}
+        </section>
+      </div>
+
+      <section class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Work by owner</h3><span class="muted" style="font-size:var(--t-sm)">Blockers are due within ${store.policy.slaBlockerH}h, review items within ${store.policy.slaReviewH}h</span><a class="more" href="#exceptions">Review queue</a></div>
+        ${queues.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Owner</th><th>People</th><th class="n">Open</th><th class="n">Escalated</th><th class="n">Blockers</th><th class="n">Overdue</th><th class="n">Oldest</th><th class="n">Dollar impact</th></tr></thead>
+          <tbody>${queues.map((q) => `<tr class="clickable" data-action="filter-owner" data-owner="${esc(q.o)}">
+            <td><b>${esc(q.o)}</b></td>
+            <td class="wrap">${q.people.length ? esc(q.people.join(', ')) : q.l.length ? '<span class="pill review">No one assigned</span>' : '<span class="muted">—</span>'}</td>
+            <td class="n">${q.l.length || '<span class="muted">0</span>'}</td>
+            <td class="n">${q.esc || '<span class="muted">0</span>'}</td>
+            <td class="n">${q.blockers || '<span class="muted">0</span>'}</td>
+            <td class="n">${q.late ? `<b class="neg">${q.late}</b>` : '<span class="muted">0</span>'}</td>
+            <td class="n">${q.l.length ? hrs(q.oldest) : '—'}</td>
+            <td class="n">${F.money(q.exposure)}</td></tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty"><h3>Nothing open</h3><p>Every queue is clear.</p></div>'}
+      </section>
+
+      <div class="grid adm-2">
+        <section class="card">
+          <div class="card-head"><h3>Checks</h3><span class="muted" style="font-size:var(--t-sm)">Each step of the cycle</span></div>
+          <ul class="adm-list">${APPS.map((a) => `<li><button type="button" data-action="go-page" data-page="${a.id}"><span class="t"><b>${esc(a.name)}</b><span>${esc(apps[a.id].text)}</span></span><span class="pill ${STEP_PILL[apps[a.id].state][0]}">${STEP_PILL[apps[a.id].state][1]}</span></button></li>`).join('')}</ul>
+        </section>
+        <section class="card">
+          <div class="card-head"><h3>Files received</h3><a class="more" href="#sources">Data sources</a></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Source</th><th>Received</th><th>Status</th></tr></thead>
+            <tbody>${SOURCES.filter((s) => s.group === 'records').map(feedRow).map((f) => `<tr><td><b>${esc(f.def.title)}</b><br><span class="muted" style="font-size:var(--t-xs)">${esc(f.def.sys)}</span></td><td class="mono" style="font-size:var(--t-xs)">${f.at ? esc(stamp(f.at)) : '—'}</td><td><span class="pill ${f.pill[0]}">${esc(f.pill[1])}</span></td></tr>`).join('')}</tbody>
+          </table></div>
+        </section>
+      </div>
+
+      <section class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Admin activity</h3><span class="muted" style="font-size:var(--t-sm)">Role and policy changes, holds, releases, user switches and blocked actions</span><a class="more" href="#activity">Full log</a></div>
+        ${adminLog.length ? `<ul class="feed">${adminLog.map(feedItem).join('')}</ul>` : '<div class="empty"><p>Nothing yet. Role changes, policy changes, holds, releases and blocked actions show up here.</p></div>'}
+      </section>`;
+  }
+
+  function adminTeam() {
+    const ed = can('admin');
+    const dis = ed ? '' : 'disabled';
+    const lastSeen = (m) => { const a = store.audit.find((e) => e.by === m.name); return a ? ago(a.t) : 'No activity'; };
+    const count = (role) => store.team.filter((m) => m.role === role && m.active !== false).length;
+    return `
+      <div class="notice" style="margin-bottom:16px"><span>Roles apply to everyone working in this browser. Each person picks themselves under Settings → Working as${store.policy.pin ? '; switching into a payroll admin asks for the admin PIN' : ''}. In production, people sign in through your single sign-on.</span></div>
+      <section class="card">
+        <div class="card-head"><h3>Team</h3><span class="muted" style="font-size:var(--t-sm)">${plural(store.team.filter((m) => m.active !== false).length, 'active member')}</span></div>
+        <div class="table-wrap"><table class="team">
+          <thead><tr><th>Name</th><th>Role</th><th>Queue</th><th>Status</th><th>Last activity</th><th></th></tr></thead>
+          <tbody>${store.team.map((m) => `<tr>
+            <td><span class="team-name"><input class="text" data-team="${esc(m.id)}" data-field="name" value="${esc(m.name)}" aria-label="Name" ${dis}>${m.id === store.userId ? '<span class="pill plain">You</span>' : ''}</span></td>
+            <td><select data-team="${esc(m.id)}" data-field="role" aria-label="Role for ${esc(m.name)}" ${dis}>${ROLES.map((r) => `<option value="${r.id}" ${m.role === r.id ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select></td>
+            <td><select data-team="${esc(m.id)}" data-field="queue" aria-label="Queue for ${esc(m.name)}" ${dis}><option value="">No queue</option>${OWNERS.map((o) => `<option ${m.queue === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></td>
+            <td><label class="field"><input type="checkbox" class="cb" data-team="${esc(m.id)}" data-field="active" ${m.active !== false ? 'checked' : ''} ${dis}> Active</label></td>
+            <td class="muted" style="font-size:var(--t-xs)">${esc(lastSeen(m))}</td>
+            <td>${ed && m.id !== store.userId ? `<button class="linkish" type="button" data-action="team-remove" data-id="${esc(m.id)}">Remove</button>` : ''}</td></tr>`).join('')}</tbody>
+        </table></div>
+        ${ed ? `<div class="card-body team-add">
+          <span class="eyebrow">Add a team member</span>
+          <div class="team-add-row">
+            <input class="text" id="tmName" placeholder="Name" aria-label="New member name" autocomplete="off">
+            <select id="tmRole" aria-label="New member role">${ROLES.map((r) => `<option value="${r.id}" ${r.id === 'reviewer' ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select>
+            <select id="tmQueue" aria-label="New member queue"><option value="">No queue</option>${OWNERS.map((o) => `<option>${esc(o)}</option>`).join('')}</select>
+            <button class="btn small primary" type="button" data-action="team-add">Add</button>
+          </div>
+          <p class="form-err" id="tmErr" hidden></p>
+        </div>` : ''}
+      </section>
+
+      <section class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Permissions by role</h3><span class="muted" style="font-size:var(--t-sm)">Payroll admins always hold every permission</span></div>
+        <div class="table-wrap"><table class="perm">
+          <thead><tr><th>Permission</th>${ROLES.map((r) => `<th class="c">${esc(r.label)}<br><span class="perm-n">${plural(count(r.id), 'person', 'people')}</span></th>`).join('')}</tr></thead>
+          <tbody>${CAPS.map((c) => `<tr><td class="wrap">${esc(c.label)}</td>${ROLES.map((r) => {
+            const locked = r.id === 'admin' || c.id === 'admin';
+            return `<td class="c"><input type="checkbox" class="cb" data-perm="${r.id}|${c.id}" ${permsOf(r.id)[c.id] ? 'checked' : ''} ${locked || !ed ? 'disabled' : ''} aria-label="${esc(`${r.label}: ${c.label}`)}"></td>`;
+          }).join('')}</tr>`).join('')}</tbody>
+        </table></div>
+        <div class="card-body"><p class="muted" style="font-size:var(--t-sm);margin-top:10px">${ROLES.map((r) => `<b>${esc(r.label)}</b>: ${esc(r.desc)}`).join(' · ')}</p></div>
+      </section>
+
+      <section class="card" style="margin-top:16px;max-width:720px">
+        <div class="card-head"><h3>Admin PIN</h3>${store.policy.pin ? '<span class="pill pass">Set</span>' : '<span class="pill plain">Not set</span>'}</div>
+        <div class="card-body" style="display:grid;gap:10px">
+          <p style="font-size:var(--t-sm)">Asked for when someone switches into a payroll admin in Settings, so reviewers sharing this browser can’t open the admin controls. It is a PIN, not a password: use single sign-on for real access control.</p>
+          ${ed ? `<div class="team-add-row">
+            <input class="text" id="pinNew" type="password" inputmode="numeric" maxlength="12" placeholder="4 to 12 digits" aria-label="New admin PIN" autocomplete="new-password">
+            <button class="btn small primary" type="button" data-action="pin-set">${store.policy.pin ? 'Change PIN' : 'Set PIN'}</button>
+            ${store.policy.pin ? '<button class="btn small danger" type="button" data-action="pin-clear">Remove PIN</button>' : ''}
+          </div><p class="form-err" id="pinSetErr" hidden></p>` : ''}
+        </div>
+      </section>`;
+  }
+
+  function adminPolicies() {
+    const p = store.policy, ed = can('admin'), dis = ed ? '' : 'disabled';
+    const rd = readiness();
+    const hold = cyc().hold;
+    const chk = (key, label, hint) => `<div class="rule"><label for="pol-${key}">${esc(label)}</label><input type="checkbox" id="pol-${key}" data-policy="${key}" ${p[key] ? 'checked' : ''} ${dis}><p class="hint">${esc(hint)}</p></div>`;
+    const num = (key, label, unit, hint, step, min) => `<div class="rule"><label for="pol-${key}">${esc(label)} <span class="muted">(${esc(unit)})</span></label><input type="number" inputmode="decimal" id="pol-${key}" data-policy="${key}" value="${esc(p[key])}" step="${step || 1}" min="${min || 0}" ${dis}><p class="hint">${esc(hint)}</p></div>`;
+    return `<div class="rules">
+      <section class="rule-card"><div><h4>Release controls</h4><p class="src">Checked whenever someone opens Release payroll</p></div>
+        <div class="hold-box" data-on="${!!hold}">
+          ${hold ? `<p><b>${esc(cycleId())} is on hold.</b> ${esc(hold.by)}, ${esc(stamp(hold.at))}: “${esc(hold.reason)}”</p>${ed ? '<div><button class="btn small primary" type="button" data-action="hold-lift">Lift hold</button></div>' : ''}`
+            : `<p><b>Release hold.</b> Stops anyone releasing ${esc(cycleId())} until an admin lifts it, even when every blocker is cleared.</p>${ed && !rd.released ? '<div><button class="btn small" type="button" data-action="hold-open">Put release on hold…</button></div>' : rd.released ? '<p class="muted">This cycle is already released.</p>' : ''}`}
+        </div>
+        ${chk('sod', 'A different person must release', 'Whoever dismissed a pre-release blocker can’t also release the batch.')}
+        ${chk('lockAfterRelease', 'Lock pre-release items after release', 'Time, roster and register items can’t change until the cycle is reopened with a reason.')}
+      </section>
+      <section class="rule-card"><div><h4>Review controls</h4><p class="src">The review queue</p></div>
+        ${num('dismissLimit', 'Dismissal limit', '$', 'Blockers at or above this amount need a payroll approver or admin to dismiss. Change who can under Team and access.', 50, 0)}
+        ${chk('approveNote', 'Require a note to approve a blocker', 'The reviewer writes what was fixed or checked before approving.')}
+        ${num('slaBlockerH', 'Blockers are due within', 'hours', 'Open blockers older than this show as overdue.', 1, 1)}
+        ${num('slaReviewH', 'Review items are due within', 'hours', 'The same, for review items.', 1, 1)}
+      </section>
+      <section class="rule-card"><div><h4>AI and checks</h4><p class="src">Data quality, the review queue and repeat issues</p></div>
+        ${chk('aiExplain', 'AI explanations in the review queue', 'Off: reviewers see the explanation the rules assemble from the records.')}
+        ${chk('aiClusters', 'AI-suggested causes on Repeat issues', 'Off: causes come from the rule templates.')}
+        <div class="rule"><label for="pol-fixThreshold">Count an issue as repeating at</label><select id="pol-fixThreshold" data-policy="fixThreshold" ${dis}>${[2, 3, 4, 5].map((n) => `<option value="${n}" ${p.fixThreshold === n ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select><p class="hint">The default on Repeat issues and the monitor.</p></div>
+        ${num('cutoffDays', 'Data is due', 'days after period end', 'Time records, schedules and the employee list received after this are late.', 1, 0)}
+        <div class="rule"><label for="pol-cutoffTime">Data is due by</label><input type="time" id="pol-cutoffTime" data-policy="cutoffTime" value="${esc(p.cutoffTime)}" ${dis}></div>
+        <div class="rule"><span>Mask names, IDs and bank details</span><span class="pill pass" style="justify-self:end">Always on</span><p class="hint">Applied before anything is sent to the AI. Not configurable.</p></div>
+        <div class="rule"><span>AI service</span>${state.ai && state.ai.available ? '<span class="conn ok" style="justify-self:end">Connected</span>' : '<span class="conn idle" style="justify-self:end">Not connected</span>'}<p class="hint">${state.ai && state.ai.available ? `${esc(state.ai.model)}. Only masked records are sent.` : 'Add GROQ_API_KEY to the deployment to turn it on.'}</p></div>
+      </section>
+    </div>`;
+  }
+
+  function adminData() {
+    const ed = can('admin');
+    const chars = (k) => { try { return (localStorage.getItem(k) || '').length; } catch (e) { return 0; } };
+    const used = chars(STORE_KEY) + chars(FILES_KEY);
+    const cap = 5 * 1024 * 1024;
+    const cycles = Object.entries(store.cycles).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+    const fact = (label, value) => `<div><span>${esc(label)}</span><b>${value}</b></div>`;
+    return `<div class="grid adm-2" style="margin-top:0">
+      <section class="card"><div class="card-head"><h3>Backup and restore</h3></div><div class="card-body" style="display:grid;gap:10px">
+        <p style="font-size:var(--t-sm)">Download everything this browser holds for ${esc(store.workspace)}: statuses, notes, releases, team, roles, policies, rule changes, the activity log and imported files. Restore it on another computer to pick up where you left off. The file contains pay data; store it like a payroll report.</p>
+        <div class="actions-row">
+          <button class="btn small primary" type="button" data-action="backup-export">${ICON.download} Download backup</button>
+          ${ed ? '<button class="btn small" type="button" data-action="restore-pick">Restore from backup…</button><input type="file" id="restoreFile" accept=".json,application/json" hidden>' : ''}
+        </div>
+      </div></section>
+      <section class="card"><div class="card-head"><h3>Audit trail</h3><a class="more" href="#activity">Activity log</a></div>
+        <div class="facts">
+          ${fact('Entries', store.audit.length)}
+          ${fact('This cycle', store.audit.filter((a) => a.cycle === cycleId()).length)}
+          ${fact('Admin changes', store.audit.filter((a) => ADMIN_ACTIONS.has(a.action) && a.action !== 'Action blocked').length)}
+          ${fact('Blocked actions', store.audit.filter((a) => a.action === 'Action blocked').length)}
+        </div>
+        <div class="card-body"><button class="btn small" type="button" data-action="export-audit">${ICON.download} Export CSV</button></div>
+      </section>
+      <section class="card"><div class="card-head"><h3>Cycles in this browser</h3></div>
+        ${cycles.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Cycle</th><th class="n">Worked items</th><th>Status</th></tr></thead>
+          <tbody>${cycles.map(([id, c]) => `<tr><td class="mono">${esc(id)}${id === cycleId() ? ' <span class="pill plain">Current</span>' : ''}</td>
+            <td class="n">${Object.values(c.items || {}).filter((i) => i.events && i.events.length).length}</td>
+            <td>${c.released ? `<span class="pill info">Released</span> <span class="muted" style="font-size:var(--t-xs)">${esc(stamp(c.released.at))} by ${esc(c.released.by)}</span>` : c.hold ? '<span class="pill review">On hold</span>' : '<span class="pill plain">Open</span>'}</td></tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty"><p>No cycles yet.</p></div>'}
+      </section>
+      <section class="card"><div class="card-head"><h3>Storage</h3></div><div class="card-body" style="display:grid;gap:10px">
+        <p style="font-size:var(--t-sm)">${Math.max(1, Math.round(used / 1024))} KB of the roughly 5 MB this browser allows.</p>
+        <span class="meter" role="img" aria-label="${Math.round((used / cap) * 100)}% of browser storage used"><i style="width:${Math.min(100, Math.max(1, (used / cap) * 100)).toFixed(1)}%"></i></span>
+        <p style="font-size:var(--t-sm)">Clearing deletes every status, note, release record, rule change and activity entry here and reloads the sample cycle. Team, roles and policies are kept.</p>
+        ${ed ? '<div><button class="btn small danger" type="button" data-action="reset-workspace">Clear workspace data…</button></div>' : ''}
+      </div></section>
+    </div>`;
   }
 
   // ----------------------------------------------------------------------------------
@@ -2692,12 +3479,32 @@
         <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button><a class="btn primary" href="#sources" data-action="close-modal">Go to data sources</a></div>`, opener);
       return;
     }
+    if (rd.state === 'hold') {
+      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release is on hold</h2></div>
+        <div class="mb"><p>${esc(rd.hold.by)} put release on hold ${esc(stamp(rd.hold.at))}: “${esc(rd.hold.reason)}”.</p><p>A payroll admin lifts the hold in the Admin console, under Policies.</p></div>
+        <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button>${can('admin') ? '<button class="btn primary" type="button" data-action="admin-tab" data-tab="policies">Open release controls</button>' : ''}</div>`, opener);
+      return;
+    }
     if (rd.state === 'blocked') {
       openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release is blocked</h2></div>
-        <div class="mb"><p>${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} still open. Approve or dismiss each one in Variance Voice, and release opens.</p>
+        <div class="mb"><p>${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} still open. Approve or dismiss each one in the review queue, and release opens.</p>
           <ul class="history">${rd.preOpen.slice(0, 8).map((x) => `<li><span class="pill blocker" style="grid-column:1/-1;justify-self:start">${esc(x.check)} · ${esc(ownerOf(x))}</span><span style="grid-column:1/-1">${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</span></li>`).join('')}</ul>
           ${rd.preOpen.length > 8 ? `<p class="muted">and ${rd.preOpen.length - 8} more</p>` : ''}</div>
         <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button><button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button></div>`, opener);
+      return;
+    }
+    if (!can('release')) {
+      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Ready for an approver</h2></div>
+        <div class="mb"><p>Every pre-release blocker is cleared. Your role (${esc(roleLabel(me()))}) can’t release payroll; a payroll approver or admin releases this batch.</p></div>
+        <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`, opener);
+      return;
+    }
+    const mine = sodConflicts();
+    if (mine.length) {
+      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">A different person must release</h2></div>
+        <div class="mb"><p>You dismissed ${plural(mine.length, 'pre-release blocker')}, so someone else has to release this batch. A payroll admin set this rule in the Admin console.</p>
+          <ul class="history">${mine.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b><div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul></div>
+        <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`, opener);
       return;
     }
     const n = E.util.num;
@@ -2723,7 +3530,7 @@
 
   function confirmRelease() {
     const rd = readiness();
-    if (rd.state !== 'ready') { closeModal(); return; }
+    if (rd.state !== 'ready' || !can('release') || sodConflicts().length) { closeModal(); return; }
     const ack = $('#relAck');
     if (ack && !ack.checked) { const e = $('#relErr'); e.textContent = 'Confirm you reviewed the dismissed blockers.'; e.hidden = false; ack.focus(); return; }
     const note = ($('#relNote').value || '').trim();
@@ -2752,14 +3559,15 @@
         ${rel.note ? `<div><span class="eyebrow">Approval note</span><div class="history"><div class="note">${esc(rel.note)}</div></div></div>` : ''}
         <p>${plural(rel.approved ?? rel.resolved ?? 0, 'blocker')} approved and ${plural(acc.length, 'blocker')} dismissed with a reason at release.${rel.postOpen ? ` ${plural(rel.postOpen, 'funding or GL blocker', 'funding and GL blockers')} were open for after settlement.` : ''}</p>
         ${acc.length ? `<ul class="history">${acc.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b><div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul>` : ''}
-        <label for="reopenNote"><b>Reopen the cycle</b> <span class="muted">(reason required)</span></label>
+        ${can('reopen') ? `<label for="reopenNote"><b>Reopen the cycle</b> <span class="muted">(reason required)</span></label>
         <textarea class="text" id="reopenNote" placeholder="Why the release is being reversed"></textarea>
-        <p class="form-err" id="reopenErr" hidden></p>
+        <p class="form-err" id="reopenErr" hidden></p>` : ''}
       </div>
-      <div class="mf"><button class="btn danger" type="button" data-action="confirm-reopen">Reopen cycle</button><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`, opener);
+      <div class="mf">${can('reopen') ? '<button class="btn danger" type="button" data-action="confirm-reopen">Reopen cycle</button>' : ''}<button class="btn primary" type="button" data-action="close-modal">Done</button></div>`, opener);
   }
 
   function confirmReopen() {
+    if (!allow('reopen')) return;
     const note = ($('#reopenNote').value || '').trim();
     if (!note) { const e = $('#reopenErr'); e.textContent = 'Give a reason for reopening.'; e.hidden = false; $('#reopenNote').focus(); return; }
     cyc().released = null;
@@ -2858,6 +3666,10 @@
     if (el.closest('.popover')) closePopover();
 
     if (a === 'nav-toggle') { const open = !$('#shell').classList.contains('nav-open'); $('#shell').classList.toggle('nav-open', open); $('#navScrim').hidden = !open; el.setAttribute('aria-expanded', open); }
+    else if (DATA_ACTIONS.has(a) && !allow('data')) { if (!$('#modal').hidden) closeModal(); }
+    else if (EXPORT_ACTIONS.has(a) && !allow('export')) { /* blocked and logged by allow() */ }
+    else if ((a === 'reset-rule' || a === 'reset-rules') && !allow('rules')) { /* blocked */ }
+    else if ((a === 'reset-workspace' || a === 'confirm-reset' || a === 'restore-pick') && !allow('admin')) { if (!$('#modal').hidden) closeModal(); }
     else if (a === 'cycle-menu') cycleMenu(el);
     else if (a === 'load-sample') loadSampleCycle();
     else if (a === 'new-cycle') openModal(`<div class="mh"><h2 id="modalTitle">Start a new cycle</h2></div>
@@ -2868,8 +3680,8 @@
     else if (a === 'cycle-history') { state.activityScope = 'all'; go('activity'); }
     else if (a === 'rerun') rerun();
     else if (a === 'go-page') go(el.dataset.page);
-    else if (a === 'ai-explain') explainWithAi(el.dataset.key);
-    else if (a === 'ai-clusters') clustersWithAi();
+    else if (a === 'ai-explain') { if (store.policy.aiExplain && allow('ai')) explainWithAi(el.dataset.key); }
+    else if (a === 'ai-clusters') { if (store.policy.aiClusters && allow('ai')) clustersWithAi(); }
     else if (a === 'cite') {
       const row = document.getElementById('ev-' + el.dataset.ref);
       if (row) { row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
@@ -2926,6 +3738,9 @@
       if (!x) return;
       const to = el.dataset.to;
       const note = noteValue();
+      const why = changeBlock(x, to);
+      if (why) { blocked(`${ACT[to]} ${x.check}${x.empId ? ' ' + x.empId : ''}`, why); return; }
+      if (to === 'approved' && x.severity === 'blocker' && store.policy.approveNote && !note) { const e = $('#noteErr'); e.textContent = 'Add a note saying what was fixed or checked before approving a blocker.'; e.hidden = false; $('#noteText').focus(); return; }
       if (to === 'escalated') { escalateModal([x.key], el); return; }
       if (to === 'dismissed' && !note) { const e = $('#noteErr'); e.textContent = 'Add the reason for dismissing this exception in the note first.'; e.hidden = false; $('#noteText').focus(); return; }
       setStatus(x, to, note);
@@ -2935,37 +3750,48 @@
       const x = exByKey(state.detail);
       const note = noteValue();
       if (!x) return;
+      if (!allow('review')) return;
       if (!note) { const e = $('#noteErr'); e.textContent = 'Write a note first.'; e.hidden = false; $('#noteText').focus(); return; }
       addNote(x, note);
       afterWorkflow();
       toast('Note added');
     } else if (a === 'bulk-status') {
       const to = el.dataset.to;
+      const pt = partition(Array.from(state.sel), to);
+      if (to === 'approved' && store.policy.approveNote) {
+        const needNote = pt.ok.filter((x) => x.severity === 'blocker');
+        if (needNote.length) { pt.ok = pt.ok.filter((x) => x.severity !== 'blocker'); pt.skipped += needNote.length; pt.reason = pt.reason || 'Approving a blocker needs a note; approve those one at a time.'; }
+      }
       let n = 0;
-      state.sel.forEach((k) => { const x = exByKey(k); if (x && setStatus(x, to, '')) n++; });
+      pt.ok.forEach((x) => { if (setStatus(x, to, '')) n++; });
+      if (pt.skipped) log('Action blocked', `${ACT[to]} ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
       afterWorkflow();
-      toast(`${STATUS_VERB[to]}: ${plural(n, 'exception')}`);
+      toast(`${STATUS_VERB[to]}: ${plural(n, 'exception')}${skippedText(pt)}`);
     } else if (a === 'bulk-dismiss') dismissModal(Array.from(state.sel), el);
     else if (a === 'bulk-escalate') escalateModal(Array.from(state.sel), el);
     else if (a === 'confirm-dismiss') {
       const note = ($('#dismissNote').value || '').trim();
       if (!note) { const e = $('#dismissErr'); e.textContent = 'Give a reason.'; e.hidden = false; $('#dismissNote').focus(); return; }
       let n = 0;
-      el.dataset.keys.split('\n').forEach((k) => { const x = exByKey(k); if (x && setStatus(x, 'dismissed', note)) n++; });
+      const pt = partition(el.dataset.keys.split('\n'), 'dismissed');
+      pt.ok.forEach((x) => { if (setStatus(x, 'dismissed', note)) n++; });
+      if (pt.skipped) log('Action blocked', `Dismiss ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
       closeModal();
       afterWorkflow();
-      toast(`Dismissed: ${plural(n, 'exception')}`);
+      toast(`Dismissed: ${plural(n, 'exception')}${skippedText(pt)}`);
     } else if (a === 'confirm-escalate') {
       const owner = $('#escOwner').value;
       const note = ($('#escNote').value || '').trim();
       let n = 0;
-      el.dataset.keys.split('\n').forEach((k) => { const x = exByKey(k); if (!x) return; setOwner(x, owner); if (setStatus(x, 'escalated', note)) n++; });
+      const pt = partition(el.dataset.keys.split('\n'), 'escalated');
+      pt.ok.forEach((x) => { setOwner(x, owner); if (setStatus(x, 'escalated', note)) n++; });
+      if (pt.skipped) log('Action blocked', `Escalate ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
       closeModal();
       afterWorkflow();
-      toast(`Escalated ${plural(n, 'exception')} to ${owner}`);
+      toast(`Escalated ${plural(n, 'exception')} to ${owner}${skippedText(pt)}`);
     } else if (a === 'clear-sel') { state.sel.clear(); renderQueue(); }
     else if (a === 'open-emp') openDrawer(el.dataset.emp, el);
     else if (a === 'close-drawer') closeDrawer();
@@ -2989,12 +3815,29 @@
       scheduleRerun(`${f.label} reset to policy`);
     } else if (a === 'reset-rules') { store.settings = {}; save(); renderRules(); scheduleRerun('All rules reset to policy'); }
     else if (a === 'theme') { store.theme = el.dataset.theme; save(); applyTheme(); renderSettings(); }
+    else if (a === 'admin-tab') { if (!$('#modal').hidden) closeModal(); state.adminTab = el.dataset.tab; if (state.page === 'admin') renderAdmin(); else go('admin'); }
+    else if (a === 'hold-open') { if (allow('admin')) holdModal(el); }
+    else if (a === 'hold-confirm') confirmHold();
+    else if (a === 'hold-lift') liftHold();
+    else if (a === 'sla-escalate') escalatePastSla();
+    else if (a === 'team-add') addMember();
+    else if (a === 'team-remove') removeMember(el.dataset.id);
+    else if (a === 'pin-set') setPin();
+    else if (a === 'pin-clear') clearPin();
+    else if (a === 'pin-ok') checkPin(el.dataset.id);
+    else if (a === 'backup-export') {
+      download(`${store.workspace.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'workspace'}-backup-${todayIso()}.json`, backupJson(), 'application/json');
+      log('Backup exported', `${store.workspace} backup downloaded`);
+    }
+    else if (a === 'restore-pick') { const f = $('#restoreFile'); if (f) f.click(); }
+    else if (a === 'restore-confirm') confirmRestore();
     else if (a === 'reset-workspace') openModal(`<div class="mh"><h2 id="modalTitle">Clear workspace data?</h2></div>
-        <div class="mb"><p>This deletes every status, note, reassignment, release record, rule change and activity entry stored in this browser, and reloads the sample cycle. It can’t be undone.</p></div>
+        <div class="mb"><p>This deletes every status, note, reassignment, release record, rule change and activity entry stored in this browser, and reloads the sample cycle. Team, roles and policies are kept. It can’t be undone.</p></div>
         <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="confirm-reset">Clear data</button></div>`, el);
     else if (a === 'confirm-reset') {
-      const keep = { user: store.user, workspace: store.workspace, theme: store.theme };
-      store = Object.assign(freshStore(), keep);
+      const keep = { user: store.user, workspace: store.workspace, theme: store.theme, team: store.team, userId: store.userId, policy: store.policy };
+      const by = store.user;
+      store = hydrate(Object.assign(freshStore(), keep));
       try { localStorage.removeItem(FILES_KEY); } catch (e) { /* nothing stored */ }
       SOURCES.forEach((s) => { state.src[s.key] = { mode: 'upload' }; loadSample(s.key); });
       state.detail = null;
@@ -3002,7 +3845,7 @@
       state.importQueue = [];
       state.result = null;
       recompute();
-      save();
+      log('Workspace cleared', `Statuses, notes, releases, rule changes and activity cleared by ${by}`);
       closeModal();
       renderAll();
       toast('Workspace data cleared');
@@ -3023,19 +3866,30 @@
       if (it && cell) cell.textContent = firstValue(it, t.value);
     } else if (t.matches('[data-conn-url]')) { store.connectors[t.dataset.connUrl] = { url: t.value.trim() }; save(); }
     else if (t.id === 'ownerSel') { state.filters.owner = t.value; renderQueue(); }
-    else if (t.id === 'unmaskToggle') { state.unmask = t.checked; if (state.page === 'exceptions') renderDetail(); else renderPage(); }
+    else if (t.id === 'unmaskToggle') { if (t.checked && !allow('unmask')) { t.checked = false; return; } state.unmask = t.checked; if (state.page === 'exceptions') renderDetail(); else renderPage(); }
     else if (t.id === 'fixThr') { state.fixThreshold = Number(t.value); renderFixflow(); }
     else if (t.id === 'stageSel') { state.filters.stage = t.value; renderQueue(); }
     else if (t.id === 'selAll') { state.listKeys.forEach((k) => { if (t.checked) state.sel.add(k); else state.sel.delete(k); }); renderQueue(); }
-    else if (t.id === 'ownerOne') { const x = exByKey(t.dataset.key); if (x && setOwner(x, t.value)) { afterWorkflow(); toast(`Assigned to ${t.value}`); } }
+    else if (t.id === 'ownerOne') {
+      const x = exByKey(t.dataset.key);
+      const why = x ? changeBlock(x, null) : '';
+      if (why) { blocked(`Reassign ${x.check}`, why); renderDetail(); }
+      else if (x && setOwner(x, t.value)) { afterWorkflow(); toast(`Assigned to ${t.value}`); }
+    }
     else if (t.id === 'bulkOwner' && t.value) {
       let n = 0;
-      state.sel.forEach((k) => { const x = exByKey(k); if (x && setOwner(x, t.value)) n++; });
+      const pt = partition(Array.from(state.sel), null);
+      pt.ok.forEach((x) => { if (setOwner(x, t.value)) n++; });
       state.sel.clear();
       afterWorkflow();
-      toast(`Assigned ${plural(n, 'exception')} to ${t.value}`);
-    } else if (t.id === 'setName') { const v = t.value.trim(); if (v && v !== store.user) { const was = store.user; store.user = v; log('Name changed', `${was} → ${v}`); renderShell(); toast('Name saved'); } }
+      toast(`Assigned ${plural(n, 'exception')} to ${t.value}${skippedText(pt)}`);
+    } else if (t.id === 'setName') { const v = t.value.trim(); if (v && v !== store.user) { const was = store.user; store.user = v; me().name = v; log('Name changed', `${was} → ${v}`); renderShell(); toast('Name saved'); } }
     else if (t.id === 'setWs') { const v = t.value.trim(); if (v && v !== store.workspace) { store.workspace = v; save(); renderShell(); toast('Company name saved'); } }
+    else if (t.id === 'setUser') switchUser(t.value, t);
+    else if (t.matches('[data-team]')) teamChange(t);
+    else if (t.matches('[data-perm]')) permChange(t);
+    else if (t.matches('[data-policy]')) policyChange(t);
+    else if (t.id === 'restoreFile' && t.files && t.files[0]) { readRestore(t.files[0]); t.value = ''; }
     else if (t.matches('[data-rule]') && (t.type === 'checkbox' || t.tagName === 'SELECT')) onRuleInput(t);
   });
   document.addEventListener('input', (ev) => {
@@ -3048,6 +3902,8 @@
     else if (t.matches('input[type="number"][data-rule]')) onRuleInput(t);
   });
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && ev.target.id === 'pinIn') { ev.preventDefault(); const b = $('#modal [data-action="pin-ok"]'); if (b) checkPin(b.dataset.id); return; }
+    if (ev.key === 'Enter' && ev.target.id === 'tmName') { ev.preventDefault(); addMember(); return; }
     if (ev.key !== 'Escape') return;
     if (!$('#modal').hidden) closeModal();
     else if (popover) closePopover();
