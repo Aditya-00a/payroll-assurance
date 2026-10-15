@@ -1,39 +1,40 @@
-emp_id,first_name,last_name,job_title,location,cost_center,work_state,union_local,flsa_status,ft_pt,pay_type,hourly_rate,annual_salary,hire_date,term_date,status,bank_routing,bank_last4,bank_change_date,vac_carryover_hrs,vac_current_hrs,sick_hrs,k401_pct,medical_per_period
-E1001,Maya,Chen,Lead Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2017-03-12,,Active,021000021,5521,,48.00,31.50,32.00,6,96.25
-E1002,Luis,Ortega,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,21.40,,2021-05-03,,Active,026009593,1187,,14.00,22.50,40.00,4,48.50
-E1003,Priya,Natarajan,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2023-08-14,,Active,021000089,6640,,0.00,18.00,40.00,3,48.50
-E1004,Jamal,Wright,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2022-06-20,,Active,021000021,7302,,7.00,25.00,24.00,5,96.25
-E1005,Sofia,Alvarez,Visual Merchandiser,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,24.50,,2019-02-11,,Active,026009593,2290,,0.00,42.00,40.00,6,142.80
-E1006,Kevin,O'Brien,Stock Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,21.65,,2020-11-02,,Active,021000021,8815,,21.00,30.00,40.00,4,96.25
-E1007,Aaliyah,Brooks,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2024-04-22,,Active,021000089,4419,,0.00,12.00,40.00,0,48.50
-E1008,Marcus,Lee,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,22.85,,2018-07-09,,Active,021200025,3058,,10.00,36.00,40.00,5,142.80
-E1009,Hannah,Kim,Sales Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2025-01-06,,Active,021200025,9921,,0.00,9.00,40.00,0,0.00
-E1010,Tomás,Rivera,Lead Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2016-10-03,,Active,021200025,6684,,16.00,28.00,40.00,6,142.80
-E1011,Grace,Okafor,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2024-11-18,,Active,021000021,1043,,0.00,10.00,8.00,0,48.50
-E1012,Diego,Santos,Stock Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,20.40,,2023-02-27,,Active,026009593,4471,2026-09-30,0.00,20.00,40.00,3,48.50
-E1013,Nina,Petrova,Visual Merchandiser,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,23.30,,2022-01-10,,Active,021000089,5376,,4.00,26.00,40.00,4,96.25
-E1014,Andre,Johnson,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,21.40,,2020-03-16,,Active,021000021,2817,,0.00,33.00,40.00,5,96.25
-E1015,Chloe,Martin,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2025-06-02,,Active,026009593,7710,,0.00,8.00,40.00,0,48.50
-E1016,Ryan,Patel,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,21.65,,2021-09-13,,Active,021200025,3392,,0.00,24.00,40.00,4,96.25
-E1017,Isabella,Rossi,Lead Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2019-05-20,,Active,021000089,6205,,12.00,30.00,40.00,6,142.80
-E1018,Ethan,Brown,Sales Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2023-03-06,,Active,021200025,8143,,0.00,15.00,40.00,3,48.50
-E1019,Zoe,Turner,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,PT,Hourly,19.25,,2025-09-08,,Active,021000021,9034,,0.00,0.00,24.00,0,0.00
-E1025,Liam,Murphy,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,PT,Hourly,20.15,,2024-07-15,,Active,026009593,1566,,0.00,0.00,24.00,0,0.00
-E1026,Ava,Nguyen,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,PT,Hourly,18.75,,2026-02-02,,Active,021200025,4780,,0.00,0.00,24.00,0,0.00
-E1020,Omar,Haddad,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,21.50,,2022-04-11,,Active,021200025,2651,,0.00,40.00,40.00,4,96.25
-E1021,Bianca,Lopez,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.75,,2023-10-02,,Active,021200025,7468,,8.00,22.00,40.00,3,48.50
-E1022,Carlos,Mendez,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.75,,2021-01-19,2026-09-18,Terminated,021200025,5092,,0.00,16.00,40.00,4,96.25
-E1023,Fatima,Diallo,Warehouse Lead,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,24.25,,2020-06-22,,Active,021200025,1839,,20.00,35.00,40.00,6,142.80
-E1024,Jack,Wilson,Customer Service Representative,Corporate — Merchandising & Admin,CC-900,NY,,Non-Exempt,FT,Hourly,22.00,,2022-08-08,,Active,021000021,6327,,6.00,27.00,40.00,5,96.25
-E1027,Mei,Lin,Pop-up Associate,Hudson Yards Pop-up,CC-140,NY,,Non-Exempt,FT,Hourly,19.50,,2026-09-08,,Active,021000089,8806,,0.00,0.00,40.00,0,0.00
-E1028,Samuel,Green,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.25,,2024-02-05,,Active,021200025,3375,,0.00,30.00,40.00,3,48.50
-E1098,Daniel,Reyes,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,21.00,,2026-07-20,,Active,021000021,3317,,0.00,0.00,40.00,0,0.00
-E1029,Elena,Popescu,Pop-up Associate,Hudson Yards Pop-up,CC-140,NY,,Non-Exempt,PT,Hourly,19.50,,2026-09-08,,Active,026009593,2044,,0.00,0.00,24.00,0,0.00
-E1030,Noah,Fischer,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,PT,Hourly,20.00,,2025-03-17,,Active,021200025,6912,,0.00,0.00,24.00,0,0.00
-E1031,Rachel,Adler,Store Manager,SoHo Flagship,CC-110,NY,,Exempt,FT,Salary,,92000,2018-04-02,,Active,021000021,4108,,24.00,60.00,40.00,6,142.80
-E1032,David,Kowalski,Store Manager,Jersey City,CC-130,NJ,,Exempt,FT,Salary,,88000,2019-09-16,,Active,021200025,7759,,30.00,55.00,40.00,5,142.80
-E1033,Jasmine,Carter,Assistant Store Manager,Williamsburg,CC-120,NY,,Exempt,FT,Salary,,64000,2026-09-23,,Active,021000089,5163,,0.00,0.00,40.00,0,0.00
-E1034,Owen,Price,Merchandise Planner,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,105000,2020-01-13,,Active,021000021,8492,,16.00,70.00,40.00,6,142.80
-E1035,Laura,Benson,Distribution Center Manager,Secaucus Distribution Center,CC-310,NJ,,Exempt,FT,Salary,,98000,2017-08-28,,Active,021200025,2978,,40.00,64.00,40.00,5,142.80
-E1036,Renee,Walsh,Payroll Specialist,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,72000,2021-11-01,,Active,021000021,3317,,8.00,44.00,40.00,4,96.25
-E1037,Victor,Huang,HR Generalist,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,70000,2023-05-22,,Active,026009593,1702,,0.00,38.00,40.00,3,48.50
+emp_id,first_name,last_name,job_title,location,cost_center,work_state,union_local,flsa_status,ft_pt,pay_type,hourly_rate,annual_salary,hire_date,term_date,status,bank_routing,bank_last4,bank_change_date,vac_carryover_hrs,vac_current_hrs,sick_accrued_hrs,sick_hrs,k401_pct,medical_per_period
+E1001,Maya,Chen,Lead Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2017-03-12,,Active,021000021,5521,,48.00,31.50,16.00,32.00,6,96.25
+E1002,Luis,Ortega,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,21.40,,2021-05-03,,Active,026009593,1187,,14.00,22.50,0.00,40.00,4,48.50
+E1003,Priya,Natarajan,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2023-08-14,,Active,021000089,6640,,0.00,18.00,0.00,40.00,3,48.50
+E1004,Jamal,Wright,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2022-06-20,,Active,021000021,7302,,7.00,25.00,0.00,24.00,5,96.25
+E1005,Sofia,Alvarez,Visual Merchandiser,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,24.50,,2019-02-11,,Active,026009593,2290,,0.00,42.00,0.00,40.00,6,142.80
+E1006,Kevin,O'Brien,Stock Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,21.65,,2020-11-02,,Active,021000021,8815,,21.00,30.00,0.00,40.00,4,96.25
+E1007,Aaliyah,Brooks,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2024-04-22,,Active,021000089,4419,,0.00,12.00,0.00,40.00,0,48.50
+E1008,Marcus,Lee,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,22.85,,2018-07-09,,Active,021200025,3058,,10.00,36.00,8.00,40.00,5,142.80
+E1009,Hannah,Kim,Sales Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2025-01-06,,Active,021200025,9921,,0.00,9.00,0.00,40.00,0,0.00
+E1010,Tomás,Rivera,Lead Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2016-10-03,,Active,021200025,6684,,16.00,28.00,12.00,40.00,6,142.80
+E1011,Grace,Okafor,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2024-11-18,,Active,021000021,1043,,0.00,10.00,0.00,8.00,0,48.50
+E1012,Diego,Santos,Stock Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,20.40,,2023-02-27,,Active,026009593,4471,2026-09-30,0.00,20.00,0.00,40.00,3,48.50
+E1013,Nina,Petrova,Visual Merchandiser,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,23.30,,2022-01-10,,Active,021000089,5376,,4.00,26.00,12.00,40.00,4,96.25
+E1014,Andre,Johnson,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,21.40,,2020-03-16,,Active,021000021,2817,,0.00,33.00,0.00,40.00,5,96.25
+E1015,Chloe,Martin,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,FT,Hourly,19.25,,2025-06-02,,Active,026009593,7710,,0.00,8.00,0.00,40.00,0,48.50
+E1016,Ryan,Patel,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,21.65,,2021-09-13,,Active,021200025,3392,,0.00,24.00,0.00,40.00,4,96.25
+E1017,Isabella,Rossi,Lead Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,FT,Hourly,27.00,,2019-05-20,,Active,021000089,6205,,12.00,30.00,8.00,40.00,6,142.80
+E1018,Ethan,Brown,Sales Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,FT,Hourly,20.15,,2023-03-06,,Active,021200025,8143,,0.00,15.00,0.00,40.00,3,48.50
+E1019,Zoe,Turner,Sales Associate,SoHo Flagship,CC-110,NY,UGRW-88,Non-Exempt,PT,Hourly,19.25,,2025-09-08,,Active,021000021,9034,,0.00,0.00,0.00,24.00,0,0.00
+E1025,Liam,Murphy,Sales Associate,Williamsburg,CC-120,NY,UGRW-88,Non-Exempt,PT,Hourly,20.15,,2024-07-15,,Active,026009593,1566,,0.00,0.00,0.00,24.00,0,0.00
+E1026,Ava,Nguyen,Stock Associate,Jersey City,CC-130,NJ,UGRW-88,Non-Exempt,PT,Hourly,18.75,,2026-02-02,,Active,021200025,4780,,0.00,0.00,0.00,24.00,0,0.00
+E1020,Omar,Haddad,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,21.50,,2022-04-11,,Active,021200025,2651,,0.00,40.00,0.00,40.00,4,96.25
+E1021,Bianca,Lopez,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.75,,2023-10-02,,Active,021200025,7468,,8.00,22.00,0.00,40.00,3,48.50
+E1022,Carlos,Mendez,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.75,,2021-01-19,2026-09-18,Terminated,021200025,5092,,0.00,16.00,0.00,40.00,4,96.25
+E1023,Fatima,Diallo,Warehouse Lead,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,24.25,,2020-06-22,,Active,021200025,1839,,20.00,35.00,16.00,40.00,6,142.80
+E1024,Jack,Wilson,Customer Service Representative,Corporate — Merchandising & Admin,CC-900,NY,,Non-Exempt,FT,Hourly,22.00,,2022-08-08,,Active,021000021,6327,,6.00,27.00,0.00,40.00,5,96.25
+E1027,Mei,Lin,Pop-up Associate,Hudson Yards Pop-up,CC-140,NY,,Non-Exempt,FT,Hourly,19.50,,2026-09-08,,Active,021000089,8806,,0.00,0.00,0.00,40.00,0,0.00
+E1028,Samuel,Green,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,20.25,,2024-02-05,,Active,021200025,3375,,0.00,30.00,0.00,40.00,3,48.50
+E1098,Daniel,Reyes,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,FT,Hourly,21.00,,2026-07-20,,Active,021000021,3317,,0.00,0.00,0.00,40.00,0,0.00
+E1029,Elena,Popescu,Pop-up Associate,Hudson Yards Pop-up,CC-140,NY,,Non-Exempt,PT,Hourly,19.50,,2026-09-08,,Active,026009593,2044,,0.00,0.00,0.00,24.00,0,0.00
+E1030,Noah,Fischer,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,PT,Hourly,20.00,,2025-03-17,,Active,021200025,6912,,0.00,0.00,0.00,24.00,0,0.00
+E1038,Marisol,Vega,Warehouse Associate,Secaucus Distribution Center,CC-310,NJ,,Non-Exempt,PT,Hourly,20.00,,2026-09-21,,Active,021200025,6120,,0.00,0.00,0.00,24.00,0,0.00
+E1031,Rachel,Adler,Store Manager,SoHo Flagship,CC-110,NY,,Exempt,FT,Salary,,92000,2018-04-02,,Active,021000021,4108,,24.00,60.00,0.00,40.00,6,142.80
+E1032,David,Kowalski,Store Manager,Jersey City,CC-130,NJ,,Exempt,FT,Salary,,88000,2019-09-16,,Active,021200025,7759,,30.00,55.00,20.00,40.00,5,142.80
+E1033,Jasmine,Carter,Assistant Store Manager,Williamsburg,CC-120,NY,,Exempt,FT,Salary,,64000,2026-09-23,,Active,021000089,5163,,0.00,0.00,0.00,40.00,0,0.00
+E1034,Owen,Price,Merchandise Planner,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,105000,2020-01-13,,Active,021000021,8492,,16.00,70.00,0.00,40.00,6,142.80
+E1035,Laura,Benson,Distribution Center Manager,Secaucus Distribution Center,CC-310,NJ,,Exempt,FT,Salary,,98000,2017-08-28,,Active,021200025,2978,,40.00,64.00,24.00,40.00,5,142.80
+E1036,Renee,Walsh,Payroll Specialist,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,72000,2021-11-01,,Active,021000021,3317,,8.00,44.00,0.00,40.00,4,96.25
+E1037,Victor,Huang,HR Generalist,Corporate — Merchandising & Admin,CC-900,NY,,Exempt,FT,Salary,,70000,2023-05-22,,Active,026009593,1702,,0.00,38.00,0.00,40.00,3,48.50

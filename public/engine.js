@@ -151,11 +151,13 @@
         });
       } else if (/^EMPLOYER\/BAL$/i.test(c[0]) && cur) {
         const v = c.slice(1, 5).map(n);
-        const b = c.slice(6, 12).map(n);
+        const b = c.slice(6, 14).map(n);
         Object.assign(cur, {
           ss_er: v[0], medicare_er: v[1], futa_er: v[2], sui_er: v[3], work_state: c[5],
-          vac_co_begin: b[0], vac_co_end: b[1], vac_cur_begin: b[2], vac_cur_end: b[3], sick_begin: b[4], sick_end: b[5],
-        });
+          vac_co_begin: b[0], vac_co_end: b[1], vac_cur_begin: b[2], vac_cur_end: b[3],
+        }, b.length >= 8
+          ? { sick_acc_begin: b[4], sick_acc_end: b[5], sick_begin: b[6], sick_end: b[7] }
+          : { sick_begin: b[4], sick_end: b[5] });
       }
     }
     const incomplete = rows.filter((r) => r.net_pay === undefined || r.work_state === undefined);
@@ -193,6 +195,7 @@
       waitingDays: vac.waiting_period_days ?? 90,
       carryoverCap: vac.carryover_cap_hours ?? 40,
       drawFirst: (vac.draw_order || ['carryover', 'current'])[0] === 'current' ? 'current' : 'carryover',
+      sickDrawFirst: ((hb.sick || {}).draw_order || ['accrued', 'current'])[0] === 'current' ? 'current' : 'accrued',
       ssRate: 0.062,
       medicareRate: 0.0145,
       section125ReducesFica: true,
@@ -229,11 +232,12 @@
     { id: 'T6', stage: 'time', title: 'Overtime due', rule: (c) => `Non-exempt hours over ${c.unionOtAfter}h (union) or ${c.flsaOtAfter}h (FLSA) and union Sunday hours carry a premium.` },
     { id: 'T7', stage: 'time', title: 'Part-time cap', rule: (c) => `Part-time associates stay at or under ${c.ptMaxWeekly}h a week.` },
     { id: 'T8', stage: 'time', title: 'Daily maximum', rule: (c) => `No shift over ${c.dailyMaxHours}h.` },
-    { id: 'T9', stage: 'time', title: 'Pay codes', rule: () => 'Codes are on the handbook list; HOL only on company holidays.' },
+    { id: 'T9', stage: 'time', title: 'Pay codes', rule: () => 'Codes are on the handbook list; HOL only on company holidays; illness is coded SICK, not vacation.' },
     { id: 'T10', stage: 'time', title: 'Time-off balances', rule: () => 'Vacation and sick hours coded do not exceed the available balance.' },
     { id: 'R1', stage: 'roster', title: 'Time without a payroll record', rule: () => 'Everyone with WFM time exists in the payroll census.' },
     { id: 'R2', stage: 'roster', title: 'Payroll record without WFM time', rule: () => 'Everyone active or paid in payroll has a WFM profile and time.' },
     { id: 'R3', stage: 'roster', title: 'Time before hire date', rule: () => 'No time records before the payroll hire date.' },
+    { id: 'R5', stage: 'roster', title: 'Start-date gap', rule: () => 'WFM time begins on the payroll hire date; working days between the hire date and the first time record are flagged.' },
     { id: 'R4', stage: 'roster', title: 'Time after termination', rule: () => 'No time records or shifts after the payroll termination date.' },
     { id: 'P1', stage: 'payroll', title: 'Rate and salary', rule: () => 'Register rate, salary, pay type and cost center match the census.' },
     { id: 'P2', stage: 'payroll', title: 'Union pay scale', rule: (c) => `Union rates meet the ${c.unionName} step for title and years of service.` },
@@ -243,7 +247,7 @@
     { id: 'P6', stage: 'payroll', title: 'Earnings math', rule: () => 'Each earning equals hours × rate × multiplier; gross equals the sum.' },
     { id: 'P7', stage: 'payroll', title: 'Statutory taxes', rule: (c) => `Social Security ${(c.ssRate * 100).toFixed(1)}% and Medicare ${(c.medicareRate * 100).toFixed(2)}% on FICA wages, matched by the employer.` },
     { id: 'P8', stage: 'payroll', title: 'Net pay math', rule: () => 'Net pay equals gross less taxes and deductions.' },
-    { id: 'P9', stage: 'payroll', title: 'PTO balances', rule: (c) => `Balances start from the census, draw ${c.drawFirst} first, accrue per the handbook, and carryover stays under ${c.carryoverCap}h.` },
+    { id: 'P9', stage: 'payroll', title: 'PTO balances', rule: (c) => `Balances start from the census and accrue per the handbook; vacation draws ${c.drawFirst} first and sick draws ${c.sickDrawFirst === 'current' ? 'current-year' : 'accrued'} first; carryover stays under ${c.carryoverCap}h.` },
     { id: 'P10', stage: 'payroll', title: 'Approved time not paid', rule: () => 'Everyone with approved time in the window has a register line.' },
     { id: 'F1', stage: 'funding', title: 'Net pay funding', rule: () => 'Net pay impound equals register net pay.' },
     { id: 'F2', stage: 'funding', title: 'ACH by employee', rule: () => 'Each direct deposit equals that employee’s register net pay.' },
@@ -576,7 +580,7 @@
         const reason = Array.from(new Set(ov.map((x) => x.a.raw.override_reason).filter(Boolean)));
         const unapproved = ov.some((x) => x.a.flags.includes('NO_PUNCH'));
         add({
-          check: 'T2', severity: unapproved ? 'blocker' : 'review', empId: emp.id, empName: emp.name,
+          check: 'T2', severity: unapproved ? 'blocker' : 'review', empId: emp.id, empName: emp.name, enteredBy: by.join(', '),
           title: `${ov.length} day${ov.length > 1 ? 's' : ''} of hours with no punches`,
           detail: `${ov.map((x) => `${fmtDate(x.d.date)} (${fmtH(x.a.wfmHours)})`).join(', ')} entered ${by.length ? `by ${by.join(', ')}` : 'without an approver'}${reason.length ? ` — “${reason.join('; ')}”` : ''}. ${fmtH(hours)}${emp.rate && nonExemptHourly(emp) ? ` (${money(hours * emp.rate)})` : ''} paid on manager attestation alone.`,
           expected: 'Punches or documented approval', actual: `${ov.length} override${ov.length > 1 ? 's' : ''}`, owner: 'Store manager',
@@ -711,19 +715,30 @@
               action: 'Remove the HOL code (or move it to the correct holiday date) before WFM close.',
             });
           }
+          const noteText = `${a.raw.note || ''} ${a.raw.override_reason || ''}`.trim();
+          if (a.code === 'VAC' && /\b(sick|ill|illness|flu|fever|doctor|unwell)\b/i.test(noteText)) {
+            add({
+              check: 'T9', severity: 'review', empId: emp.id, empName: emp.name, date: d.date,
+              title: `Sick day coded as vacation on ${fmtDate(d.date)}`,
+              detail: `${fmtH(a.wfmHours)} coded VAC on ${fmtDate(d.date)}, but the WFM note says “${noteText}”. Illness is coded SICK under the handbook, so this day draws down vacation instead of sick time.`,
+              expected: `SICK ${fmtH(a.wfmHours)}`, actual: `VAC ${fmtH(a.wfmHours)}`, owner: 'Store manager',
+              impact: imp(a.wfmHours * (emp.rate || 0), 'liability'),
+              action: 'Confirm with the associate and recode the day to SICK in WFM before close, which restores the vacation balance.',
+            });
+          }
           if (a.code === 'VAC' || a.code === 'SICK') used[a.code] += a.wfmHours;
         });
       });
       const c = emp.census;
       const vacAvail = num(c.vac_carryover_hrs) + num(c.vac_current_hrs);
-      const sickAvail = num(c.sick_hrs);
+      const sickAvail = num(c.sick_accrued_hrs) + num(c.sick_hrs);
       [['VAC', 'Vacation', vacAvail], ['SICK', 'Sick', sickAvail]].forEach(([code, label, avail]) => {
         if (used[code] > avail + 1e-9) {
           const excess = used[code] - avail;
           add({
             check: 'T10', severity: 'blocker', empId: emp.id, empName: emp.name,
             title: `${label} coded beyond balance by ${fmtH(excess)}`,
-            detail: `${fmtH(used[code])} ${label.toLowerCase()} coded against an available balance of ${fmtH(avail)}${code === 'SICK' && !cfg.sickCarryover ? ' (sick time is front-loaded; there is no sick carryover bank)' : ''}. The register will pay the full ${fmtH(used[code])} and leave a ${fmtH(-excess)} balance.`,
+            detail: `${fmtH(used[code])} ${label.toLowerCase()} coded against an available balance of ${fmtH(avail)}${code === 'SICK' ? ` (${fmtH(num(c.sick_accrued_hrs))} accrued + ${fmtH(num(c.sick_hrs))} current-year)` : ''}. The register will pay the full ${fmtH(used[code])} and leave a ${fmtH(-excess)} balance.`,
             expected: `≤ ${fmtH(avail)}`, actual: fmtH(used[code]), owner: 'Payroll',
             impact: imp(excess * emp.rate, 'overpaid'),
             action: `Recode ${fmtH(excess)} as unpaid time, or document an approved advance per the handbook.`,
@@ -798,6 +813,24 @@
           });
         }
       }
+      if (emp.hire && emp.hire >= start && emp.hasWfm) {
+        const firstRec = emp.days.find((d) => d.records.length);
+        if (firstRec && firstRec.date > emp.hire) {
+          const gap = emp.days.filter((d) => d.date >= emp.hire && d.date < firstRec.date && d.dow >= 1 && d.dow <= 5);
+          if (gap.length) {
+            const schedGap = gap.filter((d) => d.sched.length).length;
+            const salaried = emp.cls.salaried;
+            add({
+              check: 'R5', severity: salaried || schedGap ? 'blocker' : 'review', empId: emp.id, empName: emp.name, date: emp.hire,
+              title: `Payroll start ${md(emp.hire)}, first time record ${md(firstRec.date)}`,
+              detail: `Payroll has a hire date of ${fmtDate(emp.hire)}, but the first WFM time record is ${fmtDate(firstRec.date)}: ${gap.length} working day${gap.length === 1 ? '' : 's'} (${gap.map((d) => fmtDate(d.date)).join(', ')}) with ${schedGap ? 'scheduled shifts but' : 'no schedule and'} no time. ${salaried ? `Salary is prorated from ${fmtDate(emp.hire)}, so those days are paid with no time behind them.` : 'Pay follows WFM hours, so nothing is paid for those days, but benefits eligibility and the accrual waiting period run from the payroll hire date.'}`,
+              expected: `Time from ${md(emp.hire)}`, actual: `Time from ${md(firstRec.date)}`, owner: 'HR',
+              impact: imp(salaried ? gap.length * (num(c.annual_salary) / cfg.salaryPeriods / 10) : 0, 'overpaid', true),
+              action: 'Confirm the first day worked with the hiring manager. Correct the payroll hire date if it is early, or collect the missing time in WFM if the associate worked.',
+            });
+          }
+        }
+      }
       const post = emp.days.filter((d) => emp.term && d.date > emp.term && (d.records.length || d.sched.length));
       if (post.length) {
         const recs = post.filter((d) => d.records.length);
@@ -839,6 +872,8 @@
       }
       const R = {};
       SCHEMAS.register.forEach((k) => { R[k] = k === 'emp_id' || k === 'cost_center' || k === 'pay_type' || k === 'work_state' || k === 'bank_last4' || k === 'employee_name' ? r[k] : num(r[k]); });
+      R.sick_acc_begin = num(r.sick_acc_begin);
+      R.sick_acc_end = num(r.sick_acc_end);
       emp.R = R;
       const eeTax = R.fed_wh + R.ss_ee + R.medicare_ee + R.state_wh + R.state_other_ee;
       const erTax = R.ss_er + R.medicare_er + R.futa_er + R.sui_er;
@@ -936,7 +971,8 @@
             else if (e.dt > R.dt_hrs && R.ot_hrs > e.ot) why = `${fmtH(e.dt - R.dt_hrs)} of Sunday hours were paid at ${cfg.otMultiplier}x instead of ${cfg.sundayMultiplier}x.`;
             add({
               check: 'P4', severity: 'blocker', empId: emp.id, empName: emp.name,
-              title: 'Overtime / premium split is wrong',
+              title: e.ot > R.ot_hrs && R.dt_hrs === e.dt ? `${fmtH(e.ot - R.ot_hrs)} of overtime paid at straight time`
+                : e.dt > R.dt_hrs && R.ot_hrs > e.ot ? `Sunday hours paid at ${cfg.otMultiplier}× instead of ${cfg.sundayMultiplier}×` : 'Overtime / premium split is wrong',
               detail: `Expected ${fmtH(e.reg)} regular, ${fmtH(e.ot)} at ${cfg.otMultiplier}x, ${fmtH(e.dt)} at ${cfg.sundayMultiplier}x from WFM time under the ${emp.cls.union ? cfg.unionName + ' agreement' : 'FLSA weekly rule'}; register has ${fmtH(R.reg_hrs)} / ${fmtH(R.ot_hrs)} / ${fmtH(R.dt_hrs)}. ${why}`.trim(),
               expected: `${fmtH(e.reg)} / ${fmtH(e.ot)} / ${fmtH(e.dt)}`, actual: `${fmtH(R.reg_hrs)} / ${fmtH(R.ot_hrs)} / ${fmtH(R.dt_hrs)}`, owner: 'Payroll',
               impact: imp(val, val > 0 ? 'overpaid' : 'underpaid'),
@@ -1002,8 +1038,8 @@
       }
 
       // P9 PTO balances
-      const cb = { co: num(c.vac_carryover_hrs), cur: num(c.vac_current_hrs), sick: num(c.sick_hrs) };
-      const begins = [['carryover', R.vac_co_begin, cb.co], ['vacation', R.vac_cur_begin, cb.cur], ['sick', R.sick_begin, cb.sick]].filter(([, a, b]) => !near(a, b, 0.01));
+      const cb = { co: num(c.vac_carryover_hrs), cur: num(c.vac_current_hrs), sick: num(c.sick_hrs), sickAcc: num(c.sick_accrued_hrs) };
+      const begins = [['carryover', R.vac_co_begin, cb.co], ['vacation', R.vac_cur_begin, cb.cur], ['accrued sick', R.sick_acc_begin, cb.sickAcc], ['current-year sick', R.sick_begin, cb.sick]].filter(([, a, b]) => !near(a, b, 0.01));
       const valRate = salaried ? num(c.annual_salary) / 2080 : num(c.hourly_rate);
       if (begins.length) {
         add({ check: 'P9', severity: 'review', empId: emp.id, empName: emp.name, title: 'Opening balances differ from census', detail: begins.map(([k, a, b]) => `${k} ${fmtH(a)} on the register vs ${fmtH(b)} in the census`).join('; ') + '.', expected: 'Census balance', actual: 'Register balance', owner: 'Payroll', action: 'Reconcile the balance history before release.' });
@@ -1025,8 +1061,11 @@
       let coUse, curUse;
       if (cfg.drawFirst === 'carryover') { coUse = Math.min(vacUsed, cb.co); curUse = vacUsed - coUse; }
       else { curUse = Math.min(vacUsed, cb.cur); coUse = vacUsed - curUse; }
-      const expCo = r2(cb.co - coUse), expCur = r2(cb.cur - curUse + accrual), expSick = r2(cb.sick - emp.ptoIn.SICK);
-      emp.expBalances = { co: expCo, cur: expCur, sick: expSick, accrual };
+      const sickUsed = emp.ptoIn.SICK;
+      const accUse = cfg.sickDrawFirst === 'current' ? Math.max(0, sickUsed - cb.sick) : Math.min(sickUsed, cb.sickAcc);
+      const expCo = r2(cb.co - coUse), expCur = r2(cb.cur - curUse + accrual);
+      const expSickAcc = r2(cb.sickAcc - accUse), expSick = r2(cb.sick - (sickUsed - accUse));
+      emp.expBalances = { co: expCo, cur: expCur, sick: expSick, sickAcc: expSickAcc, accrual };
       const endTotalReg = R.vac_co_end + R.vac_cur_end, endTotalExp = expCo + expCur;
       if (emp.hasWfm) {
         if (!near(endTotalReg, endTotalExp, 0.01)) {
@@ -1048,8 +1087,20 @@
             action: 'Re-sequence the vacation draw to carryover first.',
           });
         }
-        if (!near(R.sick_end, expSick, 0.01)) {
-          add({ check: 'P9', severity: 'review', empId: emp.id, empName: emp.name, title: 'Sick balance does not roll forward', detail: `Opening ${fmtH(cb.sick)} − ${fmtH(emp.ptoIn.SICK)} used = ${fmtH(expSick)}; the register closes at ${fmtH(R.sick_end)}.`, expected: fmtH(expSick), actual: fmtH(R.sick_end), owner: 'Payroll', action: 'Correct the sick balance.' });
+        if (!near(R.sick_end, expSick, 0.01) || !near(R.sick_acc_end, expSickAcc, 0.01)) {
+          if (near(R.sick_end + R.sick_acc_end, expSick + expSickAcc, 0.01)) {
+            const firstWord = cfg.sickDrawFirst === 'current' ? 'current-year bucket' : 'accrued balance';
+            const moved = Math.abs(R.sick_acc_end - expSickAcc);
+            add({
+              check: 'P9', severity: 'review', empId: emp.id, empName: emp.name,
+              title: 'Sick time drawn from the wrong bucket',
+              detail: `${fmtH(sickUsed)} sick used on ${emp.days.filter((d) => d.pto.SICK).map((d) => fmtDate(d.date)).join(', ')} should come from the ${firstWord} first (handbook draw order), leaving accrued ${fmtH(expSickAcc)} and current-year ${fmtH(expSick)}. The register leaves accrued at ${fmtH(R.sick_acc_end)} and current-year at ${fmtH(R.sick_end)}${cfg.sickDrawFirst !== 'current' && R.sick_acc_end > expSickAcc ? `: it drew from the current-year bucket while ${fmtH(cb.sickAcc)} accrued remained` : ''}.`,
+              expected: `Accrued ${fmtH(expSickAcc)} · Current ${fmtH(expSick)}`, actual: `Accrued ${fmtH(R.sick_acc_end)} · Current ${fmtH(R.sick_end)}`, owner: 'Payroll',
+              action: `Re-sequence the sick draw in payroll so ${fmtH(moved)} comes from the ${firstWord}, and correct the balances shown on the pay statement before release.`,
+            });
+          } else {
+            add({ check: 'P9', severity: 'review', empId: emp.id, empName: emp.name, title: 'Sick balance does not roll forward', detail: `Opening ${fmtH(cb.sickAcc + cb.sick)} − ${fmtH(sickUsed)} used = ${fmtH(expSickAcc + expSick)}; the register closes at ${fmtH(R.sick_acc_end + R.sick_end)}.`, expected: fmtH(expSickAcc + expSick), actual: fmtH(R.sick_acc_end + R.sick_end), owner: 'Payroll', action: 'Correct the sick balance.' });
+          }
         }
       }
     });
@@ -1337,7 +1388,11 @@
     const sevRank = { blocker: 0, review: 1, info: 2 };
     const stageRank = Object.fromEntries(STAGES.map((s, i) => [s.id, i]));
     exceptions.sort((a, b) => sevRank[a.severity] - sevRank[b.severity] || stageRank[a.stage] - stageRank[b.stage] || (a.empId || 'Z').localeCompare(b.empId || 'Z') || a.check.localeCompare(b.check, undefined, { numeric: true }));
-    exceptions.forEach((e, i) => { e.id = 'X' + String(i + 1).padStart(3, '0'); if (e.empId && empById[e.empId]) empById[e.empId].exceptions.push(e); });
+    exceptions.forEach((e, i) => {
+      e.id = 'X' + String(i + 1).padStart(3, '0');
+      const emp = e.empId && empById[e.empId];
+      if (emp) { emp.exceptions.push(e); e.location = emp.location || ''; e.cc = emp.cc || ''; }
+    });
 
     const checks = CHECKS.map((ch) => {
       const list = exceptions.filter((e) => e.check === ch.id);

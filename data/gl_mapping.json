@@ -38,5 +38,57 @@
     "CC-130": "Jersey City",
     "CC-310": "Secaucus Distribution Center",
     "CC-900": "Corporate — Merchandising & Admin"
-  }
+  },
+  "clauses": [
+    {
+      "id": "FIN 2.1",
+      "title": "Net pay funding",
+      "text": "Treasury funds net pay to the processor's impound account two business days before the pay date, equal to register net pay."
+    },
+    {
+      "id": "FIN 2.2",
+      "title": "ACH settlement",
+      "text": "Each direct deposit equals the employee's register net pay and goes to the account on file in the payroll census."
+    },
+    {
+      "id": "FIN 2.3",
+      "title": "ACH returns",
+      "text": "Returned deposits are reissued within one business day, by off-cycle deposit to the corrected account or by check."
+    },
+    {
+      "id": "FIN 2.4",
+      "title": "Shared accounts",
+      "text": "No two employees may deposit to the same bank account without HR documentation."
+    },
+    {
+      "id": "FIN 3.1",
+      "title": "Tax remittance",
+      "text": "Employee withholdings and employer taxes on the register are funded and remitted to each jurisdiction in full each cycle."
+    },
+    {
+      "id": "FIN 3.2",
+      "title": "Benefit remittance",
+      "text": "401(k) deferrals and medical premiums withheld are remitted to the recordkeeper and carrier each pay date."
+    },
+    {
+      "id": "FIN 4.1",
+      "title": "Journal entry",
+      "text": "The payroll journal entry balances and posts wages by employee class and cost center: union 6010, non-union hourly 6020, salaried 6030, premium 6040, PTO 6050."
+    },
+    {
+      "id": "FIN 4.2",
+      "title": "Cost-center mapping",
+      "text": "Every cost center on the register is in the GL map. Postings to 9999 Suspense must be reclassed before month-end close."
+    },
+    {
+      "id": "FIN 4.3",
+      "title": "Taxes and liabilities",
+      "text": "Employer tax expense (6100) and payroll liabilities (2200, 2210, 2220) equal the register."
+    },
+    {
+      "id": "FIN 4.4",
+      "title": "Vacation accrual",
+      "text": "The vacation accrual true-up equals the change in validated vacation balances, valued at each employee's rate."
+    }
+  ]
 }

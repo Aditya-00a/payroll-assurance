@@ -1,33 +1,33 @@
 je_id,line,post_date,account,account_name,cost_center,debit,credit,memo
 JE-PR-2026-19,1,2026-10-02,6010,Wages — Union Hourly,CC-110,10447.85,,Payroll 9/13–9/26
-JE-PR-2026-19,2,2026-10-02,6010,Wages — Union Hourly,CC-120,9525.72,,Payroll 9/13–9/26
-JE-PR-2026-19,3,2026-10-02,6010,Wages — Union Hourly,CC-130,8150.25,,Payroll 9/13–9/26
-JE-PR-2026-19,4,2026-10-02,6020,Wages — Non-Union Hourly,CC-310,8919.00,,Payroll 9/13–9/26
+JE-PR-2026-19,2,2026-10-02,6010,Wages — Union Hourly,CC-120,9362.62,,Payroll 9/13–9/26
+JE-PR-2026-19,3,2026-10-02,6010,Wages — Union Hourly,CC-130,7998.70,,Payroll 9/13–9/26
+JE-PR-2026-19,4,2026-10-02,6020,Wages — Non-Union Hourly,CC-310,9399.00,,Payroll 9/13–9/26
 JE-PR-2026-19,5,2026-10-02,6020,Wages — Non-Union Hourly,CC-900,1760.00,,Payroll 9/13–9/26
 JE-PR-2026-19,6,2026-10-02,6030,Salaries — Exempt,CC-110,3538.46,,Payroll 9/13–9/26
 JE-PR-2026-19,7,2026-10-02,6030,Salaries — Exempt,CC-120,738.46,,Payroll 9/13–9/26
 JE-PR-2026-19,8,2026-10-02,6030,Salaries — Exempt,CC-130,3384.62,,Payroll 9/13–9/26
 JE-PR-2026-19,9,2026-10-02,6030,Salaries — Exempt,CC-310,3769.23,,Payroll 9/13–9/26
 JE-PR-2026-19,10,2026-10-02,6030,Salaries — Exempt,CC-900,9096.15,,Payroll 9/13–9/26
-JE-PR-2026-19,11,2026-10-02,6040,Overtime & Premium Pay,CC-110,1489.88,,Payroll 9/13–9/26
+JE-PR-2026-19,11,2026-10-02,6040,Overtime & Premium Pay,CC-110,1530.38,,Payroll 9/13–9/26
 JE-PR-2026-19,12,2026-10-02,6040,Overtime & Premium Pay,CC-120,1320.20,,Payroll 9/13–9/26
 JE-PR-2026-19,13,2026-10-02,6040,Overtime & Premium Pay,CC-130,967.58,,Payroll 9/13–9/26
 JE-PR-2026-19,14,2026-10-02,6040,Overtime & Premium Pay,CC-310,145.50,,Payroll 9/13–9/26
 JE-PR-2026-19,15,2026-10-02,6040,Overtime & Premium Pay,CC-900,181.50,,Payroll 9/13–9/26
 JE-PR-2026-19,16,2026-10-02,6050,Paid Time Off,CC-110,441.00,,Payroll 9/13–9/26
-JE-PR-2026-19,17,2026-10-02,6050,Paid Time Off,CC-120,303.10,,Payroll 9/13–9/26
-JE-PR-2026-19,18,2026-10-02,6050,Paid Time Off,CC-130,159.95,,Payroll 9/13–9/26
+JE-PR-2026-19,17,2026-10-02,6050,Paid Time Off,CC-120,466.20,,Payroll 9/13–9/26
+JE-PR-2026-19,18,2026-10-02,6050,Paid Time Off,CC-130,311.50,,Payroll 9/13–9/26
 JE-PR-2026-19,19,2026-10-02,6050,Paid Time Off,CC-310,160.00,,Payroll 9/13–9/26
 JE-PR-2026-19,20,2026-10-02,6050,Paid Time Off,CC-900,403.85,,Payroll 9/13–9/26
-JE-PR-2026-19,21,2026-10-02,6100,Employer Payroll Taxes,CC-110,1169.92,,Payroll 9/13–9/26
+JE-PR-2026-19,21,2026-10-02,6100,Employer Payroll Taxes,CC-110,1173.02,,Payroll 9/13–9/26
 JE-PR-2026-19,22,2026-10-02,6100,Employer Payroll Taxes,CC-120,900.01,,Payroll 9/13–9/26
 JE-PR-2026-19,23,2026-10-02,6100,Employer Payroll Taxes,CC-130,904.24,,Payroll 9/13–9/26
-JE-PR-2026-19,24,2026-10-02,6100,Employer Payroll Taxes,CC-310,956.24,,Payroll 9/13–9/26
+JE-PR-2026-19,24,2026-10-02,6100,Employer Payroll Taxes,CC-310,995.84,,Payroll 9/13–9/26
 JE-PR-2026-19,25,2026-10-02,6100,Employer Payroll Taxes,CC-900,845.93,,Payroll 9/13–9/26
 JE-PR-2026-19,26,2026-10-02,9999,Suspense — Unmapped,CC-140,2804.26,,Unmapped cost center CC-140
-JE-PR-2026-19,27,2026-10-02,2200,Payroll Taxes Payable,,,19974.56,Employee and employer payroll taxes
-JE-PR-2026-19,28,2026-10-02,2210,401(k) Deferrals Payable,,,2516.38,401(k) deferrals
+JE-PR-2026-19,27,2026-10-02,2200,Payroll Taxes Payable,,,20124.93,Employee and employer payroll taxes
+JE-PR-2026-19,28,2026-10-02,2210,401(k) Deferrals Payable,,,2518.81,401(k) deferrals
 JE-PR-2026-19,29,2026-10-02,2220,Medical Premiums Payable,,,2684.20,Medical premiums — employee share
-JE-PR-2026-19,30,2026-10-02,1010,Cash — Payroll Account,,,47307.76,Net pay funded
-JE-VA-2026-19,1,2026-10-02,6060,Vacation Accrual Expense,,1732.42,,Vacation accrual true-up
-JE-VA-2026-19,2,2026-10-02,2310,Accrued Vacation,,,1732.42,Vacation accrual true-up
+JE-PR-2026-19,30,2026-10-02,1010,Cash — Payroll Account,,,47718.16,Net pay funded
+JE-VA-2026-19,1,2026-10-02,6060,Vacation Accrual Expense,,1580.87,,Vacation accrual true-up
+JE-VA-2026-19,2,2026-10-02,2310,Accrued Vacation,,,1580.87,Vacation accrual true-up

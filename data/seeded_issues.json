@@ -11,6 +11,31 @@
       "note": "Left for lunch Thu 9/17, no return punch; WFM credited 8.0h"
     },
     {
+      "emp": "E1001",
+      "check": "T1",
+      "note": "Left for lunch Tue 9/22 at SoHo Flagship, no return punch (recurs every period)"
+    },
+    {
+      "emp": "E1021",
+      "check": "T2",
+      "note": "Manager entered 8.0h for a day with no punches"
+    },
+    {
+      "emp": "E1016",
+      "check": "T9",
+      "note": "Sick day coded as vacation"
+    },
+    {
+      "emp": "E1038",
+      "check": "R5",
+      "note": "Payroll start date Mon 9/21, time records begin Wed 9/23"
+    },
+    {
+      "emp": "E1013",
+      "check": "P9",
+      "note": "Sick time drawn from the current-year bucket while an accrued balance remains"
+    },
+    {
       "emp": "E1015",
       "check": "T2",
       "note": "Two manager overrides with no punches"

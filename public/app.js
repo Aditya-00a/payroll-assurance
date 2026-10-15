@@ -57,8 +57,10 @@
   const KIND_SHORT = { underpaid: 'owed', overpaid: 'overpaid', tax: 'tax', cash: 'deposit', gl: 'GL', liability: 'PTO' };
   const KIND_WORD = { underpaid: 'owed to employee', overpaid: 'overpaid', tax: 'tax exposure', cash: 'deposit', gl: 'GL', liability: 'PTO liability' };
   const SEV_LABEL = { blocker: 'Blocker', review: 'Review', info: 'Info' };
-  const STATUS_LABEL = { open: 'Open', review: 'In review', resolved: 'Resolved', accepted: 'Accepted risk' };
-  const STATUS_VERB = { open: 'Reopened', review: 'Started review', resolved: 'Resolved', accepted: 'Accepted as risk' };
+  // Variance Voice review: the reviewer approves, dismisses or escalates each explained exception.
+  const STATUS_LABEL = { open: 'Open', escalated: 'Escalated', approved: 'Approved', dismissed: 'Dismissed' };
+  const STATUS_VERB = { open: 'Reopened', escalated: 'Escalated', approved: 'Approved', dismissed: 'Dismissed' };
+  const LEGACY_STATUS = { review: 'escalated', resolved: 'approved', accepted: 'dismissed' };
   const STAGE_OF = Object.fromEntries(E.STAGES.map((s) => [s.id, s]));
   const CHECK_OF = Object.fromEntries(E.CHECKS.map((c) => [c.id, c]));
   const PRE = ['time', 'roster', 'payroll'];
@@ -91,20 +93,28 @@
   const NAV = [
     { group: 'Pay cycle', items: [
       { id: 'overview', label: 'Overview', icon: 'overview' },
-      { id: 'exceptions', label: 'Exceptions', icon: 'flag' },
       { id: 'people', label: 'People', icon: 'people' },
-      { id: 'controls', label: 'Controls', icon: 'shield' },
+    ] },
+    { group: 'Payroll Integrity AI', items: [
+      { id: 'feedpulse', label: 'FeedPulse', num: 1 },
+      { id: 'runradar', label: 'RunRadar', num: 2 },
+      { id: 'exceptions', label: 'Variance Voice', num: 3 },
+      { id: 'threeway', label: 'Three-Way True', num: 4 },
+      { id: 'fixflow', label: 'FixFlow Clusters', num: 5 },
+    ] },
+    { group: 'Records', items: [
       { id: 'reports', label: 'Reports', icon: 'file' },
       { id: 'activity', label: 'Activity', icon: 'clock' },
     ] },
     { group: 'Configure', items: [
       { id: 'sources', label: 'Data sources', icon: 'db' },
       { id: 'rules', label: 'Rules', icon: 'rules' },
+      { id: 'controls', label: 'Controls', icon: 'shield' },
       { id: 'settings', label: 'Settings', icon: 'sliders' },
     ] },
   ];
   const PAGES = NAV.flatMap((g) => g.items.map((i) => i.id));
-  const LEGACY = { intake: 'sources', checks: 'controls', brief: 'reports' };
+  const LEGACY = { intake: 'sources', checks: 'controls', brief: 'reports', variance: 'exceptions' };
 
   // ----------------------------------------------------------------------------------
   // Persistence: workflow, activity and settings live in this browser
@@ -120,7 +130,13 @@
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && s.v === 1) return Object.assign(freshStore(), s);
+        if (s && s.v === 1) {
+          Object.values(s.cycles || {}).forEach((c) => Object.values(c.items || {}).forEach((it) => {
+            if (LEGACY_STATUS[it.status]) it.status = LEGACY_STATUS[it.status];
+            (it.events || []).forEach((e) => { if (LEGACY_STATUS[e.from]) e.from = LEGACY_STATUS[e.from]; if (LEGACY_STATUS[e.to]) e.to = LEGACY_STATUS[e.to]; });
+          }));
+          return Object.assign(freshStore(), s);
+        }
       }
     } catch (e) { /* storage unavailable: run in memory */ }
     return freshStore();
@@ -264,7 +280,7 @@
   const item = (x) => cyc().items[x.key] || (cyc().items[x.key] = { status: 'open', owner: null, events: [], seen: nowIso() });
   const statusOf = (x) => item(x).status;
   const ownerOf = (x) => item(x).owner || x.owner || 'Unassigned';
-  const isOpen = (x) => { const s = statusOf(x); return s === 'open' || s === 'review'; };
+  const isOpen = (x) => { const s = statusOf(x); return s === 'open' || s === 'escalated'; };
   const isPre = (x) => PRE.includes(x.stage);
   const exByKey = (k) => state.result.exceptions.find((x) => x.key === k);
   const exLabel = (x) => `${x.check}${x.empId ? ' · ' + x.empId + ' ' + x.empName : ''} · ${x.title}`;
@@ -298,13 +314,13 @@
     const stagesRan = PRE.every((id) => r.stages.find((s) => s.id === id).ran);
     const pre = r.exceptions.filter((x) => x.severity === 'blocker' && isPre(x));
     const preOpen = pre.filter(isOpen);
-    const accepted = pre.filter((x) => statusOf(x) === 'accepted');
-    const resolved = pre.filter((x) => statusOf(x) === 'resolved');
+    const dismissed = pre.filter((x) => statusOf(x) === 'dismissed');
+    const approved = pre.filter((x) => statusOf(x) === 'approved');
     const post = r.exceptions.filter((x) => x.severity === 'blocker' && !isPre(x));
     const postOpen = post.filter(isOpen);
     const released = cyc().released;
     const st = released ? 'released' : !stagesRan ? 'nodata' : preOpen.length ? 'blocked' : 'ready';
-    return { state: st, pre, preOpen, accepted, resolved, post, postOpen, released, stagesRan };
+    return { state: st, pre, preOpen, dismissed, approved, post, postOpen, released, stagesRan };
   }
 
   function openImpact() {
@@ -362,7 +378,7 @@
 
   function renderNav() {
     $('#nav').innerHTML = NAV.map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => `
-      <a href="#${i.id}" ${state.page === i.id ? 'aria-current="page"' : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
+      <a href="#${i.id}" ${state.page === i.id ? 'aria-current="page"' : ''}>${i.num ? appNum(i.num) : ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
   }
 
   function renderTopbar() {
@@ -385,7 +401,7 @@
   }
 
   function renderPage() {
-    const fn = { overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings }[state.page];
+    const fn = { feedpulse: renderFeedpulse, runradar: renderRunradar, threeway: renderThreeway, fixflow: renderFixflow, overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings }[state.page];
     fn();
   }
 
@@ -442,33 +458,16 @@
     return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((d) => Object.assign(d, { done: d.date <= today }));
   }
 
-  function stageButtons() {
-    return state.result.stages.map((s) => {
-      const o = stageOpen(s.id);
-      const st = !s.ran ? 'idle' : o.blockers ? 'fail' : o.review ? 'warn' : 'pass';
-      const ct = !s.ran ? 'No data loaded'
-        : o.blockers || o.review ? [o.blockers ? `<b class="c">${plural(o.blockers, 'blocker')}</b>` : '', o.review ? `<b class="w">${o.review} to review</b>` : ''].filter(Boolean).join(' · ')
-          : s.blockers + s.review ? 'All items cleared' : 'All checks pass';
-      return `<button class="stage" type="button" data-action="stage" data-stage="${s.id}" data-state="${st}">
-        <span class="ph">${esc(s.phase)}</span>
-        <span class="nm"><span class="dotc"></span>${esc(s.title)}</span>
-        <span class="ct">${ct}</span>
-        <span class="bar" aria-hidden="true"><i style="width:${s.checks ? Math.round((s.passed / s.checks) * 100) : 0}%"></i></span>
-        <span class="ct">${s.ran ? `${s.passed} of ${s.checks} checks pass` : `${s.checks} checks`}</span>
-      </button>`;
-    }).join('');
-  }
-
   function renderOverview() {
     const r = state.result, p = r.period, t = r.totals, rd = readiness();
     const cleared = rd.pre.length - rd.preOpen.length;
     const pct = rd.pre.length ? Math.round((cleared / rd.pre.length) * 100) : rd.stagesRan ? 100 : 0;
     let text, actions;
     if (rd.state === 'blocked') {
-      text = `${plural(rd.preOpen.length, 'blocker')} in time, roster and register checks ${rd.preOpen.length === 1 ? 'is' : 'are'} open. Resolve each one, or accept it as a risk with a reason, to release this batch.`;
+      text = `${plural(rd.preOpen.length, 'blocker')} in time, roster and register checks ${rd.preOpen.length === 1 ? 'is' : 'are'} open. Approve or dismiss each one in Variance Voice to release this batch.`;
       actions = `<button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button><button class="btn" type="button" data-action="release" aria-disabled="true">Release payroll</button>`;
     } else if (rd.state === 'ready') {
-      text = `${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} are cleared${rd.accepted.length ? `, ${rd.accepted.length} accepted as risk` : ''}.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${plural(rd.postOpen.length, 'funding and GL blocker', 'funding and GL blockers')} stay open and are tracked after settlement.` : ''}`;
+      text = `${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} are cleared${rd.dismissed.length ? `, ${rd.dismissed.length} dismissed with a reason` : ''}.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${plural(rd.postOpen.length, 'funding and GL blocker', 'funding and GL blockers')} stay open and are tracked after settlement.` : ''}`;
       actions = `<button class="btn primary" type="button" data-action="release">Release payroll</button><a class="btn" href="#exceptions">Review exceptions</a>`;
     } else if (rd.state === 'released') {
       const rel = rd.released;
@@ -479,7 +478,7 @@
       actions = `<button class="btn primary" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button><button class="btn" type="button" data-action="load-sample">Load sample cycle</button>`;
     }
     const owners = byOwner(rd.preOpen);
-    const top = (rd.state === 'blocked' ? rd.preOpen : rd.accepted).slice().sort((a, b) => (b.impact ? b.impact.amount : 0) - (a.impact ? a.impact.amount : 0)).slice(0, 4);
+    const top = (rd.state === 'blocked' ? rd.preOpen : rd.dismissed).slice().sort((a, b) => (b.impact ? b.impact.amount : 0) - (a.impact ? a.impact.amount : 0)).slice(0, 4);
     const missing = SOURCES.filter((s) => s.group === 'records' && !(state.src[s.key] && state.src[s.key].rows));
     const oi = openImpact();
     const dates = keyDates();
@@ -493,6 +492,7 @@
         <p>${esc(store.workspace)}${p.payDate ? ` · pay date ${esc(F.fmtDate(p.payDate))}` : ''} · ${plural(t.people, 'person', 'people')} · ${t.checksRun} of ${E.CHECKS.length} checks ran across WFM, the payroll register, bank activity and the GL</p></div>
       </div>
       ${isSampleWorkspace() ? sampleBanner() : ''}
+      <div style="margin-bottom:16px">${flowHtml()}</div>
       <div class="grid ov-top">
         <section class="card ready-card" data-state="${rd.state}" aria-labelledby="readyTitle">
           <span class="eyebrow">Release readiness</span>
@@ -500,9 +500,9 @@
           <p>${esc(text)}</p>
           ${rd.state === 'nodata' ? `<ul class="timeline">${SOURCES.filter((s) => s.group === 'records').map((s) => `<li class="${missing.includes(s) ? '' : 'done'}"><span class="tdot"></span><span><b>${esc(s.title)}</b><br><span class="muted">${esc(s.sys)}</span></span><span class="tdate">${missing.includes(s) ? 'Missing' : 'Loaded'}</span></li>`).join('')}</ul>` : `
           <div><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Pre-release blockers cleared"><i style="width:${pct}%"></i></div>
-          <div class="progress-meta"><span>${cleared} of ${plural(rd.pre.length, 'pre-release blocker')} cleared</span><span>${rd.resolved.length} resolved · ${rd.accepted.length} accepted as risk</span></div></div>
+          <div class="progress-meta"><span>${cleared} of ${plural(rd.pre.length, 'pre-release blocker')} cleared</span><span>${rd.approved.length} approved · ${rd.dismissed.length} dismissed</span></div></div>
           ${owners.length ? `<div><span class="eyebrow">Open blockers by owner</span><div class="owner-row" style="margin-top:6px">${owners.map(([o, l]) => `<button type="button" data-action="filter-owner" data-owner="${esc(o)}" data-pre="1">${esc(o)} <b>${l.length}</b></button>`).join('')}</div></div>` : ''}
-          ${top.length ? `<div><span class="eyebrow">${rd.state === 'blocked' ? 'Largest open blockers' : 'Accepted as risk'}</span><ul class="mini-list" style="margin-top:6px">${top.map((x) => `<li><button type="button" data-action="goto-ex" data-key="${esc(x.key)}" data-scope="pre">
+          ${top.length ? `<div><span class="eyebrow">${rd.state === 'blocked' ? 'Largest open blockers' : 'Dismissed with a reason'}</span><ul class="mini-list" style="margin-top:6px">${top.map((x) => `<li><button type="button" data-action="goto-ex" data-key="${esc(x.key)}" data-scope="pre">
             <span class="pill ${rd.state === 'blocked' ? 'blocker' : 'info'}">${esc(x.check)}</span>
             <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')} · ${esc(ownerOf(x))}</span></span>
             <span class="mono">${x.impact ? F.money(x.impact.amount) : '—'}</span></button></li>`).join('')}</ul></div>` : ''}`}
@@ -520,12 +520,9 @@
         </section>
       </div>
 
-      <section class="card" style="margin-top:16px">
-        <div class="card-head"><h3>Checks by stage</h3><span class="muted" style="font-size:var(--t-sm)">Open items after review · select a stage to work it</span><a class="more" href="#controls">All controls</a></div>
-        <div class="stages" id="stages" style="border-top:1px solid var(--line)">${stageButtons()}</div>
-      </section>
+      ${showcaseHtml()}
 
-      <div class="group-title"><h3>Open exposure</h3><span class="muted">Dollar impact of exceptions that are not yet resolved or accepted</span></div>
+      <div class="group-title"><h3>Open exposure</h3><span class="muted">Dollar impact of exceptions that are not yet approved or dismissed</span></div>
       <div class="kpis">${KINDS.map((k) => {
         const v = oi.amount[k.kind];
         return `<button class="kpi" type="button" data-action="kind" data-kind="${k.kind}">
@@ -545,7 +542,7 @@
               <td class="n">${l.filter((x) => x.severity === 'blocker').length || '<span class="muted">0</span>'}</td>
               <td class="n">${l.filter((x) => x.severity === 'review').length || '<span class="muted">0</span>'}</td>
               <td class="n">${F.money(sum(l.filter((x) => x.impact), (x) => x.impact.amount))}</td></tr>`).join('')}</tbody>
-          </table></div>` : '<div class="empty"><h3>Nothing open</h3><p>Every blocker and review item is resolved or accepted.</p></div>'}
+          </table></div>` : '<div class="empty"><h3>Nothing open</h3><p>Every blocker and review item is approved or dismissed.</p></div>'}
         </section>
         <section class="card">
           <div class="card-head"><h3>Recent activity</h3><a class="more" href="#activity">Full log</a></div>
@@ -576,7 +573,7 @@
     skip = skip || {};
     const q = f.q.trim().toLowerCase();
     const st = statusOf(x);
-    return (skip.status || f.status === 'all' || (f.status === 'unresolved' ? st === 'open' || st === 'review' : st === f.status))
+    return (skip.status || f.status === 'all' || (f.status === 'unresolved' ? st === 'open' || st === 'escalated' : st === f.status))
       && (skip.sev || f.sev[x.severity])
       && (!f.stage || (f.stage === 'pre' ? isPre(x) : f.stage === 'post' ? !isPre(x) : x.stage === f.stage))
       && (!f.check || x.check === f.check)
@@ -597,7 +594,7 @@
     const stageOpts = [['', 'All stages'], ['pre', 'Before release'], ['post', 'After settlement']].concat(E.STAGES.map((s) => [s.id, s.title]));
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><h1>Exceptions</h1><p>Every finding from the last run with its owner, status and history. Blockers in time, roster and register checks must be resolved or accepted as a risk before the batch can be released.</p></div>
+        <div><span class="eyebrow">${appNum(3)} Payroll Integrity AI</span><h1>Variance Voice</h1><p>Why did it happen? One explanation per exception from FeedPulse, RunRadar and Three-Way True, citing the source records and the policy clause, with an owner and next step. The reviewer approves, dismisses or escalates; blockers before release must be approved or dismissed before payroll can be released.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="export-ex">${ICON.download} Export CSV</button></div>
       </div>
       <div class="toolbar">
@@ -623,9 +620,9 @@
   function renderQueue() {
     const r = state.result, f = state.filters;
     const base = r.exceptions.filter((x) => matches(x, { status: true }));
-    const counts = { unresolved: 0, resolved: 0, accepted: 0, all: base.length };
-    base.forEach((x) => { const s = statusOf(x); if (s === 'open' || s === 'review') counts.unresolved++; else counts[s]++; });
-    $('#statusSeg').innerHTML = [['unresolved', 'Unresolved'], ['resolved', 'Resolved'], ['accepted', 'Accepted risk'], ['all', 'All']]
+    const counts = { unresolved: 0, approved: 0, dismissed: 0, all: base.length };
+    base.forEach((x) => { const s = statusOf(x); if (s === 'open' || s === 'escalated') counts.unresolved++; else counts[s]++; });
+    $('#statusSeg').innerHTML = [['unresolved', 'Unresolved'], ['approved', 'Approved'], ['dismissed', 'Dismissed'], ['all', 'All']]
       .map(([v, l]) => `<button type="button" data-action="status-tab" data-status="${v}" aria-pressed="${f.status === v}">${l} <span class="n">${counts[v]}</span></button>`).join('');
     const sevBase = r.exceptions.filter((x) => matches(x, { sev: true }));
     $('#sevSeg').innerHTML = ['blocker', 'review', 'info']
@@ -647,7 +644,7 @@
 
   function qRow(x) {
     const st = statusOf(x);
-    const closed = st === 'resolved' || st === 'accepted';
+    const closed = st === 'approved' || st === 'dismissed';
     const who = x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle';
     const impact = x.impact
       ? `<span class="k-${x.impact.kind}">${F.money(x.impact.amount)}</span><small>${esc(KIND_SHORT[x.impact.kind])}${x.impact.estimated ? ' · est.' : ''}</small>`
@@ -670,9 +667,9 @@
     el.innerHTML = n ? `<div class="bulk" style="margin-bottom:12px" role="region" aria-label="Bulk actions">
       <span>${plural(n, 'exception')} selected</span>
       <select id="bulkOwner" aria-label="Assign selected to"><option value="">Assign to…</option>${ownerOptions().map((o) => `<option>${esc(o)}</option>`).join('')}</select>
-      <button class="btn small" type="button" data-action="bulk-status" data-to="review">Start review</button>
-      <button class="btn small" type="button" data-action="bulk-status" data-to="resolved">Resolve</button>
-      <button class="btn small" type="button" data-action="bulk-accept">Accept risk…</button>
+      <button class="btn small" type="button" data-action="bulk-status" data-to="approved">Approve</button>
+      <button class="btn small" type="button" data-action="bulk-dismiss">Dismiss…</button>
+      <button class="btn small" type="button" data-action="bulk-escalate">Escalate…</button>
       <button class="linkish" type="button" data-action="clear-sel">Clear selection</button>
     </div>` : '';
   }
@@ -698,10 +695,10 @@
     const idx = state.listKeys.indexOf(x.key);
     const next = state.listKeys[idx + 1];
     const btns = {
-      open: [['review', 'Start review', ''], ['resolved', 'Resolve', 'primary'], ['accepted', 'Accept risk', '']],
-      review: [['resolved', 'Resolve', 'primary'], ['accepted', 'Accept risk', ''], ['open', 'Back to open', '']],
-      resolved: [['open', 'Reopen', '']],
-      accepted: [['open', 'Reopen', '']],
+      open: [['approved', 'Approve', 'primary'], ['dismissed', 'Dismiss', ''], ['escalated', 'Escalate', '']],
+      escalated: [['approved', 'Approve', 'primary'], ['dismissed', 'Dismiss', ''], ['open', 'Back to open', '']],
+      approved: [['open', 'Reopen', '']],
+      dismissed: [['open', 'Reopen', '']],
     }[st];
     const ev = [];
     if (x.expected) ev.push(['Expected', x.expected]);
@@ -713,14 +710,15 @@
     const hist = [{ t: it.seen || state.lastRun, by: 'Rollcall', type: 'detected' }].concat(it.events).reverse();
     el.innerHTML = `
       <div class="detail-head">
-        <div class="row"><span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span><span class="mono muted" style="font-size:var(--t-xs)">${esc(x.id)} · ${esc(x.check)}</span>
+        <div class="row"><span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>${appChip(appOf(x))}<span class="mono muted" style="font-size:var(--t-xs)">${esc(x.id)} · ${esc(x.check)}</span>
           <span class="close-x" style="display:flex;gap:6px">${next ? `<button class="btn small" type="button" data-action="select-ex" data-key="${esc(next)}">Next</button>` : ''}<button class="btn small" type="button" data-action="close-detail">Close</button></span></div>
         <h2>${esc(x.title)}</h2>
         <div class="row">${statusPill(st)}<span class="muted" style="font-size:var(--t-xs)">Owner: ${esc(ownerOf(x))}</span></div>
       </div>
       <div class="detail-body">
         ${emp ? `<section><h4>Employee</h4><button class="who" type="button" data-action="open-emp" data-emp="${esc(emp.id)}"><b>${esc(emp.name)}</b><span>${esc(emp.id)}${emp.title ? ' · ' + esc(emp.title) : ''}${emp.location ? ' · ' + esc(emp.location) : ''}</span></button></section>` : ''}
-        <section><h4>What Rollcall found</h4><p>${esc(x.detail)}</p></section>
+        ${varianceVoiceHtml(x)}
+        <h4 style="margin-bottom:-8px">Finding</h4>
         <div class="ev">${ev.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
         ${x.action ? `<section><h4>Recommended action</h4><p>${esc(x.action)}</p></section>` : ''}
         <section><h4>Work this item</h4>
@@ -897,7 +895,7 @@
         const cs = r.checks.filter((c) => c.stage === s.id);
         const pass = cs.filter((c) => c.ran && (c.status === 'pass' || c.status === 'note')).length;
         return `<section class="check-stage">
-          <header><span class="eyebrow">${esc(s.phase)}</span><h3>${esc(s.title)}</h3><span class="sys">${esc(s.systems)}</span><span class="res">${s.ran ? `${pass} of ${cs.length} pass` : 'No data loaded'}${PRE.includes(s.id) ? ' · gates release' : ' · after settlement'}</span></header>
+          <header><span class="eyebrow">${esc(s.phase)}</span><h3>${esc(s.title)}</h3><span class="sys">${esc(s.systems)}</span><span class="res">${appChip(appOf(cs[0].id))} ${s.ran ? `${pass} of ${cs.length} pass` : 'No data loaded'}${PRE.includes(s.id) ? ' · gates release' : ' · after settlement'}</span></header>
           <ul>${cs.map((c) => {
             const st = !c.ran ? 'idle' : c.status;
             const list = r.exceptions.filter((x) => x.check === c.id);
@@ -1659,6 +1657,705 @@
   }
 
   // ----------------------------------------------------------------------------------
+  // Payroll Integrity AI: five applications over one engine run.
+  // Rules calculate the dollars; the AI explains and groups; a reviewer approves.
+  // ----------------------------------------------------------------------------------
+
+  const APPS = [
+    { id: 'feedpulse', num: 1, name: 'FeedPulse', q: 'Is the data on time and complete?', tag: 'detect late input', span: [0, 1], bar: 'feeds on time, roster, punches' },
+    { id: 'runradar', num: 2, name: 'RunRadar', q: 'Which exceptions change someone’s pay?', tag: 'size payroll impact', span: [0, 1], bar: 'hours, OT, rates, PTO priced in $' },
+    { id: 'exceptions', num: 3, name: 'Variance Voice', q: 'Why did it happen?', tag: 'explain with evidence', span: [0, 3], bar: 'explains each exception with records and policy clauses' },
+    { id: 'threeway', num: 4, name: 'Three-Way True', q: 'Do payroll, payments and the ledger agree?', tag: 'reconcile outputs', span: [1, 3], bar: 'register ties to ACH, tax remittances and GL' },
+    { id: 'fixflow', num: 5, name: 'FixFlow Clusters', q: 'What keeps going wrong?', tag: 'find recurring failures', span: [0, 3], bar: 'recurring root causes across pay periods' },
+  ];
+  const APP_BY_ID = Object.fromEntries(APPS.map((a) => [a.id, a]));
+  const HOPS = [['WFM', 'time records'], ['Payroll', 'pay register'], ['Treasury', 'ACH, taxes'], ['Finance', 'GL postings']];
+  const RUNRADAR_TIME = new Set(['T5', 'T6', 'T7', 'T10']);
+  const appOf = (x) => {
+    const c = typeof x === 'string' ? x : x.check;
+    if (c[0] === 'F' || c[0] === 'G') return 'threeway';
+    if (c[0] === 'P' || RUNRADAR_TIME.has(c)) return 'runradar';
+    return 'feedpulse';
+  };
+  const APP_NAME = { feedpulse: 'FeedPulse', runradar: 'RunRadar', threeway: 'Three-Way True' };
+  const appChip = (id) => `<span class="appchip" data-app="${id}"><b>${APP_BY_ID[id === 'variance' ? 'exceptions' : id].num}</b>${esc(APP_NAME[id] || APP_BY_ID[id].name)}</span>`;
+  const appNum = (n) => `<span class="appnum" aria-hidden="true">${n}</span>`;
+
+  // ---- Policy clauses cited by each check
+  const CHECK_CLAUSES = {
+    T1: ['HB 3.2', 'HB 3.3'], T2: ['HB 3.3'], T3: ['HB 3.4'], T4: ['HB 3.6'], T5: ['HB 4.1', 'CBA 7.1'], T6: ['CBA 7.2', 'CBA 7.3', 'HB 4.2'],
+    T7: ['HB 4.1'], T8: ['HB 3.5'], T9: ['HB 5.1'], T10: ['HB 7.4'],
+    R1: ['HB 8.1'], R2: ['HB 8.1'], R3: ['HB 8.1'], R4: ['HB 8.1'], R5: ['HB 8.1'],
+    P1: ['HB 8.1'], P2: ['CBA 12.1', 'CBA 12.2'], P3: ['HB 3.3'], P4: ['CBA 7.2', 'CBA 7.3', 'HB 4.2'], P5: ['HB 4.2'], P9: ['HB 6.3'], P10: ['HB 8.1'],
+    F1: ['FIN 2.1'], F2: ['FIN 2.2'], F3: ['FIN 2.2', 'HB 8.2'], F4: ['FIN 2.3', 'HB 8.2'], F5: ['FIN 2.4'], F6: ['FIN 3.1'], F7: ['FIN 3.2'],
+    G1: ['FIN 4.1'], G2: ['FIN 4.1'], G3: ['FIN 4.2'], G4: ['FIN 4.3'], G5: ['FIN 4.3'], G6: ['FIN 2.1'], G7: ['FIN 4.4'],
+  };
+  function allClauses() {
+    const i = input();
+    const out = {};
+    [[i.handbook, 'Employee handbook'], [i.agreement, 'Union agreement'], [i.glMap, 'Finance and treasury rules']].forEach(([d, label]) => {
+      ((d && d.clauses) || []).forEach((c) => { out[c.id] = Object.assign({ doc: label }, c); });
+    });
+    return out;
+  }
+  function clausesFor(x) {
+    let ids = CHECK_CLAUSES[x.check] || [];
+    if (x.check === 'T9') ids = /sick/i.test(x.title) ? ['HB 7.3', 'HB 5.1'] : ['HB 5.1'];
+    if (x.check === 'T10') ids = /sick/i.test(x.title) ? ['HB 7.4', 'HB 7.1'] : ['HB 7.4'];
+    if (x.check === 'P9') ids = /sick/i.test(x.title) ? ['HB 7.2', 'HB 7.1'] : /carryover/i.test(x.title) ? ['HB 6.2'] : /bucket/i.test(x.title) ? ['HB 6.3'] : ['HB 6.1', 'HB 6.3'];
+    if (x.check === 'T1' && !/meal/i.test(x.title)) ids = ['HB 3.3', 'HB 3.2'];
+    const all = allClauses();
+    return ids.map((id) => all[id]).filter(Boolean);
+  }
+
+  // ---- Evidence: the source records behind an exception, each with a citation ref
+  const PICK = {
+    census: ['emp_id', 'job_title', 'location', 'cost_center', 'union_local', 'flsa_status', 'ft_pt', 'pay_type', 'hourly_rate', 'annual_salary', 'hire_date', 'term_date'],
+    censusPto: ['vac_carryover_hrs', 'vac_current_hrs', 'sick_accrued_hrs', 'sick_hrs'],
+    censusBank: ['bank_last4', 'bank_change_date'],
+    time: ['record_id', 'work_date', 'pay_code', 'punch_in', 'meal_out', 'meal_in', 'punch_out', 'wfm_hours', 'manager_override', 'override_by', 'override_reason', 'note'],
+    sched: ['work_date', 'shift_start', 'shift_end', 'scheduled_hours', 'schedule_source'],
+    reg: ['emp_id', 'pay_type', 'rate', 'reg_hrs', 'ot_hrs', 'dt_hrs', 'vac_hrs', 'sick_hrs', 'hol_hrs', 'reg_pay', 'ot_pay', 'dt_pay', 'pto_pay', 'gross_pay', 'net_pay'],
+    regPto: ['vac_co_begin', 'vac_co_end', 'vac_cur_begin', 'vac_cur_end', 'sick_acc_begin', 'sick_acc_end', 'sick_begin', 'sick_end'],
+    regTax: ['gross_pay', 'medical_ee', 'ss_ee', 'medicare_ee', 'ss_er', 'medicare_er', 'work_state'],
+    regBank: ['net_pay', 'bank_last4'],
+    bank: ['txn_id', 'value_date', 'txn_type', 'amount', 'emp_id', 'account_last4', 'return_code', 'jurisdiction', 'reference'],
+    gl: ['je_id', 'line', 'account', 'account_name', 'cost_center', 'debit', 'credit', 'memo'],
+  };
+  const pickRow = (row, keys) => Object.fromEntries(keys.filter((k) => row && row[k] !== undefined && row[k] !== '').map((k) => [k, row[k]]));
+
+  function evidenceFor(x) {
+    const r = state.result, i = input(), ev = [];
+    const add = (system, label, fields) => { if (Object.keys(fields).length) ev.push({ ref: `R${ev.length + 1}`, system, label, fields }); };
+    const emp = x.empId && r.empById[x.empId];
+    const c = emp && emp.census;
+    const ck = x.check;
+    if (c) add('Payroll census', `Census record ${c.emp_id}`, pickRow(c, PICK.census.concat(['P9', 'T10'].includes(ck) ? PICK.censusPto : [], ck[0] === 'F' ? PICK.censusBank : [])));
+    if (x.empId && ['T1', 'T2', 'T3', 'T4', 'T8', 'T9', 'R1', 'R3', 'R4', 'R5', 'T10', 'P3'].includes(ck)) {
+      let recs = i.time.filter((t) => t.emp_id === x.empId);
+      if (x.date && ck !== 'R5') recs = recs.filter((t) => t.work_date === x.date);
+      else if (ck === 'T2') recs = recs.filter((t) => /^y/i.test(t.manager_override || '') || !(t.punch_in || t.punch_out));
+      else if (ck === 'T10' || ck === 'P3') recs = recs.filter((t) => t.pay_code && t.pay_code !== 'REG');
+      else if (ck === 'R3' && emp && emp.hire) recs = recs.filter((t) => t.work_date < emp.hire);
+      else if (ck === 'R4' && emp && emp.term) recs = recs.filter((t) => t.work_date > emp.term);
+      else if (ck === 'R5') recs = recs.slice().sort((a, b) => (a.work_date < b.work_date ? -1 : 1)).slice(0, 1);
+      recs.slice(0, 4).forEach((t) => add('WFM time records', `Time record ${t.record_id || t.work_date}`, pickRow(t, PICK.time)));
+      const sch = i.schedules.filter((s) => s.emp_id === x.empId && (x.date && ck !== 'R5' ? s.work_date === x.date : false));
+      sch.slice(0, 2).forEach((s) => add('WFM schedules', `Scheduled shift ${s.work_date}`, pickRow(s, PICK.sched)));
+    }
+    if (emp && emp.hasWfm && ['T5', 'T6', 'T7', 'P3', 'P4', 'P5'].includes(ck)) {
+      const weeks = [0, 1].map((w) => emp.days.filter((d) => d.week === w));
+      const fields = {};
+      weeks.forEach((ds, w) => {
+        fields[`week${w + 1}_worked_hours`] = E.util.r2(sum(ds.filter((d) => !c || d.inWindow), (d) => d.worked)).toFixed(2);
+        fields[`week${w + 1}_sunday_hours`] = E.util.r2(sum(ds.filter((d) => d.dow === 0 && (!c || d.inWindow)), (d) => d.worked)).toFixed(2);
+        fields[`week${w + 1}_time_off_hours`] = E.util.r2(sum(ds.filter((d) => !c || d.inWindow), (d) => d.ptoHours)).toFixed(2);
+      });
+      add('WFM time records', 'Approved WFM hours by week', fields);
+    }
+    const R = emp && emp.register;
+    if (R && (ck[0] === 'P' || ['T10', 'R2', 'R3', 'R5', 'F2', 'F3', 'F4', 'F5'].includes(ck))) {
+      const keys = ck === 'P9' || ck === 'T10' ? PICK.reg.slice(0, 1).concat(['vac_hrs', 'sick_hrs'], PICK.regPto) : ck === 'P7' ? PICK.regTax : ck[0] === 'F' ? PICK.regBank : PICK.reg;
+      add('Payroll register', `Register line ${R.emp_id}`, pickRow(R, keys));
+    }
+    if (ck[0] === 'F') {
+      let rows = [];
+      if (x.empId) rows = i.bank.filter((b) => b.emp_id === x.empId);
+      else if (ck === 'F6') rows = i.bank.filter((b) => b.txn_type === 'TAX_REMIT' || b.txn_type === 'TAX_FUNDING');
+      else if (ck === 'F7') rows = i.bank.filter((b) => b.txn_type === 'BENEFIT_REMIT');
+      else if (ck === 'F1') rows = i.bank.filter((b) => b.txn_type === 'NET_PAY_FUNDING');
+      if (ck === 'F5' && x.links && x.links.length) rows = rows.concat(i.bank.filter((b) => x.links.includes(b.emp_id) && b.txn_type === 'ACH_CREDIT'));
+      rows.slice(0, 6).forEach((b) => add('Bank activity', `Bank transaction ${b.txn_id}`, pickRow(b, PICK.bank)));
+    }
+    if (ck[0] === 'G') {
+      const glm = i.glMap || {};
+      const ccs = (`${x.title} ${x.detail}`.match(/CC-\d+/g) || []);
+      let lines = i.gl.filter((l) => ccs.includes(l.cost_center) || (ck === 'G3' && l.account === glm.suspense_account));
+      if (ck === 'G4') lines = i.gl.filter((l) => l.account === glm.employer_tax_account);
+      if (ck === 'G5') lines = i.gl.filter((l) => Object.values(glm.liability_accounts || {}).includes(l.account));
+      if (ck === 'G6') lines = i.gl.filter((l) => l.account === glm.cash_account);
+      if (ck === 'G7') lines = i.gl.filter((l) => l.account === glm.vacation_liability_account || l.account === glm.vacation_accrual_expense_account);
+      lines.slice(0, 6).forEach((l) => add('GL journal', `${l.je_id} line ${l.line}`, pickRow(l, PICK.gl)));
+      if (ck === 'G4' || ck === 'G5') i.bank.filter((b) => b.txn_type === 'TAX_REMIT').slice(0, 4).forEach((b) => add('Bank activity', `Bank transaction ${b.txn_id}`, pickRow(b, PICK.bank)));
+    }
+    return ev;
+  }
+
+  // ---- Masking: what leaves the browser for the AI uses synthetic identifiers only
+  let maskCache = null;
+  function masker() {
+    if (maskCache && maskCache.result === state.result) return maskCache;
+    const r = state.result;
+    const ids = r.employees.map((e) => e.id).sort();
+    const idMap = {}, back = {};
+    ids.forEach((id, k) => { idMap[id] = `EMP-${String(k + 1).padStart(3, '0')}`; });
+    const pairs = [];
+    const firstCount = {};
+    r.employees.forEach((e) => { const f = String(e.name || '').split(' ')[0]; firstCount[f] = (firstCount[f] || 0) + 1; });
+    r.employees.forEach((e) => {
+      const tok = idMap[e.id];
+      back[tok] = `${e.name} (${e.id})`;
+      if (e.name) pairs.push([e.name, tok]);
+      const [first, ...rest] = String(e.name || '').split(' ');
+      const last = rest.join(' ');
+      if (last && last.length > 2) pairs.push([`${first[0]}. ${last}`, `${tok} (manager)`]);
+      if (first && first.length > 2 && firstCount[first] === 1) pairs.push([first, tok]);
+    });
+    pairs.sort((a, b) => b[0].length - a[0].length);
+    const accts = {};
+    let acctN = 0;
+    const acct = (d) => accts[d] || (accts[d] = `ACCT-${String(++acctN).padStart(2, '0')}`);
+    const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nameRe = pairs.length ? new RegExp(`\\b(${pairs.map((p) => reEsc(p[0])).join('|')})\\b`, 'g') : null;
+    const nameMap = Object.fromEntries(pairs);
+    const text = (s) => {
+      if (s === null || s === undefined) return s;
+      let t = String(s);
+      if (nameRe) t = t.replace(nameRe, (m) => nameMap[m] || m);
+      t = t.replace(/\bE\d{4}\b/g, (m) => idMap[m] || 'EMP-???');
+      t = t.replace(/\*{2,4}(\d{4})\b/g, (m, d) => acct(d));
+      t = t.replace(/\b\d{9}\b/g, '[routing]');
+      t = t.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[ssn]');
+      return t;
+    };
+    const DROP = new Set(['first_name', 'last_name', 'employee_name', 'bank_routing', 'ssn', 'address', 'street', 'city', 'zip', 'payee', 'reference']);
+    const obj = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !DROP.has(k)).map(([k, v]) => {
+      if (k === 'emp_id') return [k, idMap[v] || v];
+      if (k === 'bank_last4' || k === 'account_last4') return [k, v ? acct(v) : v];
+      if (k === 'override_by') return [k, v ? String(v).replace(/^.*\(/, 'Manager (').replace(/^[^(]*$/, 'Manager') : v];
+      return [k, text(v)];
+    }));
+    const unmask = (s) => String(s || '').replace(/EMP-\d{3}/g, (m) => back[m] || m);
+    maskCache = { result: r, id: (eid) => idMap[eid] || eid, text, obj, unmask };
+    return maskCache;
+  }
+
+  function aiExplainPayload(x) {
+    const m = masker();
+    const p = state.result.period;
+    return {
+      company: 'Retail apparel employer, NY and NJ stores (synthetic demo data)',
+      pay_period: `${p.start} to ${p.end}`,
+      exception: {
+        check: `${x.check} ${CHECK_OF[x.check].title}`, rule: CHECK_OF[x.check].rule(state.result.config),
+        application: APP_NAME[appOf(x)], severity: x.severity, employee: x.empId ? m.id(x.empId) : 'whole cycle',
+        title: m.text(x.title), finding: m.text(x.detail), expected: m.text(x.expected || ''), actual: m.text(x.actual || ''),
+        dollar_impact_from_rules: x.impact ? `${F.money(x.impact.amount)} ${KIND_WORD[x.impact.kind]}${x.impact.estimated ? ' (estimate)' : ''}` : 'none',
+        owner: ownerOf(x), suggested_action: m.text(x.action || ''),
+      },
+      records: evidenceFor(x).map((e) => ({ ref: e.ref, system: e.system, record: m.obj(e.fields) })),
+      policy: clausesFor(x).map((c) => ({ id: c.id, title: c.title, document: c.doc, text: c.text })),
+    };
+  }
+
+  // ---- AI service (Vercel function). Without it, explanations are assembled from the records by rules.
+  const aiKey = (x) => `${x.key}|${String(x.detail).length}|${String(x.detail).slice(0, 40)}`;
+  function aiStore() {
+    store.ai = store.ai || {};
+    return store.ai[cycleId()] || (store.ai[cycleId()] = { explain: {}, clusters: null });
+  }
+  async function checkAi() {
+    state.ai = { available: false, checked: false };
+    if (!/^https?:$/.test(location.protocol)) { state.ai.checked = true; return; }
+    try {
+      const res = await fetch('api/ai', { method: 'GET', headers: { Accept: 'application/json' } });
+      const j = res.ok ? await res.json() : null;
+      state.ai = { available: !!(j && j.ai), model: j && j.model, checked: true };
+    } catch (e) { state.ai = { available: false, checked: true }; }
+    if (state.page === 'exceptions') renderDetail();
+    if (state.page === 'fixflow') renderFixflow();
+  }
+  async function callAi(task, payload) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.aiCode) headers['x-access-code'] = state.aiCode;
+    const res = await fetch('api/ai', { method: 'POST', headers, body: JSON.stringify({ task, payload }) });
+    let j = null;
+    try { j = await res.json(); } catch (e) { j = null; }
+    if (!res.ok) throw new Error((j && j.message) || `The AI service answered ${res.status}.`);
+    return j;
+  }
+  async function explainWithAi(key) {
+    const x = exByKey(key);
+    if (!x) return;
+    state.aiBusy = key;
+    renderDetail();
+    try {
+      const j = await callAi('explain', aiExplainPayload(x));
+      aiStore().explain[aiKey(x)] = { at: nowIso(), model: j.model, data: j.data };
+      save();
+      log('AI explanation', `${exLabel(x)} — Variance Voice explained with ${j.model}`, { ref: x.key, by: 'Rollcall' });
+      state.aiError = null;
+    } catch (e) { state.aiError = { key, message: e.message }; }
+    state.aiBusy = null;
+    if (state.page === 'exceptions') renderDetail();
+  }
+
+  function groundedExplanation(x) {
+    const ev = evidenceFor(x);
+    const cl = clausesFor(x);
+    return {
+      summary: x.title,
+      explanation: x.detail,
+      citations: ev.map((e) => ({ ref: e.ref, why: e.label })),
+      policy: cl[0] ? { clause: `${cl[0].id} ${cl[0].title}`, how_it_applies: cl[0].text } : null,
+      owner: ownerOf(x),
+      next_step: x.action || '',
+    };
+  }
+
+  function citeHtml(text, unmask) {
+    const m = masker();
+    const t = unmask ? m.unmask(text) : text;
+    return esc(t).replace(/\[(R\d+)\]/g, '<button class="cite" type="button" data-action="cite" data-ref="$1">$1</button>');
+  }
+
+  function varianceVoiceHtml(x) {
+    const cached = aiStore().explain[aiKey(x)];
+    const busy = state.aiBusy === x.key;
+    const err = state.aiError && state.aiError.key === x.key ? state.aiError.message : '';
+    const data = cached ? cached.data : groundedExplanation(x);
+    const fromAi = !!cached;
+    const unmask = state.unmask;
+    const ev = evidenceFor(x);
+    const cl = clausesFor(x);
+    const policyHtml = fromAi && data.policy
+      ? `<blockquote class="clause"><b>${esc(data.policy.clause)}</b> ${citeHtml(data.policy.how_it_applies, unmask)}</blockquote>`
+      : cl.map((c) => `<blockquote class="clause"><b>${esc(c.id)} ${esc(c.title)}</b> <span class="muted">${esc(c.doc)}</span><br>${esc(c.text)}</blockquote>`).join('');
+    const aiBtn = state.ai && state.ai.available
+      ? `<button class="btn small ${fromAi ? '' : 'primary'}" type="button" data-action="ai-explain" data-key="${esc(x.key)}" ${busy ? 'disabled' : ''}>${busy ? 'Explaining…' : fromAi ? 'Explain again' : 'Explain with AI'}</button>`
+      : '';
+    const sourceLine = fromAi
+      ? `Written by ${esc(cached.model || 'Claude')} from the masked records below · ${esc(stamp(cached.at))}`
+      : state.ai && state.ai.available ? 'Assembled from the records by the rules. Ask the AI for a written explanation.' : 'Assembled from the records by the rules. The AI service is not connected on this deployment.';
+    return `<section class="vv" aria-label="Variance Voice explanation">
+      <div class="vv-head">${appNum(3)}<b>Variance Voice</b><span class="spacer"></span>${fromAi ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
+      <p class="vv-source">${sourceLine}</p>
+      ${err ? `<p class="form-err">${esc(err)}</p>` : ''}
+      ${fromAi ? `<p class="vv-summary">${citeHtml(data.summary, unmask)}</p>` : ''}
+      <p class="vv-text">${fromAi ? citeHtml(data.explanation, unmask) : esc(data.explanation)}</p>
+      ${policyHtml}
+      <div class="vv-next"><div><span>Owner</span><b>${esc(fromAi ? data.owner : ownerOf(x))}</b></div><div><span>Next step</span><b>${fromAi ? citeHtml(data.next_step, unmask) : esc(data.next_step)}</b></div></div>
+    </section>
+    <section><h4>Evidence ${fromAi ? 'the AI cited' : 'behind the finding'}</h4>
+      ${ev.length ? `<div class="evid">${ev.map((e) => {
+        const why = fromAi && Array.isArray(data.citations) ? (data.citations.find((c) => c.ref === e.ref) || {}).why : '';
+        return `<div class="evid-row" id="ev-${e.ref}"><span class="cite static">${e.ref}</span><div><b>${esc(e.label)}</b> <span class="muted">${esc(e.system)}</span>${why ? `<div class="evid-why">${citeHtml(why, unmask)}</div>` : ''}
+          <div class="evid-fields">${Object.entries(e.fields).map(([k, v]) => `<span><i>${esc(k)}</i> ${esc(v)}</span>`).join('')}</div></div></div>`;
+      }).join('')}</div>` : '<p class="muted">This check works on totals; the figures are in the finding above.</p>'}
+    </section>
+    <details class="ai-sees"><summary>What the AI sees (masked)</summary>
+      <p class="muted" style="font-size:var(--t-xs);margin:6px 0">Names, employee IDs, bank accounts and routing numbers are replaced with synthetic values before anything leaves the browser. Dollar figures come from the rules.</p>
+      <pre>${esc(JSON.stringify(aiExplainPayload(x), null, 2))}</pre></details>`;
+  }
+
+  // ---- FeedPulse: is the data on time and complete?
+  const FEED_KEYS = ['time', 'schedules', 'census'];
+  const SAMPLE_RECEIVED = { census: '2026-09-28T08:30:00', time: '2026-09-28T09:12:00', schedules: '2026-09-28T14:40:00', register: '2026-09-29T16:05:00', bank: '2026-10-06T07:00:00', gl: '2026-10-02T18:20:00' };
+  function addDaysIso(d, n) { const t = new Date(d + 'T00:00:00'); t.setDate(t.getDate() + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+  function feedStatus(key) {
+    const s = state.src[key] || {};
+    const p = state.result.period;
+    const due = `${addDaysIso(p.end, 2)}T10:00:00`;
+    const rows = s.rows || [];
+    const loaded = !!s.rows;
+    const received = !loaded ? null : s.origin === 'sample' ? SAMPLE_RECEIVED[key] : (s.received || s.at);
+    const late = received && new Date(received) > new Date(due) ? (new Date(received) - new Date(due)) / 60000 : 0;
+    const keys = KEY_COLS[key] || [];
+    const blanks = keys.map((c) => [c, rows.filter((r) => r[c] === undefined || String(r[c]).trim() === '').length]).filter(([, n]) => n);
+    const filled = rows.length && keys.length ? 1 - sum(blanks, ([, n]) => n) / (rows.length * keys.length) : 1;
+    let outside = 0, dupes = 0;
+    if (key === 'time' || key === 'schedules') {
+      outside = rows.filter((r) => r.work_date && (r.work_date < p.start || r.work_date > p.end)).length;
+      const seen = new Set();
+      rows.forEach((r) => { const k = key === 'time' ? `${r.emp_id}|${r.work_date}|${r.pay_code}|${r.punch_in}|${r.wfm_hours}` : `${r.emp_id}|${r.work_date}|${r.shift_start}`; if (seen.has(k)) dupes++; seen.add(k); });
+    } else if (key === 'census') {
+      const seen = new Set();
+      rows.forEach((r) => { if (seen.has(r.emp_id)) dupes++; seen.add(r.emp_id); });
+    }
+    const alerts = [];
+    if (!loaded) alerts.push({ sev: 'blocker', text: `${SRC[key].title} not received` });
+    if (late) alerts.push({ sev: 'review', text: `${SRC[key].title} arrived ${fmtLate(late)} after the ${shortDate(due.slice(0, 10))} 10:00 cutoff` });
+    blanks.forEach(([c, n]) => alerts.push({ sev: 'review', text: `${plural(n, 'record')} with no ${c}` }));
+    if (outside) alerts.push({ sev: 'review', text: `${plural(outside, 'record')} dated outside the pay period` });
+    if (dupes) alerts.push({ sev: 'review', text: `${plural(dupes, 'duplicate record')}` });
+    return { key, loaded, received, due, late, rows: rows.length, filled, blanks, outside, dupes, alerts, source: s };
+  }
+  const fmtLate = (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m` : `${Math.round(min)}m`);
+
+  function renderFeedpulse() {
+    const r = state.result;
+    const feeds = FEED_KEYS.map(feedStatus);
+    const alerts = feeds.flatMap((f) => f.alerts.map((a) => Object.assign({ feed: SRC[f.key].title }, a)));
+    const list = r.exceptions.filter((x) => appOf(x) === 'feedpulse' && x.severity !== 'info');
+    const open = list.filter(isOpen);
+    const groups = {};
+    list.forEach((x) => { (groups[x.check] = groups[x.check] || []).push(x); });
+    const order = ['T1', 'T2', 'T9', 'R1', 'R2', 'R3', 'R5', 'R4', 'T3', 'T4', 'T8'];
+    const checkIds = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">${appNum(1)} Payroll Integrity AI</span><h1>FeedPulse</h1><p>Is the data on time and complete? FeedPulse watches the WFM time records, schedules and payroll census before payroll runs: late or missing files, people in WFM but not in payroll, time outside employment dates, missed punches, manager overrides and miscoded time.</p></div></div>
+      <section class="card">
+        <div class="card-head"><h3>Feeds</h3><span class="muted" style="font-size:var(--t-sm)">WFM close cutoff ${esc(F.fmtDate(feeds[0].due.slice(0, 10)))} 10:00</span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Feed</th><th>Source</th><th>Received</th><th>Status</th><th class="n">Records</th><th class="n">Complete</th><th>Checks</th></tr></thead>
+          <tbody>${feeds.map((f) => `<tr>
+            <td><b>${esc(SRC[f.key].title)}</b><br><span class="muted mono" style="font-size:var(--t-xs)">${esc(f.source.name || '—')}</span></td>
+            <td>${esc(SRC[f.key].sys)}</td>
+            <td class="mono" style="font-size:var(--t-xs)">${f.received ? esc(stamp(f.received)) : '—'}</td>
+            <td>${!f.loaded ? '<span class="pill blocker">Missing</span>' : f.late ? `<span class="pill review">Late ${esc(fmtLate(f.late))}</span>` : '<span class="pill pass">On time</span>'}</td>
+            <td class="n">${f.loaded ? f.rows : '—'}</td>
+            <td class="n">${f.loaded ? `${(f.filled * 100).toFixed(f.filled < 1 ? 1 : 0)}%` : '—'}</td>
+            <td class="wrap">${f.loaded ? [f.outside ? `${f.outside} out of period` : '', f.dupes ? `${f.dupes} duplicates` : '', f.blanks.length ? `${f.blanks.length} required fields blank` : ''].filter(Boolean).join(' · ') || '<span class="muted">Period covered, no duplicates</span>' : `<a href="#sources">Load it</a>`}</td>
+          </tr>`).join('')}</tbody></table></div>
+      </section>
+      ${alerts.length ? `<div class="group-title"><h3>Feed alerts</h3><span class="muted">${plural(alerts.length, 'alert')}</span></div>
+        <div class="alerts">${alerts.map((a) => `<div class="alert ${a.sev}"><span class="pill ${a.sev}">${a.sev === 'blocker' ? 'Missing' : 'Alert'}</span><span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
+      <div class="group-title"><h3>Data exceptions</h3><span class="muted">${open.length} open of ${list.length} · select one to see Variance Voice’s explanation</span></div>
+      <div class="check-stages">${checkIds.map((id) => `<section class="check-stage">
+        <header><span class="id mono">${id}</span><h3>${esc(CHECK_OF[id].title)}</h3><span class="sys">${esc(CHECK_OF[id].rule(r.config))}</span><span class="res">${groups[id].filter(isOpen).length} open</span></header>
+        <ul>${groups[id].map((x) => exLine(x)).join('')}</ul></section>`).join('') || '<div class="table-wrap"><div class="empty"><h3>No data exceptions</h3><p>Every FeedPulse check passed.</p></div></div>'}</div>`;
+  }
+
+  function exLine(x, extra) {
+    const st = statusOf(x);
+    return `<li><button class="ex-line" type="button" data-action="goto-ex" data-key="${esc(x.key)}">
+      <span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>
+      <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')}${x.location ? ' · ' + esc(x.location) : ''} · ${esc(ownerOf(x))}</span></span>
+      ${extra || `<span class="mono amt">${x.impact ? F.money(x.impact.amount) : ''}</span>`}
+      ${statusPill(st)}
+    </button></li>`;
+  }
+
+  // ---- RunRadar: which exceptions change someone's pay?
+  const RR_GROUPS = [
+    { id: 'hours', label: 'Hours against class', checks: ['T5', 'T7', 'P3', 'P10'] },
+    { id: 'ot', label: 'Overtime and premiums', checks: ['T6', 'P4', 'P5'] },
+    { id: 'rates', label: 'Rates and union scale', checks: ['P1', 'P2'] },
+    { id: 'pto', label: 'PTO buckets and balances', checks: ['T10', 'P9'] },
+    { id: 'math', label: 'Taxes and register math', checks: ['P6', 'P7', 'P8'] },
+  ];
+  const rrGroupOf = (c) => RR_GROUPS.find((g) => g.checks.includes(c)) || RR_GROUPS[0];
+  function renderRunradar() {
+    const r = state.result;
+    const list = r.exceptions.filter((x) => appOf(x) === 'runradar' && x.severity !== 'info');
+    const priced = list.filter((x) => x.impact).sort((a, b) => b.impact.amount - a.impact.amount);
+    const unpriced = list.filter((x) => !x.impact);
+    const openPriced = priced.filter(isOpen);
+    const payKinds = ['underpaid', 'overpaid', 'tax', 'liability'];
+    const tot = Object.fromEntries(payKinds.map((k) => [k, sum(openPriced.filter((x) => x.impact.kind === k), (x) => x.impact.amount)]));
+    const max = priced.length ? priced[0].impact.amount : 1;
+    const all = sum(priced, (x) => x.impact.amount);
+    const top5 = sum(priced.slice(0, 5), (x) => x.impact.amount);
+    const label = { underpaid: 'Owed to employees', overpaid: 'Overpaid', tax: 'Tax exposure', liability: 'PTO liability' };
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">${appNum(2)} Payroll Integrity AI</span><h1>RunRadar</h1><p>Which exceptions change someone’s pay? RunRadar checks validated time against each class (35h union, 40h full time, the 30h part-time cap), overtime (1.5× over 35 union and 40 non-exempt, 2× on Sunday, none for exempt salaried staff), rates against the census and union scale, and PTO drawn from the right bucket. The rules price every exception in dollars.</p></div></div>
+      <div class="kpis rr-kpis">${payKinds.map((k) => `<div class="kpi"><span class="label">${label[k]}</span><span class="value ${tot[k] ? '' : 'zero'}">${F.money(tot[k])}</span><span class="sub">open, from ${plural(openPriced.filter((x) => x.impact.kind === k).length, 'exception')}</span></div>`).join('')}</div>
+      <section class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Ranked by dollar impact</h3><span class="muted" style="font-size:var(--t-sm)">${priced.length ? `The top 5 carry ${Math.round((top5 / all) * 100)}% of ${F.money(all)}` : 'Nothing priced'}</span></div>
+        ${priced.length ? `<ol class="rr-list">${priced.map((x, k) => {
+          const g = rrGroupOf(x.check);
+          return `<li><button class="rr-row" type="button" data-action="goto-ex" data-key="${esc(x.key)}">
+            <span class="rank mono">${k + 1}</span>
+            <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')} · ${esc(g.label)} · ${esc(x.check)}</span></span>
+            <span class="rr-bar" aria-hidden="true"><i class="k-${x.impact.kind}" style="width:${Math.max(3, Math.round((x.impact.amount / max) * 100))}%"></i></span>
+            <span class="amt mono">${F.money(x.impact.amount)}<small>${esc(KIND_SHORT[x.impact.kind])}${x.impact.estimated ? ' · est.' : ''}</small></span>
+            ${statusPill(statusOf(x))}
+          </button></li>`;
+        }).join('')}</ol>` : '<div class="empty"><p>No pay-impacting exceptions.</p></div>'}
+      </section>
+      ${unpriced.length ? `<div class="group-title"><h3>No direct dollar impact</h3><span class="muted">Still checked: short weeks, bucket order and similar</span></div>
+        <div class="check-stages"><section class="check-stage"><ul>${unpriced.map((x) => exLine(x, `<span class="muted amt" style="font-size:var(--t-xs)">${esc(rrGroupOf(x.check).label)}</span>`)).join('')}</ul></section></div>` : ''}`;
+  }
+
+  // ---- Three-Way True: do payroll, payments and the ledger agree?
+  function threeWayRows() {
+    const r = state.result, i = input();
+    const num = E.util.num, r2 = E.util.r2;
+    const reg = r.regTotals;
+    const glm = i.glMap || {};
+    const L = glm.liability_accounts || {};
+    const bsum = (t, f) => r2(i.bank.filter((b) => b.txn_type === t && (!f || f(b))).reduce((a, b) => a + num(b.amount), 0));
+    const acct = {};
+    i.gl.forEach((l) => { const a = acct[l.account] || (acct[l.account] = { dr: 0, cr: 0 }); a.dr += num(l.debit); a.cr += num(l.credit); });
+    const dr = (a) => r2((acct[a] || {}).dr || 0), cr = (a) => r2((acct[a] || {}).cr || 0);
+    const wageAccts = Object.values(glm.wage_account_by_class || {}).concat([glm.premium_account, glm.pto_account]).filter(Boolean);
+    const glWages = r2(sum(wageAccts, dr));
+    const suspense = dr(glm.suspense_account);
+    const rows = [
+      { item: 'Net pay', payroll: reg.net, bank: bsum('NET_PAY_FUNDING'), bankLabel: 'Impound', gl: cr(glm.cash_account), glLabel: `${glm.cash_account} cash`, checks: ['F1', 'G6'] },
+      { item: 'Net pay settled by ACH', payroll: reg.net, bank: r2(bsum('ACH_CREDIT') - bsum('ACH_RETURN')), bankLabel: 'ACH credits less returns', gl: null, checks: ['F2', 'F3', 'F4'] },
+      { item: 'Withholdings and employer taxes', payroll: r2(reg.eeTax + reg.erTax), bank: bsum('TAX_REMIT'), bankLabel: 'Tax remittances', gl: cr(L.taxes), glLabel: `${L.taxes} taxes payable`, checks: ['F6', 'G5'] },
+    ].concat((r.funding.taxes || []).map((t) => ({ item: `· ${t.jurisdiction}`, sub: true, payroll: t.expected, bank: t.remitted, bankLabel: 'Remitted', gl: null, checks: ['F6'] })), [
+      { item: '401(k) deferrals', payroll: reg.k401, bank: bsum('BENEFIT_REMIT', (b) => /401/.test(b.jurisdiction)), bankLabel: 'Benefit remittance', gl: cr(L.k401), glLabel: `${L.k401} payable`, checks: ['F7', 'G5'] },
+      { item: 'Medical premiums', payroll: reg.medical, bank: bsum('BENEFIT_REMIT', (b) => /MED/i.test(b.jurisdiction)), bankLabel: 'Benefit remittance', gl: cr(L.medical), glLabel: `${L.medical} payable`, checks: ['F7', 'G5'] },
+      { item: 'Wage expense (gross pay)', payroll: reg.gross, bank: null, gl: glWages, glLabel: `Wage accounts${suspense ? ` · ${F.money(suspense)} more in ${glm.suspense_account} suspense` : ''}`, checks: ['G2', 'G3'] },
+      { item: 'Employer tax expense', payroll: reg.erTax, bank: null, gl: dr(glm.employer_tax_account), glLabel: `${glm.employer_tax_account} expense`, checks: ['G4'] },
+    ]);
+    rows.forEach((row) => {
+      const diffs = [row.bank, row.gl].filter((v) => v !== null && v !== undefined).map((v) => r2(v - row.payroll));
+      row.break = diffs.find((d) => Math.abs(d) >= 0.01) || 0;
+      row.open = r.exceptions.filter((x) => row.checks.includes(x.check) && x.severity !== 'info' && isOpen(x));
+    });
+    return rows;
+  }
+
+  function renderThreeway() {
+    const r = state.result, i = input();
+    const rows = threeWayRows();
+    const breaks = r.exceptions.filter((x) => appOf(x) === 'threeway' && x.severity !== 'info');
+    const num = E.util.num;
+    const regRows = i.register;
+    const ach = {};
+    i.bank.filter((b) => b.txn_type === 'ACH_CREDIT').forEach((b) => { ach[b.emp_id] = (ach[b.emp_id] || 0) + num(b.amount); });
+    const returned = new Set(i.bank.filter((b) => b.txn_type === 'ACH_RETURN').map((b) => b.emp_id));
+    const matched = regRows.filter((x) => Math.abs((ach[x.emp_id] || 0) - num(x.net_pay)) < 0.01 && !returned.has(x.emp_id)).length;
+    const money = (v) => (v === null || v === undefined ? '<span class="muted">—</span>' : F.money(v));
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">${appNum(4)} Payroll Integrity AI</span><h1>Three-Way True</h1><p>Do payroll, payments and the ledger agree? After funding and posting, Three-Way True matches net pay to the ACH file and bank activity, withholdings and employer taxes to the remittances, and the register to the GL postings. Every break gets an owner.</p></div></div>
+      <div class="kpis tw-kpis">
+        <div class="kpi"><span class="label">Lines that tie</span><span class="value">${rows.filter((x) => !x.break).length} of ${rows.length}</span><span class="sub">register · bank · GL</span></div>
+        <div class="kpi"><span class="label">Breaks</span><span class="value ${breaks.length ? '' : 'zero'}" style="${breaks.length ? 'color:var(--crit)' : ''}">${breaks.filter(isOpen).length}</span><span class="sub">open, ${breaks.length} found</span></div>
+        <div class="kpi"><span class="label">Deposits matching the register</span><span class="value">${matched} of ${regRows.length}</span><span class="sub">by employee</span></div>
+      </div>
+      <section class="card" style="margin-top:16px">
+        <div class="card-head"><h3>Register · bank · ledger</h3></div>
+        <div class="table-wrap"><table class="tw-table">
+          <thead><tr><th>Line</th><th class="n">Payroll register</th><th class="n">Bank and ACH</th><th class="n">General ledger</th><th>Result</th></tr></thead>
+          <tbody>${rows.map((row) => `<tr class="${row.sub ? 'sub' : ''}">
+            <td>${row.sub ? `<span class="muted">${esc(row.item)}</span>` : `<b>${esc(row.item)}</b>`}</td>
+            <td class="n">${money(row.payroll)}</td>
+            <td class="n">${money(row.bank)}${row.bank !== null && row.bankLabel ? `<br><small class="muted">${esc(row.bankLabel)}</small>` : ''}</td>
+            <td class="n">${money(row.gl)}${row.gl !== null && row.glLabel ? `<br><small class="muted">${esc(row.glLabel)}</small>` : ''}</td>
+            <td>${row.break ? `<span class="pill blocker">Break ${F.signedMoney(row.break)}</span>` : '<span class="pill pass">Ties</span>'}${row.open.length && !row.sub ? `<br><button class="linkish" type="button" data-action="goto-ex" data-key="${esc(row.open[0].key)}" style="font-size:var(--t-xs)">${esc(row.open[0].check)} · ${esc(ownerOf(row.open[0]))}</button>` : ''}</td>
+          </tr>`).join('')}</tbody></table></div>
+      </section>
+      <div class="group-title"><h3>Break report</h3><span class="muted">${breaks.filter(isOpen).length} open · each with an owner</span></div>
+      <div class="check-stages"><section class="check-stage"><ul>${breaks.map((x) => exLine(x)).join('') || '<li><div class="empty"><p>No breaks. The register, payments and ledger agree.</p></div></li>'}</ul></section></div>`;
+  }
+
+  // ---- FixFlow Clusters: what keeps going wrong?
+  const FIX_TYPES = {
+    meal_return: { label: 'Missed lunch check-ins', by: 'store' },
+    missing_out: { label: 'Missing check-outs', by: 'store' },
+    missing_in: { label: 'Missing check-ins', by: 'store' },
+    override: { label: 'Hours entered without punches', by: 'manager' },
+    bank_change: { label: 'Deposits to an old account after a bank change', by: 'type' },
+    no_show: { label: 'No-shows on scheduled shifts', by: 'store' },
+    unscheduled: { label: 'Unscheduled shifts', by: 'store' },
+    short_week: { label: 'Short weeks with no time off coded', by: 'store' },
+    ot_straight: { label: 'Overtime paid at straight time', by: 'store' },
+    premium_split: { label: 'Overtime or Sunday premium split wrong', by: 'store' },
+    after_term: { label: 'Time recorded after termination', by: 'store' },
+    before_hire: { label: 'Time before the payroll hire date', by: 'type' },
+    start_gap: { label: 'Payroll start date before the first time record', by: 'type' },
+    unmapped_cc: { label: 'Cost center posted to suspense', by: 'type' },
+    holiday_code: { label: 'Holiday pay on a non-holiday', by: 'type' },
+    sick_coded_vac: { label: 'Sick days coded as vacation', by: 'store' },
+    rate: { label: 'Register rate differs from census', by: 'type' },
+    union_step: { label: 'Union step increase missed', by: 'type' },
+    vac_bucket: { label: 'Vacation drawn from the wrong bucket', by: 'type' },
+    sick_bucket: { label: 'Sick time drawn from the wrong bucket', by: 'type' },
+    daily_max: { label: 'Shifts over the daily maximum', by: 'store' },
+  };
+  function fixType(x) {
+    const c = x.check, t = `${x.title} ${x.detail}`;
+    if (c === 'T1') return /meal/i.test(x.title) ? 'meal_return' : /check-in/i.test(x.title) ? 'missing_in' : 'missing_out';
+    if (c === 'T2') return 'override';
+    if (c === 'T4') return /no-show/i.test(x.title) ? 'no_show' : 'unscheduled';
+    if (c === 'T5') return 'short_week';
+    if (c === 'T8') return 'daily_max';
+    if (c === 'T9') return /sick/i.test(x.title) ? 'sick_coded_vac' : 'holiday_code';
+    if (c === 'R3') return 'before_hire';
+    if (c === 'R4') return 'after_term';
+    if (c === 'R5') return 'start_gap';
+    if (c === 'P1') return 'rate';
+    if (c === 'P2') return 'union_step';
+    if (c === 'P4') return /straight time/i.test(t) ? 'ot_straight' : 'premium_split';
+    if (c === 'P9') return /sick/i.test(x.title) ? 'sick_bucket' : /bucket/i.test(x.title) ? 'vac_bucket' : null;
+    if (c === 'F3' || c === 'F4') return 'bank_change';
+    if (c === 'G3') return 'unmapped_cc';
+    return null;
+  }
+  function fixflowPeriods() {
+    const r = state.result;
+    const managers = {};
+    r.employees.forEach((e) => { if (e.census && /Store Manager|Distribution Center Manager/.test(e.census.job_title || '')) managers[e.cc] = e.name; });
+    const periods = [];
+    let hist = null;
+    try { hist = isSampleWorkspace() && SAMPLE.files['exception_history.json'] ? JSON.parse(SAMPLE.files['exception_history.json']) : null; } catch (e) { hist = null; }
+    (hist ? hist.periods : []).forEach((pp) => periods.push({ cycle: pp.cycle, start: pp.start, rows: pp.exceptions.map((h) => ({ type: h.type, store: h.location, cc: h.cost_center, manager: h.entered_by || h.store_manager || '', emp: h.emp_id, owner: h.owner, amount: Number(h.impact_amount) || 0, title: h.title })) }));
+    Object.entries(store.history || {}).forEach(([cycle, h]) => { if (cycle !== cycleId() && !periods.some((pp) => pp.cycle === cycle)) periods.push({ cycle, start: h.start, rows: h.rows }); });
+    periods.push({ cycle: cycleId(), start: r.period.start, current: true, rows: currentFixRows() });
+    periods.sort((a, b) => (a.start < b.start ? -1 : 1));
+    return periods.slice(-6);
+  }
+  function currentFixRows() {
+    const r = state.result;
+    const managers = {};
+    r.employees.forEach((e) => { if (e.census && /Store Manager|Distribution Center Manager/.test(e.census.job_title || '')) managers[e.cc] = e.name; });
+    return r.exceptions.filter((x) => x.severity !== 'info').map((x) => {
+      const type = fixType(x);
+      if (!type) return null;
+      const cc = x.cc || ((`${x.title} ${x.detail}`.match(/CC-\d+/) || [])[0]) || '';
+      return { type, store: x.location || (cc && input().glMap && (input().glMap.cost_centers || {})[cc]) || cc || '—', cc, manager: x.enteredBy || managers[cc] || '', emp: x.empId || '', owner: ownerOf(x), amount: x.impact ? x.impact.amount : 0, title: x.title, key: x.key };
+    }).filter(Boolean);
+  }
+  function fixClusters(threshold) {
+    const periods = fixflowPeriods();
+    const map = {};
+    periods.forEach((pp, k) => {
+      const seen = new Set();
+      pp.rows.filter((row) => { const id = `${row.type}|${row.emp || row.title}`; if (seen.has(id)) return false; seen.add(id); return true; }).forEach((row) => {
+      const def = FIX_TYPES[row.type] || { label: row.type, by: 'type' };
+      const dim = def.by === 'store' ? row.store : def.by === 'manager' ? (row.manager || row.store) : '';
+      const id = `${row.type}|${dim}`;
+      const c = map[id] || (map[id] = { id, type: row.type, label: def.label, by: def.by, dim, perPeriod: periods.map(() => 0), people: new Set(), amount: 0, owners: {}, stores: new Set(), managers: new Set(), currentKeys: [] });
+      c.perPeriod[k]++;
+      if (row.emp) c.people.add(row.emp);
+      c.amount += row.amount || 0;
+      c.owners[row.owner] = (c.owners[row.owner] || 0) + 1;
+      if (row.store) c.stores.add(row.store);
+      if (row.manager) c.managers.add(row.manager);
+      if (pp.current && row.key) c.currentKeys.push(row.key);
+      });
+    });
+    const list = Object.values(map).map((c) => Object.assign(c, {
+      periods: c.perPeriod.filter(Boolean).length, occurrences: sum(c.perPeriod, (n) => n),
+      owner: Object.entries(c.owners).sort((a, b) => b[1] - a[1])[0][0], inCurrent: c.perPeriod[c.perPeriod.length - 1] > 0,
+    }));
+    list.sort((a, b) => b.periods - a.periods || b.occurrences - a.occurrences);
+    return { periods, recurring: list.filter((c) => c.periods >= threshold), watch: list.filter((c) => c.periods < threshold && c.periods >= 2), all: list };
+  }
+  function clusterRootCause(c, N) {
+    const store_ = c.dim || [...c.stores].join(', ');
+    const mgr = [...c.managers][0] || 'the store manager';
+    const n = `${c.periods} of ${N} periods`;
+    const T = {
+      meal_return: [`Associates at ${store_} go out for lunch and don’t punch back in, in ${n} (${plural(c.occurrences, 'time')}, ${plural(c.people.size, 'associate')}). A pattern spread across many associates at one store points to the store’s break process or time-clock setup, not individual habits.`, `Have ${store_}’s manager (${mgr}) review meal punches in WFM before close each day, turn on WFM’s missed-meal-return alert for the store, and recheck after two periods.`],
+      override: [`${c.dim || 'One manager'} keys hours without punches in ${n}. The reasons cite forgotten punches or a down badge reader, so hours are paid on attestation alone.`, 'Require a second approver for manager-entered hours in WFM, log badge-reader outages with IT, and coach the associates involved on punching.'],
+      bank_change: [`Direct-deposit changes entered after the batch is built reach the ACH file late in ${n}, so deposits go to the old account and come back as returns.`, 'Freeze bank-detail changes at batch build (HB 8.2), prenote new accounts, and have Treasury reissue returns within one business day (FIN 2.3).'],
+      ot_straight: [`Weekly overtime at ${store_} is paid as straight time in ${n}. The distribution center’s hours come from an Excel schedule import that doesn’t split hours over 40.`, 'Recompute weekly overtime in payroll from WFM time rather than the Excel totals, and fix the import mapping.'],
+      no_show: [`Scheduled shifts at ${store_} end with no punches and no time-off code in ${n}.`, `${store_}’s manager codes absences in WFM before close, and schedules are updated when shifts are swapped.`],
+      unmapped_cc: [`A new cost center (${[...c.stores].join(', ')}) posts payroll to suspense in ${n} because it was never added to the GL map.`, 'Add new cost centers to the GL map as part of store opening, and reclass suspense before close.'],
+    };
+    const t = T[c.type] || [`${c.label}${store_ ? ` at ${store_}` : ''} recurs in ${n} (${plural(c.occurrences, 'occurrence')}).`, `${c.owner} to find the shared step that produces these and fix it at the source.`];
+    return { root_cause: t[0], fix: t[1] };
+  }
+
+  async function clustersWithAi() {
+    const thr = state.fixThreshold || 3;
+    const { periods, recurring } = fixClusters(thr);
+    if (!recurring.length) return;
+    state.aiBusy = 'clusters';
+    renderFixflow();
+    const m = masker();
+    const mask = (s) => m.text(String(s || '').replace(/^.*\(/, 'Manager ('));
+    try {
+      const j = await callAi('clusters', {
+        company: 'Retail apparel employer, NY and NJ stores (synthetic demo data)',
+        periods: periods.map((pp) => pp.cycle),
+        clusters: recurring.map((c, k) => ({ id: `C${k + 1}`, type: c.label, grouped_by: c.by, store: c.by === 'store' ? c.dim : [...c.stores].join(', '), manager: c.by === 'manager' ? mask(c.dim) : '', occurrences_per_period: c.perPeriod, periods_seen: c.periods, people_affected: c.people.size, dollar_impact_from_rules: E.util.r2(c.amount), usual_owner: c.owner, examples: periods.flatMap((pp) => pp.rows.filter((row) => `${row.type}|${FIX_TYPES[row.type] && FIX_TYPES[row.type].by === 'store' ? row.store : FIX_TYPES[row.type] && FIX_TYPES[row.type].by === 'manager' ? (row.manager || row.store) : ''}` === c.id).slice(0, 2).map((row) => `${pp.cycle}: ${m.text(row.title)}`)).slice(0, 6) })),
+        policy: Object.values(allClauses()).filter((cl) => ['HB 3.2', 'HB 3.3', 'HB 8.2', 'FIN 2.3', 'FIN 4.2', 'HB 4.2'].includes(cl.id)).map((cl) => ({ id: cl.id, title: cl.title, text: cl.text })),
+      });
+      const ids = Object.fromEntries(recurring.map((c, k) => [`C${k + 1}`, c.id]));
+      const data = { clusters: ((j.data && j.data.clusters) || []).map((x) => Object.assign({}, x, { id: ids[x.id] || x.id })) };
+      aiStore().clusters = { at: nowIso(), model: j.model, data };
+      save();
+      log('AI root causes', `FixFlow Clusters named root causes for ${plural(recurring.length, 'recurring issue')} with ${j.model}`, { by: 'Rollcall' });
+      state.aiError = null;
+    } catch (e) { state.aiError = { key: 'clusters', message: e.message }; }
+    state.aiBusy = null;
+    if (state.page === 'fixflow') renderFixflow();
+  }
+
+  function renderFixflow() {
+    const thr = state.fixThreshold || 3;
+    const { periods, recurring, watch } = fixClusters(thr);
+    const N = periods.length;
+    const ai = aiStore().clusters;
+    const aiFor = (c) => ai && ai.data && Array.isArray(ai.data.clusters) ? ai.data.clusters.find((x) => x.id === c.id) : null;
+    const heat = (c) => `<span class="heat" aria-label="${c.perPeriod.join(', ')} by period">${c.perPeriod.map((n, k) => `<i class="${n ? (n > 1 ? 'h2' : 'h1') : ''} ${periods[k].current ? 'cur' : ''}" title="${esc(periods[k].cycle)}: ${n}">${n || ''}</i>`).join('')}</span>`;
+    const card = (c) => {
+      const rc = aiFor(c) || clusterRootCause(c, N);
+      const unmask = state.unmask;
+      const m = masker();
+      return `<article class="cluster">
+        <header><div><h4>${esc(c.label)}</h4><p class="muted">${c.by === 'store' ? `Store: ${esc(c.dim)}` : c.by === 'manager' ? `Entered by: ${esc(c.dim)}` : `Across ${esc([...c.stores].join(', ') || 'the company')}`} · ${plural(c.occurrences, 'occurrence')}${c.people.size ? ` · ${plural(c.people.size, 'person', 'people')}` : ''}${c.amount ? ` · ${F.money(c.amount)}` : ''}</p></div>
+          <span class="pill ${c.periods >= thr ? 'blocker' : 'review'}">${c.periods} of ${N} periods</span></header>
+        <div class="heat-row"><span class="muted" style="font-size:var(--t-2xs)">${esc(periods[0].cycle)}</span>${heat(c)}<span class="muted" style="font-size:var(--t-2xs)">${esc(periods[N - 1].cycle)}</span></div>
+        <div class="rc"><span>Root cause</span><p>${esc(unmask ? m.unmask(rc.root_cause) : rc.root_cause)}</p></div>
+        <div class="rc"><span>Recommended fix</span><p>${esc(unmask ? m.unmask(rc.fix) : rc.fix)}</p></div>
+        <footer><span class="muted" style="font-size:var(--t-xs)">${aiFor(c) ? `Named by ${esc(ai.model || 'Claude')}` : 'Named by the rules'} · owner ${esc(c.owner)}</span>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period’s ${c.currentKeys.length === 1 ? 'exception' : `${c.currentKeys.length} exceptions`}</button>` : ''}</footer>
+      </article>`;
+    };
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">${appNum(5)} Payroll Integrity AI</span><h1>FixFlow Clusters</h1><p>What keeps going wrong? FixFlow Clusters reads the exceptions from the last ${N} pay periods, groups them by store, manager and type, flags patterns seen in ${thr} or more periods, and names the root cause and a fix.</p></div>
+        <div class="actions"><label class="field" for="fixThr">Flag at
+          <select id="fixThr">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === thr ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select></label>
+          ${state.ai && state.ai.available && recurring.length ? `<button class="btn small primary" type="button" data-action="ai-clusters" ${state.aiBusy === 'clusters' ? 'disabled' : ''}>${state.aiBusy === 'clusters' ? 'Naming…' : ai ? 'Name root causes again' : 'Name root causes with AI'}</button>` : ''}</div>
+      </div>
+      ${state.aiError && state.aiError.key === 'clusters' ? `<p class="form-err" style="margin-bottom:10px">${esc(state.aiError.message)}</p>` : ''}
+      <div class="notice" style="margin-bottom:14px"><span>Periods: ${periods.map((pp) => `<b class="mono">${esc(pp.cycle)}</b>${pp.current ? ' (this cycle)' : ''}`).join(' · ')}.${isSampleWorkspace() ? ' The five earlier periods are the sample workspace’s exception history.' : ' Earlier periods come from cycles released in this browser.'}${ai ? ` Root causes named by ${esc(ai.model || 'Claude')} · ${esc(stamp(ai.at))}.` : ''}</span></div>
+      <div class="group-title"><h3>Recurring issues</h3><span class="muted">${plural(recurring.length, 'pattern')} seen in ${thr} or more periods</span></div>
+      <div class="clusters">${recurring.map(card).join('') || '<div class="table-wrap"><div class="empty"><h3>Nothing recurring</h3><p>No exception pattern shows up in enough periods.</p></div></div>'}</div>
+      ${watch.length ? `<div class="group-title"><h3>Watch list</h3><span class="muted">Seen in 2 periods: not yet a pattern</span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Issue</th><th>Where</th><th>By period</th><th class="n">Occurrences</th><th>Owner</th><th></th></tr></thead>
+          <tbody>${watch.map((c) => `<tr><td><b>${esc(c.label)}</b></td><td>${esc(c.by === 'type' ? [...c.stores].join(', ') : c.dim)}</td><td>${heat(c)}</td><td class="n">${c.occurrences}</td><td>${esc(c.owner)}</td>
+            <td>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  }
+
+  // ---- Overview: the flow from the use case, with live status for each application
+  function appStatus() {
+    const r = state.result;
+    const feeds = FEED_KEYS.map(feedStatus);
+    const by = (id) => r.exceptions.filter((x) => appOf(x) === id && x.severity !== 'info');
+    const fp = by('feedpulse'), rr = by('runradar'), tw = by('threeway');
+    const all = r.exceptions.filter((x) => x.severity !== 'info');
+    const fx = fixClusters(state.fixThreshold || 3);
+    const st = (list) => (list.some((x) => isOpen(x) && x.severity === 'blocker') ? 'fail' : list.some(isOpen) ? 'warn' : 'pass');
+    const rrMoney = sum(rr.filter((x) => isOpen(x) && x.impact), (x) => x.impact.amount);
+    return {
+      feedpulse: { state: feeds.some((f) => !f.loaded) ? 'fail' : st(fp), text: `${feeds.filter((f) => f.loaded && !f.late).length} of ${feeds.length} feeds on time · ${fp.filter(isOpen).length} data exceptions open` },
+      runradar: { state: st(rr), text: `${rr.filter((x) => x.impact).length} exceptions priced · ${F.money(rrMoney)} open` },
+      exceptions: { state: st(all), text: `${all.length - all.filter(isOpen).length} of ${all.length} reviewed · ${all.filter(isOpen).length} open` },
+      threeway: { state: st(tw), text: `${threeWayRows().filter((x) => !x.break).length} of ${threeWayRows().length} lines tie · ${tw.filter(isOpen).length} breaks open` },
+      fixflow: { state: fx.recurring.length ? 'warn' : 'pass', text: `${plural(fx.recurring.length, 'recurring issue')} across ${fx.periods.length} periods` },
+    };
+  }
+  function flowHtml() {
+    const s = appStatus();
+    return `<section class="card flow-card" aria-labelledby="flowTitle">
+      <div class="card-head"><h3 id="flowTitle">Payroll Integrity AI</h3><span class="muted" style="font-size:var(--t-sm)">Five applications check one pay cycle from time clock to ledger</span></div>
+      <div class="flow">
+        <div class="flow-lab"><b>Pay cycle</b></div>
+        ${HOPS.map(([a, b], k) => `<div class="hop" style="grid-column:${k + 2}"><b>${a}</b><span>${b}</span></div>`).join('')}
+        ${APPS.map((a) => `<div class="flow-lab app"><span>${appNum(a.num)}<b>${esc(a.name)}</b></span><small>${esc(a.tag)}</small></div>
+          <button class="flow-bar" type="button" data-action="go-page" data-page="${a.id}" data-state="${s[a.id].state}" style="grid-column:${a.span[0] + 2} / ${a.span[1] + 3}">
+            <span class="fb-top">${esc(a.bar)}</span><span class="fb-live"><i aria-hidden="true"></i>${esc(s[a.id].text)}</span></button>`).join('')}
+      </div>
+      <div class="guardrails"><span>Rules calculate the dollars</span><span>AI explains and groups</span><span>A reviewer approves before release</span><span>Demo data is synthetic and masked</span></div>
+    </section>`;
+  }
+
+  const SHOWCASE = [
+    { app: 1, label: 'Missed punch: out to lunch, never checked back in', find: (x) => x.check === 'T1' && /meal/i.test(x.title) && x.empId === 'E1012' },
+    { app: 1, label: 'Manager override: 8 hours entered with no punches', find: (x) => x.check === 'T2' && x.empId === 'E1021' },
+    { app: 1, label: 'Miscoded time: a sick day coded as vacation', find: (x) => x.check === 'T9' && /sick/i.test(x.title) },
+    { app: 1, label: 'Start-date gap: payroll start 9/21, time begins 9/23', find: (x) => x.check === 'R5' },
+    { app: 2, label: 'Sunday hours paid at 1.5× instead of 2×', find: (x) => x.check === 'P4' && x.empId === 'E1018' },
+    { app: 3, label: 'Sick time drawn from the current year while an accrued balance remains', find: (x) => x.check === 'P9' && /sick/i.test(x.title) },
+    { app: 4, label: 'ACH return after an employee changed bank accounts', find: (x) => x.check === 'F4' },
+    { app: 5, label: 'Missed lunch check-ins at one store, every period', page: 'fixflow' },
+  ];
+  function showcaseHtml() {
+    if (!isSampleWorkspace()) return '';
+    const items = SHOWCASE.map((s) => Object.assign({ x: s.find ? state.result.exceptions.find(s.find) : null }, s)).filter((s) => s.page || s.x);
+    return `<section class="card showcase" style="margin-top:16px"><div class="card-head"><h3>Showcase walkthrough</h3><span class="muted" style="font-size:var(--t-sm)">The use case’s demo cases, in order</span></div>
+      <ol class="sc-list">${items.map((s) => `<li><button type="button" ${s.page ? `data-action="go-page" data-page="${s.page}"` : `data-action="goto-ex" data-key="${esc(s.x.key)}"`}>${appNum(s.app)}<span>${esc(s.label)}</span>${s.x ? statusPill(statusOf(s.x)) : '<span class="muted" style="font-size:var(--t-xs)">FixFlow</span>'}</button></li>`).join('')}</ol></section>`;
+  }
+
+  // ----------------------------------------------------------------------------------
   // Reports
   // ----------------------------------------------------------------------------------
 
@@ -1666,26 +2363,26 @@
     const r = state.result, t = r.totals, p = r.period, rd = readiness();
     const unresolved = r.exceptions.filter(isOpen);
     const review = unresolved.filter((x) => x.severity === 'review');
-    const accepted = r.exceptions.filter((x) => x.severity !== 'info' && statusOf(x) === 'accepted');
-    const resolved = r.exceptions.filter((x) => x.severity !== 'info' && statusOf(x) === 'resolved');
+    const dismissed = r.exceptions.filter((x) => x.severity !== 'info' && statusOf(x) === 'dismissed');
+    const approved = r.exceptions.filter((x) => x.severity !== 'info' && statusOf(x) === 'approved');
     const line = (x) => {
       const who = x.empId ? `${x.empId} ${x.empName}` : 'Cycle';
       const amt = x.impact ? ` (${F.money(x.impact.amount)} ${KIND_WORD[x.impact.kind]}${x.impact.estimated ? ', est.' : ''})` : '';
       return `${who}: ${x.title}${amt}. ${x.action || ''}`.trim();
     };
-    const acceptedLine = (x) => `${x.empId ? `${x.empId} ${x.empName}` : 'Cycle'}: ${x.title}. Reason: ${lastNote(x) || 'not recorded'}`;
+    const dismissedLine = (x) => `${x.empId ? `${x.empId} ${x.empName}` : 'Cycle'}: ${x.title}. Reason: ${lastNote(x) || 'not recorded'}`;
     const oi = openImpact();
     const imp = oi.amount;
     let first;
     if (rd.state === 'nodata') first = 'WAITING FOR DATA. Load the census, time records and payroll register to evaluate this cycle.';
     else if (rd.state === 'blocked') first = `HOLD. ${rd.preOpen.length} of ${plural(rd.pre.length, 'pre-release blocker')} open${rd.pre.length - rd.preOpen.length ? ` (${rd.pre.length - rd.preOpen.length} cleared)` : ''}; ${rd.postOpen.length} funding and GL blockers and ${review.length} review items also open.`;
-    else if (rd.state === 'ready') first = `READY TO RELEASE. ${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} cleared: ${rd.resolved.length} resolved, ${rd.accepted.length} accepted as risk.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${rd.postOpen.length} funding and GL blockers tracked after settlement.` : ''}`;
+    else if (rd.state === 'ready') first = `READY TO RELEASE. ${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} cleared: ${rd.approved.length} approved, ${rd.dismissed.length} dismissed with a reason.` : 'Every pre-release check passed.'}${rd.postOpen.length ? ` ${rd.postOpen.length} funding and GL blockers tracked after settlement.` : ''}`;
     else first = `RELEASED ${stamp(rd.released.at)} by ${rd.released.by}${rd.released.note ? ` — “${rd.released.note}”` : ''}.${rd.postOpen.length ? ` ${rd.postOpen.length} funding and GL blockers still open.` : ''}`;
     const money = KINDS.filter((k) => imp[k.kind]);
     const second = money.length
       ? `Open exposure: ${money.map((k) => `${F.money(imp[k.kind])} ${k.kind === 'underpaid' ? `owed to ${plural(oi.people.underpaid, 'employee')}` : k.kind === 'overpaid' ? `overpaid across ${plural(oi.people.overpaid, 'employee')}` : k.label.toLowerCase()}`).join('; ')}.`
       : 'No open dollar exposure.';
-    return { r, t, p, rd, review, accepted, resolved, line, acceptedLine, lead: [first, second] };
+    return { r, t, p, rd, review, dismissed, approved, line, dismissedLine, lead: [first, second] };
   }
 
   function renderReports() {
@@ -1711,8 +2408,8 @@
         ${section('Open before release', byOwner(m.rd.preOpen))}
         ${section('After settlement — treasury and GL', byOwner(m.rd.postOpen))}
         ${section('Review before close', byOwner(m.review))}
-        ${m.accepted.length ? section('Accepted as risk', [['Accepted', m.accepted]], m.acceptedLine) : ''}
-        ${m.resolved.length ? `<h4>Resolved</h4><p class="muted">${plural(m.resolved.length, 'item')} resolved this cycle. See the exception register for notes.</p>` : ''}
+        ${m.dismissed.length ? section('Dismissed with a reason', [['Dismissed', m.dismissed]], m.dismissedLine) : ''}
+        ${m.approved.length ? `<h4>Approved</h4><p class="muted">${plural(m.approved.length, 'item')} approved this cycle. See the exception register for notes.</p>` : ''}
       </article>`;
   }
 
@@ -1731,8 +2428,8 @@
     sec('Open before release', byOwner(m.rd.preOpen));
     sec('After settlement — treasury and GL', byOwner(m.rd.postOpen));
     sec('Review before close', byOwner(m.review));
-    if (m.accepted.length) sec('Accepted as risk', [['Accepted', m.accepted]], m.acceptedLine);
-    if (m.resolved.length) out.push('', `${plural(m.resolved.length, 'item')} resolved this cycle.`);
+    if (m.dismissed.length) sec('Dismissed with a reason', [['Dismissed', m.dismissed]], m.dismissedLine);
+    if (m.approved.length) out.push('', `${plural(m.approved.length, 'item')} approved this cycle.`);
     out.push('', `${m.t.checksRun} checks run across ${plural(m.t.people, 'person', 'people')}.`);
     return out.join('\n');
   }
@@ -1809,6 +2506,11 @@
           <label for="setWs">Company name</label>
           <input class="text" id="setWs" value="${esc(store.workspace)}" autocomplete="organization">
           <p class="muted" style="font-size:var(--t-sm)">Used in the sidebar, the release brief and exports.</p>
+        </div></section>
+        <section class="card"><div class="card-head"><h3>AI service</h3></div><div class="card-body">
+          <p style="font-size:var(--t-sm)">${state.ai && state.ai.available ? `<span class="conn ok">Connected</span> Variance Voice and FixFlow Clusters use ${esc(state.ai.model || 'Claude')}. Only masked records are sent.` : '<span class="conn idle">Not connected</span> Explanations and root causes are assembled from the records by the rules. Add an ANTHROPIC_API_KEY to the Vercel project to turn on the AI.'}</p>
+          <label for="setAiCode">Access code <span class="muted" style="font-weight:500">(only if the deployment sets AI_ACCESS_CODE · kept for this session)</span></label>
+          <input class="text" id="setAiCode" type="password" autocomplete="off" value="${esc(state.aiCode || '')}">
         </div></section>
         <section class="card"><div class="card-head"><h3>Appearance</h3></div><div class="card-body">
           <div class="seg" role="group" aria-label="Theme">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button type="button" data-action="theme" data-theme="${v}" aria-pressed="${store.theme === v}">${l}</button>`).join('')}</div>
@@ -1986,7 +2688,7 @@
     }
     if (rd.state === 'blocked') {
       openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release is blocked</h2></div>
-        <div class="mb"><p>${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} still open. Resolve each one, or accept it as a risk with a reason, and release opens.</p>
+        <div class="mb"><p>${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} still open. Approve or dismiss each one in Variance Voice, and release opens.</p>
           <ul class="history">${rd.preOpen.slice(0, 8).map((x) => `<li><span class="pill blocker" style="grid-column:1/-1;justify-self:start">${esc(x.check)} · ${esc(ownerOf(x))}</span><span style="grid-column:1/-1">${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</span></li>`).join('')}</ul>
           ${rd.preOpen.length > 8 ? `<p class="muted">and ${rd.preOpen.length - 8} more</p>` : ''}</div>
         <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button><button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button></div>`, opener);
@@ -2001,9 +2703,9 @@
           <div><span>Employees paid</span><b>${r.totals.onRegister}</b></div>
           <div><span>Employer taxes</span><b>${F.money(r.regTotals.erTax)}</b></div>
         </div>
-        <p>${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} are cleared: ${rd.resolved.length} resolved, ${rd.accepted.length} accepted as risk.` : 'Every time, roster and register check passed.'}</p>
-        ${rd.accepted.length ? `<div><span class="eyebrow">Accepted as risk</span><ul class="history" style="margin-top:6px">${rd.accepted.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b>${x.impact ? ` <span class="mono">${F.money(x.impact.amount)}</span>` : ''}<div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul></div>
-          <label class="field" style="color:var(--ink)"><input type="checkbox" class="cb" id="relAck"> I reviewed the accepted risks above</label>` : ''}
+        <p>${rd.pre.length ? `All ${plural(rd.pre.length, 'pre-release blocker')} are cleared: ${rd.approved.length} approved, ${rd.dismissed.length} dismissed with a reason.` : 'Every time, roster and register check passed.'}</p>
+        ${rd.dismissed.length ? `<div><span class="eyebrow">Dismissed with a reason</span><ul class="history" style="margin-top:6px">${rd.dismissed.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b>${x.impact ? ` <span class="mono">${F.money(x.impact.amount)}</span>` : ''}<div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul></div>
+          <label class="field" style="color:var(--ink)"><input type="checkbox" class="cb" id="relAck"> I reviewed the dismissed blockers and their reasons</label>` : ''}
         ${rd.postOpen.length ? `<div class="notice warn">${plural(rd.postOpen.length, 'funding and GL blocker', 'funding and GL blockers')} stay open after release for treasury and accounting.</div>` : ''}
         <label for="relNote"><b>Approval note</b> <span class="muted">(optional)</span></label>
         <textarea class="text" id="relNote" placeholder="e.g. Approved per payroll manager; E1012 re-issued by check"></textarea>
@@ -2017,11 +2719,13 @@
     const rd = readiness();
     if (rd.state !== 'ready') { closeModal(); return; }
     const ack = $('#relAck');
-    if (ack && !ack.checked) { const e = $('#relErr'); e.textContent = 'Confirm you reviewed the accepted risks.'; e.hidden = false; ack.focus(); return; }
+    if (ack && !ack.checked) { const e = $('#relErr'); e.textContent = 'Confirm you reviewed the dismissed blockers.'; e.hidden = false; ack.focus(); return; }
     const note = ($('#relNote').value || '').trim();
     const r = state.result;
-    cyc().released = { at: nowIso(), by: store.user, note, gross: r.regTotals.gross, net: r.regTotals.net, people: r.totals.onRegister, resolved: rd.resolved.length, accepted: rd.accepted.map((x) => x.key), postOpen: rd.postOpen.length };
-    log('Payroll released', `${F.money(r.regTotals.net)} net pay for ${plural(r.totals.onRegister, 'employee')} · ${rd.resolved.length} resolved, ${rd.accepted.length} accepted as risk${note ? ` — “${note}”` : ''}`);
+    cyc().released = { at: nowIso(), by: store.user, note, gross: r.regTotals.gross, net: r.regTotals.net, people: r.totals.onRegister, approved: rd.approved.length, dismissed: rd.dismissed.map((x) => x.key), postOpen: rd.postOpen.length };
+    store.history = store.history || {};
+    store.history[cycleId()] = { start: r.period.start, rows: currentFixRows().map((row) => Object.assign({}, row, { key: undefined })) };
+    log('Payroll released', `${F.money(r.regTotals.net)} net pay for ${plural(r.totals.onRegister, 'employee')} · ${rd.approved.length} approved, ${rd.dismissed.length} dismissed${note ? ` — “${note}”` : ''}`);
     closeModal();
     afterWorkflow();
     toast(`${cycleId()} released`);
@@ -2030,7 +2734,7 @@
   function releaseInfoModal(opener) {
     const rel = cyc().released;
     if (!rel) return;
-    const acc = (rel.accepted || []).map(exByKey).filter(Boolean);
+    const acc = (rel.dismissed || rel.accepted || []).map(exByKey).filter(Boolean);
     openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release record</h2></div>
       <div class="mb">
         <div class="ev">
@@ -2040,7 +2744,7 @@
           <div><span>Employees</span><b>${esc(rel.people)}</b></div>
         </div>
         ${rel.note ? `<div><span class="eyebrow">Approval note</span><div class="history"><div class="note">${esc(rel.note)}</div></div></div>` : ''}
-        <p>${plural(rel.resolved || 0, 'blocker')} resolved and ${plural(acc.length, 'blocker')} accepted as risk at release.${rel.postOpen ? ` ${plural(rel.postOpen, 'funding or GL blocker', 'funding and GL blockers')} were open for after settlement.` : ''}</p>
+        <p>${plural(rel.approved ?? rel.resolved ?? 0, 'blocker')} approved and ${plural(acc.length, 'blocker')} dismissed with a reason at release.${rel.postOpen ? ` ${plural(rel.postOpen, 'funding or GL blocker', 'funding and GL blockers')} were open for after settlement.` : ''}</p>
         ${acc.length ? `<ul class="history">${acc.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b><div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul>` : ''}
         <label for="reopenNote"><b>Reopen the cycle</b> <span class="muted">(reason required)</span></label>
         <textarea class="text" id="reopenNote" placeholder="Why the release is being reversed"></textarea>
@@ -2059,13 +2763,25 @@
     toast(`${cycleId()} reopened`);
   }
 
-  function acceptModal(keys, opener) {
-    openModal(`<div class="mh"><h2 id="modalTitle">Accept ${plural(keys.length, 'exception')} as risk</h2></div>
-      <div class="mb"><p>Accepted items stop blocking release and are listed in the release brief and the release record with this reason.</p>
-        <label for="acceptNote"><b>Reason</b></label>
-        <textarea class="text" id="acceptNote" autofocus placeholder="e.g. Correction scheduled in the off-cycle run on 10/9"></textarea>
-        <p class="form-err" id="acceptErr" hidden></p></div>
-      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="confirm-accept" data-keys="${esc(keys.join('\n'))}">Accept as risk</button></div>`, opener);
+  function dismissModal(keys, opener) {
+    openModal(`<div class="mh"><h2 id="modalTitle">Dismiss ${plural(keys.length, 'exception')}</h2></div>
+      <div class="mb"><p>Dismissed items stop blocking release. The reason is kept with each item and listed in the release brief and the release record.</p>
+        <label for="dismissNote"><b>Reason</b></label>
+        <textarea class="text" id="dismissNote" autofocus placeholder="e.g. Not an error: the associate was on approved unpaid leave"></textarea>
+        <p class="form-err" id="dismissErr" hidden></p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="confirm-dismiss" data-keys="${esc(keys.join('\n'))}">Dismiss</button></div>`, opener);
+  }
+
+  function escalateModal(keys, opener) {
+    const xs = keys.map(exByKey).filter(Boolean);
+    const current = xs.length === 1 ? ownerOf(xs[0]) : '';
+    openModal(`<div class="mh"><h2 id="modalTitle">Escalate ${plural(keys.length, 'exception')}</h2></div>
+      <div class="mb"><p>Escalated items stay open and keep blocking release until the owner approves or dismisses them.</p>
+        <label class="field" for="escOwner" style="color:var(--ink)"><b>Escalate to</b>
+          <select id="escOwner">${ownerOptions().map((o) => `<option ${o === current ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+        <label for="escNote"><b>Note</b> <span class="muted">(optional)</span></label>
+        <textarea class="text" id="escNote" autofocus placeholder="What the owner needs to check or fix"></textarea></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="confirm-escalate" data-keys="${esc(keys.join('\n'))}">Escalate</button></div>`, opener);
   }
 
   // ----------------------------------------------------------------------------------
@@ -2145,6 +2861,13 @@
     else if (a === 'confirm-new-cycle') { closeModal(); startNewCycle(); }
     else if (a === 'cycle-history') { state.activityScope = 'all'; go('activity'); }
     else if (a === 'rerun') rerun();
+    else if (a === 'go-page') go(el.dataset.page);
+    else if (a === 'ai-explain') explainWithAi(el.dataset.key);
+    else if (a === 'ai-clusters') clustersWithAi();
+    else if (a === 'cite') {
+      const row = document.getElementById('ev-' + el.dataset.ref);
+      if (row) { row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+    }
     else if (a === 'go-import') {
       go('sources');
       setTimeout(() => { const c = $('#importCard'); if (c) { c.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); const b = $('#importFiles'); if (b) b.focus(); } }, 60);
@@ -2197,7 +2920,8 @@
       if (!x) return;
       const to = el.dataset.to;
       const note = noteValue();
-      if (to === 'accepted' && !note) { const e = $('#noteErr'); e.textContent = 'Add a note explaining why this can be released as is.'; e.hidden = false; $('#noteText').focus(); return; }
+      if (to === 'escalated') { escalateModal([x.key], el); return; }
+      if (to === 'dismissed' && !note) { const e = $('#noteErr'); e.textContent = 'Add the reason for dismissing this exception in the note first.'; e.hidden = false; $('#noteText').focus(); return; }
       setStatus(x, to, note);
       afterWorkflow();
       toast(`${STATUS_VERB[to]}: ${x.title}`);
@@ -2216,16 +2940,26 @@
       state.sel.clear();
       afterWorkflow();
       toast(`${STATUS_VERB[to]}: ${plural(n, 'exception')}`);
-    } else if (a === 'bulk-accept') acceptModal(Array.from(state.sel), el);
-    else if (a === 'confirm-accept') {
-      const note = ($('#acceptNote').value || '').trim();
-      if (!note) { const e = $('#acceptErr'); e.textContent = 'Give a reason.'; e.hidden = false; $('#acceptNote').focus(); return; }
+    } else if (a === 'bulk-dismiss') dismissModal(Array.from(state.sel), el);
+    else if (a === 'bulk-escalate') escalateModal(Array.from(state.sel), el);
+    else if (a === 'confirm-dismiss') {
+      const note = ($('#dismissNote').value || '').trim();
+      if (!note) { const e = $('#dismissErr'); e.textContent = 'Give a reason.'; e.hidden = false; $('#dismissNote').focus(); return; }
       let n = 0;
-      el.dataset.keys.split('\n').forEach((k) => { const x = exByKey(k); if (x && setStatus(x, 'accepted', note)) n++; });
+      el.dataset.keys.split('\n').forEach((k) => { const x = exByKey(k); if (x && setStatus(x, 'dismissed', note)) n++; });
       state.sel.clear();
       closeModal();
       afterWorkflow();
-      toast(`Accepted as risk: ${plural(n, 'exception')}`);
+      toast(`Dismissed: ${plural(n, 'exception')}`);
+    } else if (a === 'confirm-escalate') {
+      const owner = $('#escOwner').value;
+      const note = ($('#escNote').value || '').trim();
+      let n = 0;
+      el.dataset.keys.split('\n').forEach((k) => { const x = exByKey(k); if (!x) return; setOwner(x, owner); if (setStatus(x, 'escalated', note)) n++; });
+      state.sel.clear();
+      closeModal();
+      afterWorkflow();
+      toast(`Escalated ${plural(n, 'exception')} to ${owner}`);
     } else if (a === 'clear-sel') { state.sel.clear(); renderQueue(); }
     else if (a === 'open-emp') openDrawer(el.dataset.emp, el);
     else if (a === 'close-drawer') closeDrawer();
@@ -2283,6 +3017,8 @@
       if (it && cell) cell.textContent = firstValue(it, t.value);
     } else if (t.matches('[data-conn-url]')) { store.connectors[t.dataset.connUrl] = { url: t.value.trim() }; save(); }
     else if (t.id === 'ownerSel') { state.filters.owner = t.value; renderQueue(); }
+    else if (t.id === 'unmaskToggle') { state.unmask = t.checked; if (state.page === 'exceptions') renderDetail(); else renderPage(); }
+    else if (t.id === 'fixThr') { state.fixThreshold = Number(t.value); renderFixflow(); }
     else if (t.id === 'stageSel') { state.filters.stage = t.value; renderQueue(); }
     else if (t.id === 'selAll') { state.listKeys.forEach((k) => { if (t.checked) state.sel.add(k); else state.sel.delete(k); }); renderQueue(); }
     else if (t.id === 'ownerOne') { const x = exByKey(t.dataset.key); if (x && setOwner(x, t.value)) { afterWorkflow(); toast(`Assigned to ${t.value}`); } }
@@ -2302,6 +3038,7 @@
     else if (t.id === 'peopleSearch') { state.people.q = t.value; renderPeopleTable(); }
     else if (t.id === 'noteText') { const e = $('#noteErr'); if (e) e.hidden = true; }
     else if (t.matches('[data-conn-auth]')) state.auth[t.dataset.connAuth] = t.value;
+    else if (t.id === 'setAiCode') state.aiCode = t.value.trim();
     else if (t.matches('input[type="number"][data-rule]')) onRuleInput(t);
   });
   document.addEventListener('keydown', (ev) => {
@@ -2342,6 +3079,7 @@
     recompute();
     if (!store.audit.some((a) => a.cycle === cycleId())) log('Checks run', `${state.result.totals.checksRun} checks · ${state.result.totals.blockers} blockers, ${state.result.totals.review} to review`, { by: 'Rollcall' });
     route();
+    checkAi();
   }
   if (window.NORTHLOOM_SAMPLE_READY) {
     window.NORTHLOOM_SAMPLE_READY.then(boot, (e) => { $('#page').textContent = 'The sample cycle could not be loaded: ' + e.message; });

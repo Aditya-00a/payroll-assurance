@@ -86,6 +86,13 @@ UNION_AGREEMENT = {
         "pyramiding": False,
         "note": "Hours over 35 in the Sun–Sat week at time and a half; all Sunday hours at double time. Premium hours are not paid twice.",
     },
+    "clauses": [
+        {"id": "CBA 7.1", "title": "Full-time week", "text": "The full-time work week for covered associates is 35 hours, Sunday through Saturday."},
+        {"id": "CBA 7.2", "title": "Overtime", "text": "Hours worked over 35 in the work week are paid at time and a half. Monday through Saturday hours within 35 are straight time."},
+        {"id": "CBA 7.3", "title": "Sunday premium", "text": "All hours worked on Sunday are paid at double time. Premium hours are not paid twice (no pyramiding)."},
+        {"id": "CBA 12.1", "title": "Wage scale", "text": "Covered associates are paid at least the step rate for their title and years of continuous service from the union seniority date."},
+        {"id": "CBA 12.2", "title": "Step increases", "text": "A step increase takes effect on the associate's service anniversary."},
+    ],
 }
 
 HANDBOOK = {
@@ -114,12 +121,33 @@ HANDBOOK = {
         "payout_on_termination": False,
     },
     "sick": {
-        "method": "front_loaded",
+        "method": "front_loaded_with_accrued_bank",
         "annual_hours_full_time": 40,
         "annual_hours_part_time": 24,
-        "carryover": False,
-        "note": "Sick time is front-loaded on January 1. Unused sick time does not carry over and there is no sick carryover bank.",
+        "buckets": ["accrued", "current"],
+        "draw_order": ["accrued", "current"],
+        "note": "A current-year sick grant is made on January 1. Unused hours from prior years sit in the accrued balance. Sick time draws from the accrued balance first, then the current-year bucket.",
     },
+    "clauses": [
+        {"id": "HB 3.1", "title": "Work week", "text": "The work week runs Sunday 12:00 AM through Saturday 11:59 PM."},
+        {"id": "HB 3.2", "title": "Punches", "text": "Associates punch in and out for every shift and for every meal break. A meal break is required on shifts over 6 hours."},
+        {"id": "HB 3.3", "title": "Missed punches and manager edits", "text": "Missed punches are corrected by the store manager in WFM before WFM close, with a reason. Hours entered without punches need a documented approval and are reviewed by Payroll."},
+        {"id": "HB 3.4", "title": "Rounding", "text": "Punches round to the nearest 15 minutes (7-minute rule). WFM must not snap punches to the schedule."},
+        {"id": "HB 3.5", "title": "Daily maximum", "text": "No shift may exceed 12 hours without district manager approval."},
+        {"id": "HB 3.6", "title": "Schedules", "text": "Associates work their published schedule. Absences are coded with a time-off code; unscheduled shifts need manager approval."},
+        {"id": "HB 4.1", "title": "Expected hours", "text": "Full-time non-union associates are expected to work 40 hours a week and exempt staff 40 hours. Part-time associates are scheduled 20 to 30 hours; regularly working more than 30 hours moves an associate into the full-time benefits class."},
+        {"id": "HB 4.2", "title": "Overtime (non-union)", "text": "Non-exempt hours over 40 in the work week are paid at 1.5 times the regular rate. Exempt salaried staff are not paid overtime, and their salary does not change with hours worked."},
+        {"id": "HB 5.1", "title": "Pay codes", "text": "Valid pay codes are REG, VAC, SICK, HOL and BRV. HOL is paid only on company holidays: Jan 1, May 25, Jul 3, Sep 7, Nov 26 and Dec 25 in 2026."},
+        {"id": "HB 6.1", "title": "Vacation accrual", "text": "Eligible full-time associates accrue vacation each pay period after a 90-day waiting period: 2.69h union, 3.08h hourly, 4.62h salaried."},
+        {"id": "HB 6.2", "title": "Vacation carryover", "text": "Up to 40 hours of unused vacation carries over at January 1; anything above 40 hours is forfeited. Carryover expires December 31 of the following year."},
+        {"id": "HB 6.3", "title": "Vacation draw order", "text": "Vacation draws from carryover first, then the current-year balance."},
+        {"id": "HB 7.1", "title": "Sick time", "text": "Full-time associates receive a 40-hour current-year sick grant on January 1, part-time associates 24 hours. Unused sick hours from prior years remain in the accrued balance."},
+        {"id": "HB 7.2", "title": "Sick draw order", "text": "Sick time draws from the accrued balance first, then the current-year bucket."},
+        {"id": "HB 7.3", "title": "Coding sick days", "text": "Time off for illness is coded SICK. It may not be coded as vacation, even at the associate's request."},
+        {"id": "HB 7.4", "title": "Balances", "text": "Time off cannot be taken beyond the available balance without an approved advance."},
+        {"id": "HB 8.1", "title": "Start dates and payroll records", "text": "Payroll is the system of record for employment. The payroll hire date is the associate's first day of work, and new hires are set up in payroll before their first shift. WFM time must fall between the hire and termination dates."},
+        {"id": "HB 8.2", "title": "Direct deposit changes", "text": "Direct deposit changes entered after the payroll batch is built take effect on the following pay date. Payroll prenotes new accounts."},
+    ],
 }
 
 COST_CENTERS = {
@@ -159,6 +187,18 @@ GL_MAPPING = {
     "suspense_account": "9999",
     # CC-140 (the pop-up that opened 2026-09-08) has not been added yet: seeded issue.
     "cost_centers": {cc: name for cc, (name, _) in COST_CENTERS.items() if cc != "CC-140"},
+    "clauses": [
+        {"id": "FIN 2.1", "title": "Net pay funding", "text": "Treasury funds net pay to the processor's impound account two business days before the pay date, equal to register net pay."},
+        {"id": "FIN 2.2", "title": "ACH settlement", "text": "Each direct deposit equals the employee's register net pay and goes to the account on file in the payroll census."},
+        {"id": "FIN 2.3", "title": "ACH returns", "text": "Returned deposits are reissued within one business day, by off-cycle deposit to the corrected account or by check."},
+        {"id": "FIN 2.4", "title": "Shared accounts", "text": "No two employees may deposit to the same bank account without HR documentation."},
+        {"id": "FIN 3.1", "title": "Tax remittance", "text": "Employee withholdings and employer taxes on the register are funded and remitted to each jurisdiction in full each cycle."},
+        {"id": "FIN 3.2", "title": "Benefit remittance", "text": "401(k) deferrals and medical premiums withheld are remitted to the recordkeeper and carrier each pay date."},
+        {"id": "FIN 4.1", "title": "Journal entry", "text": "The payroll journal entry balances and posts wages by employee class and cost center: union 6010, non-union hourly 6020, salaried 6030, premium 6040, PTO 6050."},
+        {"id": "FIN 4.2", "title": "Cost-center mapping", "text": "Every cost center on the register is in the GL map. Postings to 9999 Suspense must be reclassed before month-end close."},
+        {"id": "FIN 4.3", "title": "Taxes and liabilities", "text": "Employer tax expense (6100) and payroll liabilities (2200, 2210, 2220) equal the register."},
+        {"id": "FIN 4.4", "title": "Vacation accrual", "text": "The vacation accrual true-up equals the change in validated vacation balances, valued at each employee's rate."},
+    ],
 }
 
 # --------------------------------------------------------------------------------------
@@ -186,6 +226,7 @@ PATTERNS = {
     "MTh": [1, 2, 3, 4],
     "FSu": [0, 5, 6],
     "ThS": [4, 5, 6],
+    "WThF": [3, 4, 5],
 }
 
 FIRST_LAST = lambda s: s.split(" ", 1)  # noqa: E731
@@ -228,6 +269,7 @@ EMPLOYEES = [
     # ---- Non-union hourly part-time
     ("E1029", "Elena Popescu", "Pop-up Associate", "CC-140", False, "Non-Exempt", "PT", "Hourly", 19.50, "2026-09-08", None, "FSu", PU8, "026009593", "2044", 0.0, 0.0, 24.0, 0.00, 0.00),
     ("E1030", "Noah Fischer", "Warehouse Associate", "CC-310", False, "Non-Exempt", "PT", "Hourly", 20.00, "2025-03-17", None, "ThS", DC8, "021200025", "6912", 0.0, 0.0, 24.0, 0.00, 0.00),
+    ("E1038", "Marisol Vega", "Warehouse Associate", "CC-310", False, "Non-Exempt", "PT", "Hourly", 20.00, "2026-09-21", None, "WThF", DC8, "021200025", "6120", 0.0, 0.0, 24.0, 0.00, 0.00),
     # ---- Salaried exempt
     ("E1031", "Rachel Adler", "Store Manager", "CC-110", False, "Exempt", "FT", "Salary", 92000, "2018-04-02", None, "MF", CO8, "021000021", "4108", 24.0, 60.0, 40.0, 0.06, 142.80),
     ("E1032", "David Kowalski", "Store Manager", "CC-130", False, "Exempt", "FT", "Salary", 88000, "2019-09-16", None, "MF", MG10, "021200025", "7759", 30.0, 55.0, 40.0, 0.05, 142.80),
@@ -237,6 +279,10 @@ EMPLOYEES = [
     ("E1036", "Renee Walsh", "Payroll Specialist", "CC-900", False, "Exempt", "FT", "Salary", 72000, "2021-11-01", None, "MF", CO8, "021000021", "3317", 8.0, 44.0, 40.0, 0.04, 96.25),
     ("E1037", "Victor Huang", "HR Generalist", "CC-900", False, "Exempt", "FT", "Salary", 70000, "2023-05-22", None, "MF", CO8, "026009593", "1702", 0.0, 38.0, 40.0, 0.03, 48.50),
 ]
+
+# Accrued (prior-year) sick balances; everyone else has 0.
+SICK_ACCRUED = {"E1001": 16.0, "E1008": 8.0, "E1010": 12.0, "E1013": 12.0, "E1017": 8.0, "E1023": 16.0,
+                "E1032": 20.0, "E1035": 24.0}
 
 # Present in WFM only (onboarded to timekeeping, never set up in payroll).
 WFM_ONLY = [("E1099", "Kayla Simmons", "Pop-up Associate", "CC-140", PU8)]
@@ -248,6 +294,11 @@ E1012_BANK_CHANGE = "2026-09-30"
 SEEDED_ISSUES = [
     {"emp": "E1007", "check": "T1", "note": "Check-in with no check-out on Tue 9/22"},
     {"emp": "E1012", "check": "T1", "note": "Left for lunch Thu 9/17, no return punch; WFM credited 8.0h"},
+    {"emp": "E1001", "check": "T1", "note": "Left for lunch Tue 9/22 at SoHo Flagship, no return punch (recurs every period)"},
+    {"emp": "E1021", "check": "T2", "note": "Manager entered 8.0h for a day with no punches"},
+    {"emp": "E1016", "check": "T9", "note": "Sick day coded as vacation"},
+    {"emp": "E1038", "check": "R5", "note": "Payroll start date Mon 9/21, time records begin Wed 9/23"},
+    {"emp": "E1013", "check": "P9", "note": "Sick time drawn from the current-year bucket while an accrued balance remains"},
     {"emp": "E1015", "check": "T2", "note": "Two manager overrides with no punches"},
     {"emp": "E1013", "check": "T3", "note": "WFM snapped a 9:38 punch-in to the 10:00 schedule start"},
     {"emp": "E1009", "check": "T4", "note": "No-show on scheduled Sat 9/26"},
@@ -375,7 +426,7 @@ def build():
 
     def worked(eid, i, shift, rng, **over):
         start, end, meal_start, meal = shift
-        rec = {"code": "REG", "in": "", "mo": "", "mi": "", "out": "", "override": "N", "by": "", "reason": ""}
+        rec = {"code": "REG", "in": "", "mo": "", "mi": "", "out": "", "override": "N", "by": "", "reason": "", "note": ""}
         j = lambda: rng.randint(-6, 6)  # noqa: E731 - stays inside the 15-minute rounding band
         rec["in"] = mstr(tmin(start) + j())
         rec["out"] = mstr(tmin(end) + j())
@@ -389,10 +440,10 @@ def build():
         records.setdefault((eid, i), []).append(rec)
         return rec
 
-    def pto(eid, i, code, hours):
+    def pto(eid, i, code, hours, note=""):
         records.setdefault((eid, i), []).append({
             "code": code, "in": "", "mo": "", "mi": "", "out": "", "hours": hours,
-            "override": "N", "by": "", "reason": "",
+            "override": "N", "by": "", "reason": "", "note": note,
         })
 
     by_id = {e["id"]: e for e in emps}
@@ -416,6 +467,10 @@ def build():
     # E1033 is scheduled from Mon 9/21 in WFM (payroll hire date says 9/23)
     for i in list(schedules):
         if i[0] == "E1033" and i[1] < 8:
+            del schedules[i]
+    # E1038 is hired Mon 9/21 in payroll, but WFM schedules and time begin Wed 9/23
+    for i in list(schedules):
+        if i[0] == "E1038" and i[1] < 10:
             del schedules[i]
 
     # Default: work every scheduled shift
@@ -449,6 +504,16 @@ def build():
     r = rec_for("E1012", 4)
     r["mi"] = ""
     r["hours"] = (round_q(tmin(r["out"])) - round_q(tmin(r["in"]))) / 60
+    # E1001: Tue 9/22 (i=9) out to lunch at SoHo, no return punch; WFM credited the full span
+    r = rec_for("E1001", 9)
+    r["mi"] = ""
+    r["hours"] = (round_q(tmin(r["out"])) - round_q(tmin(r["in"]))) / 60
+    # E1021: Wed 9/16 (i=3) manager entered 8.0h with no punches
+    replace("E1021", 3, [{
+        "code": "REG", "in": "", "mo": "", "mi": "", "out": "", "hours": 8.0, "override": "Y",
+        "by": "L. Benson (Distribution Center Manager)", "reason": "Badge reader down — hours confirmed by supervisor",
+        "note": "",
+    }])
     # E1013: Fri 9/25 (i=12) early punch-in snapped to the 10:00 schedule start
     r = rec_for("E1013", 12)
     r["in"] = "09:38"
@@ -457,7 +522,7 @@ def build():
     for i in (3, 10):
         replace("E1015", i, [{
             "code": "REG", "in": "", "mo": "", "mi": "", "out": "", "hours": 7.0, "override": "Y",
-            "by": "M. Chen (Lead Associate)", "reason": "Forgot to punch — hours confirmed by manager",
+            "by": "M. Chen (Lead Associate)", "reason": "Forgot to punch — hours confirmed by manager", "note": "",
         }])
     # E1018: unscheduled Sunday 9/20 (i=7)
     worked("E1018", 7, ST7, random.Random(18007))
@@ -466,7 +531,7 @@ def build():
     for i in (8, 9):
         replace("E1022", i, [{
             "code": "REG", "in": "", "mo": "", "mi": "", "out": "", "hours": 8.0, "override": "Y",
-            "by": "Excel schedule import", "reason": "Auto-filled from schedule",
+            "by": "Excel schedule import", "reason": "Auto-filled from schedule", "note": "",
         }])
     # E1024: Tue 9/15 (i=2) 13.5h double shift
     replace("E1024", 2, [])
@@ -495,6 +560,10 @@ def build():
         replace("E1011", i, [])
         pto("E1011", i, "SICK", 7.0)
     pto("E1030", 1, "HOL", 8.0)  # Mon 9/14 — Labor Day was 9/7
+    replace("E1013", 2, [])
+    pto("E1013", 2, "SICK", 7.0, note="Out sick")  # drawn from the wrong bucket on the register
+    replace("E1016", 11, [])
+    pto("E1016", 11, "VAC", 7.0, note="Called out sick (flu)")  # sick day coded as vacation
     replace("E1034", 12, [])
     pto("E1034", 12, "VAC", 8.0)
 
@@ -645,7 +714,11 @@ def build_register(emps, records):
             co_e, cur_e = co_b, cur_b  # balance never decremented (or accrued)
         if e["id"] == "E1006":
             co_e, cur_e = co_b, r2(cur_b - vac + accr)  # drew from current first
-        sick_e = sick_b - sick
+        acc_b = SICK_ACCRUED.get(e["id"], 0.0)
+        acc_used = min(sick, acc_b)
+        acc_e, sick_e = r2(acc_b - acc_used), r2(sick_b - (sick - acc_used))
+        if e["id"] == "E1013":
+            acc_e, sick_e = acc_b, r2(sick_b - sick)  # drew from the current-year bucket first
 
         last4 = E1012_OLD_ACCOUNT if e["id"] == "E1012" else e["last4"]
         rows.append({
@@ -657,7 +730,8 @@ def build_register(emps, records):
             "state_other_ee": state_other, "k401_ee": k401, "medical_ee": med, "net_pay": net,
             "ss_er": ss, "medicare_er": mcare_er, "futa_er": futa, "sui_er": sui, "work_state": state,
             "bank_last4": last4, "vac_co_begin": co_b, "vac_co_end": co_e, "vac_cur_begin": cur_b,
-            "vac_cur_end": cur_e, "sick_begin": sick_b, "sick_end": sick_e,
+            "vac_cur_end": cur_e, "sick_acc_begin": acc_b, "sick_acc_end": acc_e,
+            "sick_begin": sick_b, "sick_end": sick_e,
         })
     return rows
 
@@ -799,7 +873,8 @@ def census_rows(emps):
             "status": "Terminated" if e["term"] else "Active",
             "bank_routing": e["routing"], "bank_last4": e["last4"],
             "bank_change_date": E1012_BANK_CHANGE if e["id"] == "E1012" else "",
-            "vac_carryover_hrs": e["vco"], "vac_current_hrs": e["vcur"], "sick_hrs": e["sick"],
+            "vac_carryover_hrs": e["vco"], "vac_current_hrs": e["vcur"],
+            "sick_accrued_hrs": SICK_ACCRUED.get(e["id"], 0.0), "sick_hrs": e["sick"],
             "k401_pct": f"{e['k401'] * 100:.0f}", "medical_per_period": e["med"],
         })
     return out
@@ -833,7 +908,7 @@ def time_rows(emps, records):
                 "employee_name": name, "work_date": iso(DAYS[i]), "pay_code": r["code"],
                 "punch_in": r["in"], "meal_out": r["mo"], "meal_in": r["mi"], "punch_out": r["out"],
                 "wfm_hours": float(r["hours"]), "manager_override": r["override"], "override_by": r["by"],
-                "override_reason": r["reason"], "location": loc,
+                "override_reason": r["reason"], "note": r.get("note", ""), "location": loc,
             })
     return out
 
@@ -842,7 +917,7 @@ REG_COLS = ["emp_id", "employee_name", "cost_center", "pay_type", "rate", "reg_h
             "vac_hrs", "sick_hrs", "hol_hrs", "reg_pay", "ot_pay", "dt_pay", "pto_pay", "gross_pay", "fed_wh",
             "ss_ee", "medicare_ee", "state_wh", "state_other_ee", "k401_ee", "medical_ee", "net_pay", "ss_er",
             "medicare_er", "futa_er", "sui_er", "work_state", "bank_last4", "vac_co_begin", "vac_co_end",
-            "vac_cur_begin", "vac_cur_end", "sick_begin", "sick_end"]
+            "vac_cur_begin", "vac_cur_end", "sick_acc_begin", "sick_acc_end", "sick_begin", "sick_end"]
 
 
 def money(v):
@@ -866,9 +941,10 @@ def write_pdf(reg, path):
     colsB = [("", 70, "l"), ("FED WH", 270, "r"), ("SOC SEC", 334, "r"), ("MEDICARE", 390, "r"),
              ("STATE WH", 448, "r"), ("ST OTHER", 504, "r"), ("401(K)", 556, "r"), ("MED INS", 606, "r"),
              ("NET PAY", 680, "r"), ("DEPOSIT", 740, "r")]
-    colsC = [("", 70, "l"), ("ER SS", 270, "r"), ("ER MED", 334, "r"), ("FUTA", 390, "r"), ("SUI", 448, "r"),
-             ("ST", 470, "l"), ("VAC CO BEG", 532, "r"), ("VAC CO END", 584, "r"), ("VAC BEG", 632, "r"),
-             ("VAC END", 676, "r"), ("SICK BEG", 712, "r"), ("SICK END", 750, "r")]
+    colsC = [("", 70, "l"), ("ER SS", 270, "r"), ("ER MED", 320, "r"), ("FUTA", 360, "r"), ("SUI", 404, "r"),
+             ("ST", 414, "l"), ("VAC CO BEG", 470, "r"), ("VAC CO END", 516, "r"), ("VAC BEG", 556, "r"),
+             ("VAC END", 594, "r"), ("SICK ACC BEG", 646, "r"), ("SICK ACC END", 698, "r"), ("SICK BEG", 734, "r"),
+             ("SICK END", 766, "r")]
 
     def put(x, y, s, align):
         if s == "":
@@ -905,8 +981,8 @@ def write_pdf(reg, path):
                      money(r["net_pay"]), "****" + r["bank_last4"]]
             valsC = ["EMPLOYER/BAL", money(r["ss_er"]), money(r["medicare_er"]), money(r["futa_er"]),
                      money(r["sui_er"]), r["work_state"], money(r["vac_co_begin"]), money(r["vac_co_end"]),
-                     money(r["vac_cur_begin"]), money(r["vac_cur_end"]), money(r["sick_begin"]),
-                     money(r["sick_end"])]
+                     money(r["vac_cur_begin"]), money(r["vac_cur_end"]), money(r["sick_acc_begin"]),
+                     money(r["sick_acc_end"]), money(r["sick_begin"]), money(r["sick_end"])]
             for cols, vals in ((colsA, valsA), (colsB, valsB), (colsC, valsC)):
                 for (label, x, al), v in zip(cols, vals):
                     put(x, y, v, al)
@@ -924,6 +1000,64 @@ def write_pdf(reg, path):
             c.drawRightString(680, y, money(sum(r["net_pay"] for r in reg)))
         c.showPage()
     c.save()
+
+
+# The engine flags each cycle; this is what it flagged in the five closed periods before PR-2026-19,
+# summarized one row per exception. FixFlow Clusters reads it with the current cycle's exceptions.
+HISTORY_PERIODS = [("PR-2026-14", date(2026, 7, 5)), ("PR-2026-15", date(2026, 7, 19)), ("PR-2026-16", date(2026, 8, 2)),
+                   ("PR-2026-17", date(2026, 8, 16)), ("PR-2026-18", date(2026, 8, 30))]
+HISTORY = {
+    # missed lunch check-ins at SoHo Flagship, every period
+    "PR-2026-14": [("T1", "meal_return", "E1003"), ("T1", "meal_return", "E1015"), ("F3", "bank_change", "E1009"),
+                   ("F4", "bank_change", "E1009"), ("T4", "no_show", "E1018"), ("T5", "short_week", "E1007")],
+    "PR-2026-15": [("T1", "meal_return", "E1002"), ("T2", "override", "E1015"), ("R4", "after_term", "E1030"),
+                   ("T1", "missing_out", "E1014"), ("P1", "rate", "E1006")],
+    "PR-2026-16": [("T1", "meal_return", "E1011"), ("T1", "meal_return", "E1019"), ("T1", "meal_return", "E1012"),
+                   ("F3", "bank_change", "E1013"), ("F4", "bank_change", "E1013"), ("P4", "ot_straight", "E1021"),
+                   ("T8", "daily_max", "E1024")],
+    "PR-2026-17": [("T1", "meal_return", "E1001"), ("T2", "override", "E1011"), ("P4", "ot_straight", "E1020"),
+                   ("T4", "no_show", "E1016"), ("P9", "vac_bucket", "E1004")],
+    "PR-2026-18": [("T1", "meal_return", "E1015"), ("T1", "meal_return", "E1003"), ("T2", "override", "E1015"),
+                   ("F3", "bank_change", "E1030"), ("F4", "bank_change", "E1030"), ("G3", "unmapped_cc", None),
+                   ("T9", "holiday_code", "E1023"), ("T4", "no_show", "E1009")],
+}
+HISTORY_TEXT = {
+    "meal_return": ("Meal break with no return punch", "Store manager", "overpaid", 20.4),
+    "missing_out": ("No check-out", "Store manager", "underpaid", 140.0),
+    "override": ("Hours entered with no punches", "Store manager", None, 0),
+    "bank_change": ("Deposit sent to the old account after a bank change", "Treasury", "cash", 1010.0),
+    "no_show": ("No-show on a scheduled shift", "Store manager", None, 0),
+    "short_week": ("Short week, no time off coded", "Store manager", None, 0),
+    "after_term": ("Time recorded after termination", "WFM admin", "overpaid", 160.0),
+    "rate": ("Register rate differs from census", "Payroll", "underpaid", 24.0),
+    "ot_straight": ("Overtime paid at straight time", "Payroll", "underpaid", 64.5),
+    "daily_max": ("Shift over the daily maximum", "Store manager", None, 0),
+    "vac_bucket": ("Vacation drawn from the wrong bucket", "Payroll", None, 0),
+    "unmapped_cc": ("CC-140 posted to suspense", "GL accounting", "gl", 1380.0),
+    "holiday_code": ("Holiday pay on a non-holiday", "WFM admin", "overpaid", 194.0),
+}
+OVERRIDE_BY = {"E1015": "M. Chen (Lead Associate)", "E1011": "M. Chen (Lead Associate)"}
+
+
+def build_history(emps):
+    by_id = {e["id"]: e for e in emps}
+    managers = {e["cc"]: e["name"] for e in emps if e["title"] in ("Store Manager", "Distribution Center Manager")}
+    periods = []
+    for cycle, start in HISTORY_PERIODS:
+        rows = []
+        for check, kind, eid in HISTORY[cycle]:
+            title, owner, impact_kind, amount = HISTORY_TEXT[kind]
+            e = by_id.get(eid)
+            cc = e["cc"] if e else "CC-140"
+            rows.append({
+                "check": check, "type": kind, "emp_id": eid or "", "title": title,
+                "location": COST_CENTERS[cc][0], "cost_center": cc, "store_manager": managers.get(cc, ""),
+                "entered_by": OVERRIDE_BY.get(eid, "") if kind == "override" else "",
+                "owner": owner, "impact_kind": impact_kind or "", "impact_amount": amount,
+                "resolution": "Corrected before release" if check[0] in "TRP" else "Corrected after settlement",
+            })
+        periods.append({"cycle": cycle, "start": iso(start), "end": iso(start + timedelta(days=13)), "exceptions": rows})
+    return {"name": "Exception history — five closed pay periods before PR-2026-19 (sample data)", "periods": periods}
 
 
 def main():
@@ -948,6 +1082,7 @@ def main():
     files["union_agreement.json"] = json.dumps(UNION_AGREEMENT, indent=2, ensure_ascii=False) + "\n"
     files["employee_handbook.json"] = json.dumps(HANDBOOK, indent=2, ensure_ascii=False) + "\n"
     files["gl_mapping.json"] = json.dumps(GL_MAPPING, indent=2, ensure_ascii=False) + "\n"
+    files["exception_history.json"] = json.dumps(build_history(emps), indent=2, ensure_ascii=False) + "\n"
     seeded = {"issues": SEEDED_ISSUES, "clean_controls": CLEAN_CONTROLS}
     files["seeded_issues.json"] = json.dumps(seeded, indent=2) + "\n"
 

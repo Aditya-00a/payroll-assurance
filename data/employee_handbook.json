@@ -46,10 +46,109 @@
     "payout_on_termination": false
   },
   "sick": {
-    "method": "front_loaded",
+    "method": "front_loaded_with_accrued_bank",
     "annual_hours_full_time": 40,
     "annual_hours_part_time": 24,
-    "carryover": false,
-    "note": "Sick time is front-loaded on January 1. Unused sick time does not carry over and there is no sick carryover bank."
-  }
+    "buckets": [
+      "accrued",
+      "current"
+    ],
+    "draw_order": [
+      "accrued",
+      "current"
+    ],
+    "note": "A current-year sick grant is made on January 1. Unused hours from prior years sit in the accrued balance. Sick time draws from the accrued balance first, then the current-year bucket."
+  },
+  "clauses": [
+    {
+      "id": "HB 3.1",
+      "title": "Work week",
+      "text": "The work week runs Sunday 12:00 AM through Saturday 11:59 PM."
+    },
+    {
+      "id": "HB 3.2",
+      "title": "Punches",
+      "text": "Associates punch in and out for every shift and for every meal break. A meal break is required on shifts over 6 hours."
+    },
+    {
+      "id": "HB 3.3",
+      "title": "Missed punches and manager edits",
+      "text": "Missed punches are corrected by the store manager in WFM before WFM close, with a reason. Hours entered without punches need a documented approval and are reviewed by Payroll."
+    },
+    {
+      "id": "HB 3.4",
+      "title": "Rounding",
+      "text": "Punches round to the nearest 15 minutes (7-minute rule). WFM must not snap punches to the schedule."
+    },
+    {
+      "id": "HB 3.5",
+      "title": "Daily maximum",
+      "text": "No shift may exceed 12 hours without district manager approval."
+    },
+    {
+      "id": "HB 3.6",
+      "title": "Schedules",
+      "text": "Associates work their published schedule. Absences are coded with a time-off code; unscheduled shifts need manager approval."
+    },
+    {
+      "id": "HB 4.1",
+      "title": "Expected hours",
+      "text": "Full-time non-union associates are expected to work 40 hours a week and exempt staff 40 hours. Part-time associates are scheduled 20 to 30 hours; regularly working more than 30 hours moves an associate into the full-time benefits class."
+    },
+    {
+      "id": "HB 4.2",
+      "title": "Overtime (non-union)",
+      "text": "Non-exempt hours over 40 in the work week are paid at 1.5 times the regular rate. Exempt salaried staff are not paid overtime, and their salary does not change with hours worked."
+    },
+    {
+      "id": "HB 5.1",
+      "title": "Pay codes",
+      "text": "Valid pay codes are REG, VAC, SICK, HOL and BRV. HOL is paid only on company holidays: Jan 1, May 25, Jul 3, Sep 7, Nov 26 and Dec 25 in 2026."
+    },
+    {
+      "id": "HB 6.1",
+      "title": "Vacation accrual",
+      "text": "Eligible full-time associates accrue vacation each pay period after a 90-day waiting period: 2.69h union, 3.08h hourly, 4.62h salaried."
+    },
+    {
+      "id": "HB 6.2",
+      "title": "Vacation carryover",
+      "text": "Up to 40 hours of unused vacation carries over at January 1; anything above 40 hours is forfeited. Carryover expires December 31 of the following year."
+    },
+    {
+      "id": "HB 6.3",
+      "title": "Vacation draw order",
+      "text": "Vacation draws from carryover first, then the current-year balance."
+    },
+    {
+      "id": "HB 7.1",
+      "title": "Sick time",
+      "text": "Full-time associates receive a 40-hour current-year sick grant on January 1, part-time associates 24 hours. Unused sick hours from prior years remain in the accrued balance."
+    },
+    {
+      "id": "HB 7.2",
+      "title": "Sick draw order",
+      "text": "Sick time draws from the accrued balance first, then the current-year bucket."
+    },
+    {
+      "id": "HB 7.3",
+      "title": "Coding sick days",
+      "text": "Time off for illness is coded SICK. It may not be coded as vacation, even at the associate's request."
+    },
+    {
+      "id": "HB 7.4",
+      "title": "Balances",
+      "text": "Time off cannot be taken beyond the available balance without an approved advance."
+    },
+    {
+      "id": "HB 8.1",
+      "title": "Start dates and payroll records",
+      "text": "Payroll is the system of record for employment. The payroll hire date is the associate's first day of work, and new hires are set up in payroll before their first shift. WFM time must fall between the hire and termination dates."
+    },
+    {
+      "id": "HB 8.2",
+      "title": "Direct deposit changes",
+      "text": "Direct deposit changes entered after the payroll batch is built take effect on the following pay date. Payroll prenotes new accounts."
+    }
+  ]
 }

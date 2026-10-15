@@ -6,13 +6,47 @@ Validates every pay cycle end to end, **WFM → Payroll → Treasury → Finance
 
 The workspace opens on a fictional sample cycle: Northloom Apparel, a clothing retailer with NY and NJ stores, a distribution center and a pop-up. The pay period runs Sun 2026-09-13 to Sat 2026-09-26, with a pay date of Fri 2026-10-02. There are 38 people on payroll plus one person who exists only in WFM. Issues are seeded on purpose so every check has something to find.
 
+## Payroll Integrity AI
+
+Five applications check one bi-weekly payroll, from the time clock to the general ledger. They follow the *Payroll Integrity AI: Use Case Requirements* (Oct 15, 2026). Each answers one question:
+
+| # | Application | Question | Runs | Checks |
+|---|---|---|---|---|
+| 1 | **FeedPulse** | Is the data on time and complete? | Before release | Feed timeliness against the WFM close cutoff, completeness, period coverage and duplicates; T1 punches, T2 manager overrides, T3 rounding, T4 schedule vs actual, T8 daily max, T9 pay codes (including sick days coded as vacation), R1–R5 roster and start dates |
+| 2 | **RunRadar** | Which exceptions change someone's pay? | Before release | T5 short weeks, T6 overtime due, T7 part-time cap, T10 balances, P1–P10 rates, union scale, overtime and Sunday premium, PTO buckets and register math, ranked by dollar impact |
+| 3 | **Variance Voice** | Why did it happen? | Every step | One explanation per exception. It cites the source records ([R1], [R2]…) and the policy clause (HB, CBA or FIN clause ids), and names an owner and a next step. The reviewer approves, dismisses (with a reason) or escalates. |
+| 4 | **Three-Way True** | Do payroll, payments and the ledger agree? | After funding and posting | Register ↔ bank/ACH ↔ GL for net pay, taxes by jurisdiction, benefits, wages and employer taxes; F1–F7 and G1–G7. Each break has an owner. |
+| 5 | **FixFlow Clusters** | What keeps going wrong? | Across periods | Exceptions from the last 6 pay periods, grouped by store, manager and type. Patterns seen in 3 or more periods are flagged with a root cause and a fix. |
+
+Every demo case in the use case is seeded in the sample cycle, and the Overview's *Showcase walkthrough* links to each one:
+
+- missed lunch return (E1012)
+- 8-hour manager override (E1021)
+- sick day coded as vacation (E1016)
+- start-date gap (E1038, payroll start 9/21, time from 9/23)
+- Sunday hours at 1.5× instead of 2× (E1018)
+- sick time drawn from the current-year bucket while an accrued balance remains (E1013)
+- ACH return after a bank change (E1012)
+- missed lunch check-ins at SoHo Flagship in every period (FixFlow)
+
+**Guardrails.** Rules calculate every dollar. The AI only explains and groups. Payroll can't be released until every pre-release blocker is approved or dismissed by a reviewer.
+
+### AI service
+
+`api/ai.mjs` is a Vercel function. It calls Claude (`claude-opus-5-5`, adaptive thinking, structured JSON output, server-side refusal fallback) through the official `@anthropic-ai/sdk`.
+
+- **Turning it on.** Add `ANTHROPIC_API_KEY` to the Vercel project's environment variables and redeploy. To keep strangers from using the endpoint, also set `AI_ACCESS_CODE`; reviewers then enter that code under Settings → AI service.
+- **Without a key.** Variance Voice shows the explanation the rules assembled from the records, with the same citations and policy clauses, and FixFlow names root causes from rule templates. The app says which source produced each explanation.
+
+**Masking.** All sample data is synthetic. Before anything leaves the browser, names, employee IDs, bank accounts, routing numbers and trace references are replaced with synthetic identifiers (`EMP-013`, `ACCT-01`). Variance Voice shows exactly what the AI sees, under *What the AI sees (masked)*. AI output stays masked by default; *Show real names* re-identifies it in the browser only. The function also rejects any payload that still contains an employee ID, a 9-digit routing number or an SSN pattern.
+
 ## What it does
 
 - **Overview.** Shows release readiness, a progress bar of pre-release blockers cleared, blockers by owner, cycle totals and key dates (funding, settlement, GL post, ACH returns), checks by stage, open dollar exposure, and recent activity.
-- **Exceptions.** The work queue. Filter by status, severity, stage, owner or search. The detail panel shows evidence (expected vs actual, impact), the recommended action, owner reassignment, notes and full history. Bulk actions: assign, start review, resolve, accept risk. Accepting a risk requires a reason.
-- **Release gate.** *Release payroll* stays locked until every blocker in time, roster and register checks is resolved or accepted as a risk. Approval asks you to confirm the accepted risks and records the approver, a note and the totals. A released cycle can be reopened with a reason.
+- **Variance Voice queue.** Filter by status, severity, stage, owner or search. The detail panel shows the explanation, cited evidence, policy clause, owner reassignment, notes and full history. Bulk actions: assign, approve, dismiss (reason required), escalate.
+- **Release gate.** *Release payroll* stays locked until every pre-release blocker (FeedPulse and RunRadar) is approved or dismissed. Approval asks you to confirm the dismissed blockers and their reasons, and records the approver, a note and the totals. Released cycles feed FixFlow's history. A released cycle can be reopened with a reason.
 - **People.** Register gross vs validated gross for everyone. Click a person for the timecard (scheduled vs worked), pay rebuilt from WFM time and contract rates, PTO balances and deposits.
-- **Controls.** All 38 checks by stage, each with its rule and its result.
+- **Controls.** All 39 checks by stage and application, each with its rule and its result.
 - **Import.** Drop a cycle's exports anywhere in the app, several at once: CSV, JSON or the printed PDF register (read with pdf.js). Each file is matched to its source by its columns. Common vendor header names are recognized (for example "Employee ID", "File #", "Home Department", "Total Hours", "Lunch Out"). Anything unrecognized is mapped in a column mapper, and Rollcall remembers each mapping for files with the same columns. On import, US dates, 12-hour punches, `$1,234.56` amounts and `(negative)` amounts are normalized. Importing into the sample workspace replaces the sample cycle. CSV templates are available for each source.
 - **Data sources.** Each source is set to *File* or *API*. In API mode, the browser calls your HTTPS endpoint directly, with an optional Authorization header that is kept for the session only. Use `{start}`/`{end}` in the URL for the pay period dates. The endpoint must return CSV or JSON rows and allow CORS. *Start a new cycle* clears the WFM, payroll, bank and GL data; policies, rule changes and saved column mappings carry over.
 - **Rules.** Thresholds come from the union agreement and the handbook. Every change re-runs the checks and is logged.
@@ -27,6 +61,7 @@ Use the Vercel deployment, or open `public/index.html` in a browser. To try a ba
 
 ```
 python3 generator/generate_data.py   # regenerate data/ and app/sample-data.js
+npm install                          # only needed for the api/ai function
 node tests/engine.test.js            # every seeded issue is caught, nothing else is flagged
 node tests/engine.test.js --list     # also prints each exception
 python3 build_dist.py                # rebuild public/ (the static site Vercel serves)
@@ -73,10 +108,11 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 
 ## Files
 
+- `api/ai.mjs` — the Variance Voice / FixFlow AI function (Vercel).
 - `app/brand/` — logo mark, wordmark, favicon and app icon.
 - `app/` — source. `index.html` is the shell and styles, `app.js` holds the pages, workflow, release gate and persistence, `engine.js` holds the checks, and `sample-data.js` has the sample files embedded. `index.html` is written without an `<html>` wrapper; `build_dist.py` adds one.
 - `public/` — the built static site for Vercel, made by `build_dist.py`
-- `data/` — the sample files to upload: census, schedules, time records, register (CSV and PDF), bank activity, GL journal, union agreement, handbook, GL mapping. `seeded_issues.json` lists what was planted.
+- `data/` — the sample files to upload: census, schedules, time records, register (CSV and PDF), bank activity, GL journal, union agreement, handbook and finance rules with numbered policy clauses, GL mapping, and `exception_history.json` (five earlier pay periods for FixFlow). `seeded_issues.json` lists what was planted.
 - `generator/generate_data.py` — builds the sample cycle from the same rules the engine checks
 - `tests/engine.test.js` — regression test against the seeded issues
 

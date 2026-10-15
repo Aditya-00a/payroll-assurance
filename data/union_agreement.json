@@ -76,5 +76,32 @@
     "saturday_premium_enabled": false,
     "pyramiding": false,
     "note": "Hours over 35 in the Sun–Sat week at time and a half; all Sunday hours at double time. Premium hours are not paid twice."
-  }
+  },
+  "clauses": [
+    {
+      "id": "CBA 7.1",
+      "title": "Full-time week",
+      "text": "The full-time work week for covered associates is 35 hours, Sunday through Saturday."
+    },
+    {
+      "id": "CBA 7.2",
+      "title": "Overtime",
+      "text": "Hours worked over 35 in the work week are paid at time and a half. Monday through Saturday hours within 35 are straight time."
+    },
+    {
+      "id": "CBA 7.3",
+      "title": "Sunday premium",
+      "text": "All hours worked on Sunday are paid at double time. Premium hours are not paid twice (no pyramiding)."
+    },
+    {
+      "id": "CBA 12.1",
+      "title": "Wage scale",
+      "text": "Covered associates are paid at least the step rate for their title and years of continuous service from the union seniority date."
+    },
+    {
+      "id": "CBA 12.2",
+      "title": "Step increases",
+      "text": "A step increase takes effect on the associate's service anniversary."
+    }
+  ]
 }
