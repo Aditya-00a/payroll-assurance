@@ -6,10 +6,10 @@
     "test": "node tests/engine.test.js",
     "build:public": "python3 build_dist.py"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.134.0"
-  },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "groq-sdk": "^1.6.0"
   }
 }

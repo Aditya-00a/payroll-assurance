@@ -33,9 +33,10 @@ Every demo case in the use case is seeded in the sample cycle, and the Overview'
 
 ### AI service
 
-`api/ai.mjs` is a Vercel function. It calls Claude (`claude-opus-5-5`, adaptive thinking, structured JSON output, server-side refusal fallback) through the official `@anthropic-ai/sdk`.
+`api/ai.mjs` is a Vercel function. It runs on [Groq](https://groq.com) through the official `groq-sdk`, using `openai/gpt-oss-120b` by default. Answers come back as strict structured JSON (`response_format: json_schema`) and the function checks their shape before the app uses them. If you pick a model without structured-output support, the function falls back to JSON mode with the schema written into the prompt.
 
-- **Turning it on.** Add `ANTHROPIC_API_KEY` to the Vercel project's environment variables and redeploy. To keep strangers from using the endpoint, also set `AI_ACCESS_CODE`; reviewers then enter that code under Settings → AI service.
+- **Turning it on.** Create a key at console.groq.com, add it as `GROQ_API_KEY` in the Vercel project's environment variables and redeploy. To keep strangers from using the endpoint, also set `AI_ACCESS_CODE`; reviewers then enter that code under Settings → AI service.
+- **Changing the model.** Set `GROQ_MODEL` to any model id from Groq's model list (for example `openai/gpt-oss-20b` for lower cost).
 - **Without a key.** Variance Voice shows the explanation the rules assembled from the records, with the same citations and policy clauses, and FixFlow names root causes from rule templates. The app says which source produced each explanation.
 
 **Masking.** All sample data is synthetic. Before anything leaves the browser, names, employee IDs, bank accounts, routing numbers and trace references are replaced with synthetic identifiers (`EMP-013`, `ACCT-01`). Variance Voice shows exactly what the AI sees, under *What the AI sees (masked)*. AI output stays masked by default; *Show real names* re-identifies it in the browser only. The function also rejects any payload that still contains an employee ID, a 9-digit routing number or an SSN pattern.

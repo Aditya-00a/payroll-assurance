@@ -1860,10 +1860,16 @@
     try {
       const res = await fetch('api/ai', { method: 'GET', headers: { Accept: 'application/json' } });
       const j = res.ok ? await res.json() : null;
-      state.ai = { available: !!(j && j.ai), model: j && j.model, checked: true };
+      state.ai = { available: !!(j && j.ai), model: j && aiName(j), checked: true };
     } catch (e) { state.ai = { available: false, checked: true }; }
     if (state.page === 'exceptions') renderDetail();
     if (state.page === 'fixflow') renderFixflow();
+    if (state.page === 'settings' && state.ai.available) renderSettings();
+  }
+  // "openai/gpt-oss-120b" from Groq reads as "gpt-oss-120b on Groq".
+  function aiName(j) {
+    const model = String(j.model || '').split('/').pop() || 'the AI';
+    return j.provider ? `${model} on ${j.provider}` : model;
   }
   async function callAi(task, payload) {
     const headers = { 'Content-Type': 'application/json' };
@@ -1872,7 +1878,7 @@
     let j = null;
     try { j = await res.json(); } catch (e) { j = null; }
     if (!res.ok) throw new Error((j && j.message) || `The AI service answered ${res.status}.`);
-    return j;
+    return Object.assign({}, j, { model: aiName(j) });
   }
   async function explainWithAi(key) {
     const x = exByKey(key);
@@ -1925,7 +1931,7 @@
       ? `<button class="btn small ${fromAi ? '' : 'primary'}" type="button" data-action="ai-explain" data-key="${esc(x.key)}" ${busy ? 'disabled' : ''}>${busy ? 'Explaining…' : fromAi ? 'Explain again' : 'Explain with AI'}</button>`
       : '';
     const sourceLine = fromAi
-      ? `Written by ${esc(cached.model || 'Claude')} from the masked records below · ${esc(stamp(cached.at))}`
+      ? `Written by ${esc(cached.model || 'the AI')} from the masked records below · ${esc(stamp(cached.at))}`
       : state.ai && state.ai.available ? 'Assembled from the records by the rules. Ask the AI for a written explanation.' : 'Assembled from the records by the rules. The AI service is not connected on this deployment.';
     return `<section class="vv" aria-label="Variance Voice explanation">
       <div class="vv-head">${appNum(3)}<b>Variance Voice</b><span class="spacer"></span>${fromAi ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
@@ -2285,7 +2291,7 @@
         <div class="heat-row"><span class="muted" style="font-size:var(--t-2xs)">${esc(periods[0].cycle)}</span>${heat(c)}<span class="muted" style="font-size:var(--t-2xs)">${esc(periods[N - 1].cycle)}</span></div>
         <div class="rc"><span>Root cause</span><p>${esc(unmask ? m.unmask(rc.root_cause) : rc.root_cause)}</p></div>
         <div class="rc"><span>Recommended fix</span><p>${esc(unmask ? m.unmask(rc.fix) : rc.fix)}</p></div>
-        <footer><span class="muted" style="font-size:var(--t-xs)">${aiFor(c) ? `Named by ${esc(ai.model || 'Claude')}` : 'Named by the rules'} · owner ${esc(c.owner)}</span>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period’s ${c.currentKeys.length === 1 ? 'exception' : `${c.currentKeys.length} exceptions`}</button>` : ''}</footer>
+        <footer><span class="muted" style="font-size:var(--t-xs)">${aiFor(c) ? `Named by ${esc(ai.model || 'the AI')}` : 'Named by the rules'} · owner ${esc(c.owner)}</span>${c.currentKeys.length ? `<button class="linkish" type="button" data-action="goto-ex" data-key="${esc(c.currentKeys[0])}" style="font-size:var(--t-xs)">This period’s ${c.currentKeys.length === 1 ? 'exception' : `${c.currentKeys.length} exceptions`}</button>` : ''}</footer>
       </article>`;
     };
     $('#page').innerHTML = `
@@ -2295,7 +2301,7 @@
           ${state.ai && state.ai.available && recurring.length ? `<button class="btn small primary" type="button" data-action="ai-clusters" ${state.aiBusy === 'clusters' ? 'disabled' : ''}>${state.aiBusy === 'clusters' ? 'Naming…' : ai ? 'Name root causes again' : 'Name root causes with AI'}</button>` : ''}</div>
       </div>
       ${state.aiError && state.aiError.key === 'clusters' ? `<p class="form-err" style="margin-bottom:10px">${esc(state.aiError.message)}</p>` : ''}
-      <div class="notice" style="margin-bottom:14px"><span>Periods: ${periods.map((pp) => `<b class="mono">${esc(pp.cycle)}</b>${pp.current ? ' (this cycle)' : ''}`).join(' · ')}.${isSampleWorkspace() ? ' The five earlier periods are the sample workspace’s exception history.' : ' Earlier periods come from cycles released in this browser.'}${ai ? ` Root causes named by ${esc(ai.model || 'Claude')} · ${esc(stamp(ai.at))}.` : ''}</span></div>
+      <div class="notice" style="margin-bottom:14px"><span>Periods: ${periods.map((pp) => `<b class="mono">${esc(pp.cycle)}</b>${pp.current ? ' (this cycle)' : ''}`).join(' · ')}.${isSampleWorkspace() ? ' The five earlier periods are the sample workspace’s exception history.' : ' Earlier periods come from cycles released in this browser.'}${ai ? ` Root causes named by ${esc(ai.model || 'the AI')} · ${esc(stamp(ai.at))}.` : ''}</span></div>
       <div class="group-title"><h3>Recurring issues</h3><span class="muted">${plural(recurring.length, 'pattern')} seen in ${thr} or more periods</span></div>
       <div class="clusters">${recurring.map(card).join('') || '<div class="table-wrap"><div class="empty"><h3>Nothing recurring</h3><p>No exception pattern shows up in enough periods.</p></div></div>'}</div>
       ${watch.length ? `<div class="group-title"><h3>Watch list</h3><span class="muted">Seen in 2 periods: not yet a pattern</span></div>
@@ -2508,7 +2514,7 @@
           <p class="muted" style="font-size:var(--t-sm)">Used in the sidebar, the release brief and exports.</p>
         </div></section>
         <section class="card"><div class="card-head"><h3>AI service</h3></div><div class="card-body">
-          <p style="font-size:var(--t-sm)">${state.ai && state.ai.available ? `<span class="conn ok">Connected</span> Variance Voice and FixFlow Clusters use ${esc(state.ai.model || 'Claude')}. Only masked records are sent.` : '<span class="conn idle">Not connected</span> Explanations and root causes are assembled from the records by the rules. Add an ANTHROPIC_API_KEY to the Vercel project to turn on the AI.'}</p>
+          <p style="font-size:var(--t-sm)">${state.ai && state.ai.available ? `<span class="conn ok">Connected</span> Variance Voice and FixFlow Clusters use ${esc(state.ai.model || 'the AI')}. Only masked records are sent.` : '<span class="conn idle">Not connected</span> Explanations and root causes are assembled from the records by the rules. Add a GROQ_API_KEY to the Vercel project to turn on the AI.'}</p>
           <label for="setAiCode">Access code <span class="muted" style="font-weight:500">(only if the deployment sets AI_ACCESS_CODE · kept for this session)</span></label>
           <input class="text" id="setAiCode" type="password" autocomplete="off" value="${esc(state.aiCode || '')}">
         </div></section>
