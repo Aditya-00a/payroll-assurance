@@ -38,4 +38,5 @@ out.mkdir()
 (out / 'index.html').write_text(doc)
 for f in ['app.js', 'engine.js', 'sample-data.js']:
     shutil.copy(root / 'app' / f, out / f)
+shutil.copytree(root / 'app' / 'brand', out / 'brand')
 print('built', sorted(p.name for p in out.iterdir()))

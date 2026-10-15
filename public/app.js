@@ -33,12 +33,12 @@
   // ----------------------------------------------------------------------------------
 
   const SOURCES = [
-    { key: 'census', group: 'records', kind: 'csv', file: 'census.csv', title: 'Employee census', sys: 'Payroll system · system of record', icon: 'people', api: 'GET /v1/workers?asOf={end}', desc: 'Who is employed, how they are paid, hire and termination dates, deposit accounts and PTO balances. Payroll is authoritative: people are onboarded here before WFM.' },
-    { key: 'schedules', group: 'records', kind: 'csv', file: 'schedules.csv', title: 'Schedules', sys: 'WFM · Excel for the distribution center', icon: 'calendar', api: 'GET /v1/schedules?from={start}&to={end}', desc: 'Scheduled shifts by day. Stores schedule in WFM; the distribution center builds schedules in Excel and uploads them.' },
-    { key: 'time', group: 'records', kind: 'csv', file: 'time_records.csv', title: 'Time records', sys: 'WFM timekeeping', icon: 'clock', api: 'GET /v1/timecards?from={start}&to={end}', desc: 'Check-in, meal and check-out punches, pay codes (REG, VAC, SICK, HOL) and manager overrides by day.' },
-    { key: 'register', group: 'records', kind: 'register', file: 'payroll_register.csv', title: 'Payroll register', sys: 'Payroll processor', icon: 'file', api: 'GET /v1/registers?periodEnd={end}', desc: 'Earnings, taxes, deductions, net pay and PTO balances by employee. Accepts the CSV export or the printed PDF register.' },
-    { key: 'bank', group: 'records', kind: 'csv', file: 'bank_activity.csv', title: 'Bank activity', sys: 'Treasury · payroll bank account', icon: 'bank', api: 'Prior-day statement feed (BAI2 / camt.053)', desc: 'Net pay and tax impounds, ACH settlement by employee, returns, tax and benefit remittances.' },
-    { key: 'gl', group: 'records', kind: 'csv', file: 'gl_journal.csv', title: 'GL journal', sys: 'ERP general ledger', icon: 'ledger', api: 'GET /v1/journals?source=PAYROLL&period={end}', desc: 'Payroll journal entry and the vacation accrual true-up.' },
+    { key: 'census', group: 'records', kind: 'csv', file: 'census.csv', title: 'Employee census', sys: 'Payroll system · system of record', icon: 'people', api: 'https://payroll.example.com/api/workers?asOf={end}', desc: 'Who is employed, how they are paid, hire and termination dates, deposit accounts and PTO balances. Payroll is authoritative: people are onboarded here before WFM.' },
+    { key: 'schedules', group: 'records', kind: 'csv', file: 'schedules.csv', title: 'Schedules', sys: 'WFM · Excel for the distribution center', icon: 'calendar', api: 'https://wfm.example.com/api/schedules?from={start}&to={end}', desc: 'Scheduled shifts by day. Stores schedule in WFM; the distribution center builds schedules in Excel and uploads them.' },
+    { key: 'time', group: 'records', kind: 'csv', file: 'time_records.csv', title: 'Time records', sys: 'WFM timekeeping', icon: 'clock', api: 'https://wfm.example.com/api/timecards?from={start}&to={end}', desc: 'Check-in, meal and check-out punches, pay codes (REG, VAC, SICK, HOL) and manager overrides by day.' },
+    { key: 'register', group: 'records', kind: 'register', file: 'payroll_register.csv', title: 'Payroll register', sys: 'Payroll processor', icon: 'file', api: 'https://payroll.example.com/api/registers?periodEnd={end}', desc: 'Earnings, taxes, deductions, net pay and PTO balances by employee. Accepts the CSV export or the printed PDF register.' },
+    { key: 'bank', group: 'records', kind: 'csv', file: 'bank_activity.csv', title: 'Bank activity', sys: 'Treasury · payroll bank account', icon: 'bank', api: 'https://bank.example.com/api/accounts/payroll/transactions?from={start}', desc: 'Net pay and tax impounds, ACH settlement by employee, returns, tax and benefit remittances.' },
+    { key: 'gl', group: 'records', kind: 'csv', file: 'gl_journal.csv', title: 'GL journal', sys: 'ERP general ledger', icon: 'ledger', api: 'https://erp.example.com/api/journals?source=PAYROLL&periodEnd={end}', desc: 'Payroll journal entry and the vacation accrual true-up.' },
     { key: 'agreement', group: 'policy', kind: 'json', file: 'union_agreement.json', title: 'Union agreement', sys: 'Labor relations', icon: 'rules', desc: 'Step rates by title and years of service, the 35-hour week, overtime and the Sunday double-time premium.' },
     { key: 'handbook', group: 'policy', kind: 'json', file: 'employee_handbook.json', title: 'Employee handbook', sys: 'HR policy', icon: 'rules', desc: 'Expected weekly hours, part-time cap, pay codes and holidays, punch rounding, vacation carryover and sick rules.' },
     { key: 'glMap', group: 'policy', kind: 'json', file: 'gl_mapping.json', title: 'GL mapping', sys: 'Finance', icon: 'ledger', desc: 'Wage account by employee class, liability and cash accounts, and the cost centers that are mapped.' },
@@ -84,6 +84,7 @@
     calendar: svg('<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
     bank: svg('<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/>'),
     ledger: svg('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>'),
+    upload: svg('<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>', 18),
     plug: svg('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>', 14),
   };
 
@@ -111,7 +112,7 @@
 
   const STORE_KEY = 'rollcall.payroll-assurance.v1';
   const FILES_KEY = 'rollcall.payroll-assurance.sources.v1';
-  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [] });
+  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {} });
   let store = loadStore();
 
   function loadStore() {
@@ -151,8 +152,9 @@
     drawer: null,
     drawerOpener: null,
     modalOpener: null,
-    running: false,
     busy: {},
+    importQueue: [],
+    auth: {},
   };
 
   // ----------------------------------------------------------------------------------
@@ -173,12 +175,11 @@
     SOURCES.forEach((def) => {
       const s = state.src[def.key];
       if (!s) return;
-      const base = { origin: s.origin || null, mode: s.mode || 'upload', name: s.name || '', at: s.at || null, format: s.format || '' };
+      const base = { origin: s.origin || null, mode: s.mode || 'upload', name: s.name || '', at: s.at || null, format: s.format || '', pages: s.pages, problems: s.problems };
       if (!s.rows && !s.json) out[def.key] = Object.assign(base, { empty: true });
-      else if (s.format === 'pdf') out[def.key] = Object.assign(base, { rows: s.rows, pages: s.pages, problems: s.problems });
-      else if (s.origin === 'sample' || s.origin === 'api') out[def.key] = base;
+      else if (s.origin === 'sample' && s.format !== 'pdf') out[def.key] = base;
       else if (s.json) out[def.key] = Object.assign(base, { json: s.json });
-      else out[def.key] = Object.assign(base, { text: s.text });
+      else out[def.key] = Object.assign(base, { rows: s.rows });
     });
     try { localStorage.setItem(FILES_KEY, JSON.stringify(out)); return true; } catch (e) { return false; }
   }
@@ -190,12 +191,12 @@
       const s = saved && saved[def.key];
       try {
         if (s && s.empty) state.src[def.key] = { mode: s.mode || 'upload', at: null };
-        else if (s && s.format === 'pdf' && s.rows) state.src[def.key] = { rows: s.rows, name: s.name, origin: s.origin, mode: s.mode, format: 'pdf', pages: s.pages, problems: s.problems || [], at: s.at };
+        else if (s && Array.isArray(s.rows)) state.src[def.key] = { rows: s.rows, name: s.name, origin: s.origin, mode: s.mode, format: s.format || 'csv', pages: s.pages, problems: s.problems || [], at: s.at };
         else if (s && s.json) state.src[def.key] = { json: s.json, name: s.name, origin: s.origin, mode: s.mode, at: s.at };
-        else if (s && typeof s.text === 'string') state.src[def.key] = { rows: E.parseCSV(s.text), text: s.text, name: s.name, origin: s.origin, mode: s.mode, format: 'csv', at: s.at };
+        else if (s && typeof s.text === 'string') state.src[def.key] = { rows: E.parseCSV(s.text), name: s.name, origin: s.origin, mode: s.mode, format: 'csv', at: s.at };
         else {
           state.src[def.key] = { mode: (s && s.mode) || 'upload' };
-          loadSample(def.key, s && s.origin === 'api' ? 'api' : 'sample');
+          loadSample(def.key);
           if (s && s.at) state.src[def.key].at = s.at;
         }
       } catch (e) { loadSample(def.key); }
@@ -212,7 +213,7 @@
     };
   }
   const policyDefaults = () => { const i = input(); return E.buildConfig(i.agreement, i.handbook, i.glMap, {}); };
-  const isSampleWorkspace = () => SOURCES.filter((s) => s.group === 'records').every((s) => state.src[s.key] && (state.src[s.key].origin === 'sample' || state.src[s.key].origin === 'api'));
+  const isSampleWorkspace = () => SOURCES.filter((s) => s.group === 'records').every((s) => state.src[s.key] && state.src[s.key].origin === 'sample');
 
   function batchLabel(start) {
     const d = new Date(start + 'T00:00:00Z');
@@ -343,7 +344,7 @@
   function renderWorkspace() {
     $('#workspace').innerHTML = `<span class="ws-mark" aria-hidden="true">${esc(initials(store.workspace))}</span>
       <span><b>${esc(store.workspace)}</b><small>${isSampleWorkspace() ? 'Sample workspace · fictional data' : 'Your files'}</small></span>`;
-    $('#sideFoot').innerHTML = `Working as <b>${esc(store.user)}</b>. Statuses, notes and approvals are saved in this browser.`;
+    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Working as <b>${esc(store.user)}</b>. Statuses, notes and approvals are saved in this browser.`;
   }
 
   function navBadge(id) {
@@ -377,8 +378,9 @@
       </button>
       <span class="status-chip ${rd.state}" title="${rel ? `Released ${esc(stamp(rel.at))} by ${esc(rel.by)}` : ''}">${STATE_WORD[rd.state]}</span>
       <span class="top-spacer"></span>
-      <span class="last-run">${state.running ? 'Running checks…' : `Checked ${esc(clock(state.lastRun))}`}</span>
-      <button class="btn" type="button" data-action="rerun" ${state.running ? 'disabled' : ''}>${ICON.refresh} ${state.running ? 'Running…' : 'Re-run checks'}</button>
+      <span class="last-run">Checked ${esc(clock(state.lastRun))}</span>
+      <button class="btn" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button>
+      <button class="btn" type="button" data-action="rerun">${ICON.refresh} Re-run checks</button>
       ${releaseBtn}`;
   }
 
@@ -440,19 +442,17 @@
     return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((d) => Object.assign(d, { done: d.date <= today }));
   }
 
-  function stageButtons(runIdx) {
-    const running = typeof runIdx === 'number';
-    return state.result.stages.map((s, i) => {
+  function stageButtons() {
+    return state.result.stages.map((s) => {
       const o = stageOpen(s.id);
-      let st = !s.ran ? 'idle' : o.blockers ? 'fail' : o.review ? 'warn' : 'pass';
+      const st = !s.ran ? 'idle' : o.blockers ? 'fail' : o.review ? 'warn' : 'pass';
       const ct = !s.ran ? 'No data loaded'
         : o.blockers || o.review ? [o.blockers ? `<b class="c">${plural(o.blockers, 'blocker')}</b>` : '', o.review ? `<b class="w">${o.review} to review</b>` : ''].filter(Boolean).join(' · ')
           : s.blockers + s.review ? 'All items cleared' : 'All checks pass';
-      if (running && i >= runIdx) st = 'idle';
-      return `<button class="stage" type="button" data-action="stage" data-stage="${s.id}" data-state="${st}" ${running && i === runIdx ? 'data-running="true"' : ''}>
+      return `<button class="stage" type="button" data-action="stage" data-stage="${s.id}" data-state="${st}">
         <span class="ph">${esc(s.phase)}</span>
         <span class="nm"><span class="dotc"></span>${esc(s.title)}</span>
-        <span class="ct">${running && i === runIdx ? 'Checking…' : running && i > runIdx ? 'Queued' : ct}</span>
+        <span class="ct">${ct}</span>
         <span class="bar" aria-hidden="true"><i style="width:${s.checks ? Math.round((s.passed / s.checks) * 100) : 0}%"></i></span>
         <span class="ct">${s.ran ? `${s.passed} of ${s.checks} checks pass` : `${s.checks} checks`}</span>
       </button>`;
@@ -476,7 +476,7 @@
       actions = `<button class="btn" type="button" data-action="release-info">View release record</button>${rd.postOpen.length ? '<button class="btn" type="button" data-action="go-post">Work post-settlement items</button>' : ''}`;
     } else {
       text = 'Load the census, time records and payroll register for this cycle. Every check runs as soon as the files arrive.';
-      actions = `<a class="btn primary" href="#sources">Go to data sources</a><button class="btn" type="button" data-action="load-sample">Load sample cycle</button>`;
+      actions = `<button class="btn primary" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button><button class="btn" type="button" data-action="load-sample">Load sample cycle</button>`;
     }
     const owners = byOwner(rd.preOpen);
     const top = (rd.state === 'blocked' ? rd.preOpen : rd.accepted).slice().sort((a, b) => (b.impact ? b.impact.amount : 0) - (a.impact ? a.impact.amount : 0)).slice(0, 4);
@@ -492,6 +492,7 @@
         <div><span class="eyebrow">Pay cycle ${esc(cycleId())}</span><h1>${esc(periodText(p))}</h1>
         <p>${esc(store.workspace)}${p.payDate ? ` · pay date ${esc(F.fmtDate(p.payDate))}` : ''} · ${plural(t.people, 'person', 'people')} · ${t.checksRun} of ${E.CHECKS.length} checks ran across WFM, the payroll register, bank activity and the GL</p></div>
       </div>
+      ${isSampleWorkspace() ? sampleBanner() : ''}
       <div class="grid ov-top">
         <section class="card ready-card" data-state="${rd.state}" aria-labelledby="readyTitle">
           <span class="eyebrow">Release readiness</span>
@@ -551,6 +552,13 @@
           ${feed.length ? `<ul class="feed">${feed.map(feedItem).join('')}</ul>` : '<div class="empty"><p>No activity yet. Status changes, notes, re-runs and releases are logged here.</p></div>'}
         </section>
       </div>`;
+  }
+
+  function sampleBanner() {
+    return `<div class="notice sample-banner" role="note">
+      <span><b>You’re looking at the Northloom Apparel sample cycle</b> (fictional data). Import your own WFM, payroll, bank and GL exports and the same ${E.CHECKS.length} checks run on them, in this browser.</span>
+      <button class="btn small primary" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import your files</button>
+    </div>`;
   }
 
   function feedItem(a) {
@@ -918,16 +926,15 @@
       const busy = state.busy[def.key];
       const loaded = !!(s.rows || s.json);
       const count = s.rows ? plural(s.rows.length, 'record') : s.json ? 'Policy loaded' : '';
-      const schema = SCHEMA_OF[def.key] && E.SCHEMAS[SCHEMA_OF[def.key]];
-      const accept = def.kind === 'json' ? '.json,application/json' : def.kind === 'register' ? '.csv,.pdf,text/csv,application/pdf' : '.csv,text/csv';
-      const api = def.api ? def.api.replace('{start}', p.start).replace('{end}', p.end) : '';
+      const accept = def.kind === 'json' ? '.json,application/json' : def.kind === 'register' ? '.csv,.json,.pdf,text/csv,application/json,application/pdf' : '.csv,.json,text/csv,application/json';
+      const conn = store.connectors[def.key] || {};
       let status;
       if (busy) status = `<span class="conn idle">${esc(busy)}</span>`;
       else if (!loaded) status = '<span class="conn bad">Not loaded</span>';
-      else if (mode === 'api' && s.origin === 'api') status = `<span class="conn ok">Connected</span><span>${esc(count)}</span><span class="muted">synced ${esc(clock(s.at))}</span>`;
-      else if (mode === 'api') status = `<span class="conn idle">Connector ready</span><span class="muted">using ${esc(s.name)} until the first sync</span>`;
-      else status = `<span class="conn ok">Loaded</span><span>${esc(count)}</span><span class="muted mono">${esc(s.name || '')}</span><span class="muted">${s.format === 'pdf' ? 'PDF extract' : s.origin === 'sample' ? 'sample file' : 'uploaded'}${s.at ? ' · ' + esc(clock(s.at)) : ''}</span>`;
-      const dl = window.PA_HOSTED && SAMPLE.files[def.file] ? `<a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl(def.file)}" download="${esc(def.file)}">Download sample ${def.kind === 'json' ? 'JSON' : 'CSV'}</a>${def.kind === 'register' && SAMPLE.registerPdfBase64 ? ` <a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl('payroll_register.pdf')}" download="payroll_register.pdf">PDF</a>` : ''}` : '';
+      else if (s.origin === 'api') status = `<span class="conn ok">Synced</span><span>${esc(count)}</span><span class="muted">${esc(clock(s.at))} · ${esc(s.name)}</span>`;
+      else status = `<span class="conn ok">Loaded</span><span>${esc(count)}</span><span class="muted mono">${esc(s.name || '')}</span><span class="muted">${s.format === 'pdf' ? 'PDF extract' : s.origin === 'sample' ? 'sample data' : 'your file'}${s.at ? ' · ' + esc(clock(s.at)) : ''}</span>`;
+      const dl = window.PA_HOSTED && SAMPLE.files[def.file] ? `<a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl(def.file)}" download="${esc(def.file)}">Sample ${def.kind === 'json' ? 'JSON' : 'CSV'}</a>${def.kind === 'register' && SAMPLE.registerPdfBase64 ? ` <a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl('payroll_register.pdf')}" download="payroll_register.pdf">Sample PDF</a>` : ''}` : '';
+      const cols = SCHEMA_OF[def.key] ? targetsFor(def.key) : null;
       return `<article class="source" id="src-${def.key}">
         <header><span class="src-icon">${ICON[def.icon]}</span><div style="flex:1;min-width:0"><h4>${esc(def.title)}</h4><div class="sys">${esc(def.sys)}</div></div>
           ${def.api ? `<div class="seg" role="group" aria-label="${esc(def.title)} connection">
@@ -939,25 +946,29 @@
         <div class="status">${status}</div>
         ${s.error ? `<div class="err" role="alert">${esc(s.error)}</div>` : ''}
         ${mode === 'api' && def.api ? `
-          <div class="api">${esc(api)}</div>
-          <div class="row"><button class="btn small" type="button" data-action="sync" data-key="${def.key}" ${busy ? 'disabled' : ''}>${ICON.refresh} Sync now</button>${isSampleWorkspace() || s.origin === 'api' ? '<span class="muted" style="font-size:var(--t-xs)">This workspace’s connector returns the sample cycle.</span>' : ''}</div>`
+          <label class="conn-field">Endpoint URL
+            <input class="text" type="url" inputmode="url" spellcheck="false" data-conn-url="${def.key}" value="${esc(conn.url || '')}" placeholder="${esc(def.api)}"></label>
+          <label class="conn-field">Authorization header <span class="muted" style="font-weight:500">optional · kept for this session only</span>
+            <input class="text" type="password" autocomplete="off" data-conn-auth="${def.key}" value="${esc(state.auth[def.key] || '')}" placeholder="Bearer …"></label>
+          <div class="row"><button class="btn small" type="button" data-action="sync" data-key="${def.key}" ${busy ? 'disabled' : ''}>${ICON.refresh} Sync now</button></div>
+          <p class="muted" style="font-size:var(--t-xs)">Your browser calls this URL directly. It must return CSV or JSON rows and allow requests from this site (CORS). Use {start} and {end} for the pay period dates.</p>`
         : `<div class="row">
-            <span class="btn small file-btn">${loaded ? 'Replace file' : 'Upload file'}<input type="file" id="file-${def.key}" data-key="${def.key}" accept="${accept}" aria-label="Upload ${esc(def.title)}"></span>
+            <span class="btn small file-btn">${loaded && s.origin !== 'sample' ? 'Replace file' : 'Upload file'}<input type="file" id="file-${def.key}" data-key="${def.key}" accept="${accept}" aria-label="Upload ${esc(def.title)}"></span>
             ${def.kind === 'register' ? `<button class="btn small" type="button" data-action="sample-pdf" ${busy ? 'disabled' : ''}>Read sample PDF register</button>` : ''}
             ${s.origin !== 'sample' || s.format === 'pdf' ? `<button class="linkish" type="button" data-action="sample" data-key="${def.key}" style="font-size:var(--t-xs)">Use sample file</button>` : ''}
             ${dl}
           </div>`}
         ${def.key === 'register' && s.format === 'pdf' && s.rows ? pdfPreview(s) : ''}
-        ${schema ? `<details><summary>Required columns (${schema.length})</summary><code>${esc(schema.join(', '))}</code></details>` : ''}
+        ${cols ? `<details><summary>Columns (${cols.length}, ${KEY_COLS[def.key].length} required)</summary><code>${esc(cols.join(', '))}</code></details>` : ''}
       </article>`;
     };
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><h1>Data sources</h1><p>Each system connects by API or sends a batch file for the cycle. Replace any source and every check re-runs. The payroll census is the system of record for who is employed and when.</p></div>
+        <div><h1>Data sources</h1><p>Bring in this cycle’s data from WFM, payroll, the bank and the ERP, as files or from an API. Every check re-runs on import. The payroll census is the system of record for who is employed and when.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="load-sample">Load sample cycle</button><button class="btn small" type="button" data-action="new-cycle">Start a new cycle</button></div>
       </div>
-      ${isSampleWorkspace() ? `<div class="notice" style="margin-bottom:8px"><span>${ICON.plug}</span><span>This workspace runs on the Northloom Apparel sample cycle (fictional data). Upload your own exports to run the same checks on your data. Files are read in this browser and are not sent anywhere.</span></div>` : '<div class="notice" style="margin-bottom:8px"><span>Files are read in this browser and are not sent anywhere. They are kept here so the cycle survives a refresh.</span></div>'}
-      <div class="group-title"><h3>Systems of record</h3><span class="muted">WFM, payroll, bank and ERP data for one pay cycle</span></div>
+      ${importCardHtml()}
+      <div class="group-title"><h3>Systems of record</h3><span class="muted">${isSampleWorkspace() ? 'Showing the Northloom Apparel sample cycle (fictional data)' : 'WFM, payroll, bank and ERP data for one pay cycle'}</span></div>
       <div class="sources">${SOURCES.filter((s) => s.group === 'records').map(card).join('')}</div>
       <div class="group-title"><h3>Policies and mappings</h3><span class="muted">The rules each check applies. Adjust thresholds on the Rules page.</span></div>
       <div class="sources">${SOURCES.filter((s) => s.group === 'policy').map(card).join('')}</div>`;
@@ -980,34 +991,434 @@
     renderAll();
   }
 
-  async function handleFile(key, file) {
-    const def = SRC[key];
+  // ----------------------------------------------------------------------------------
+  // Import: detect each file's source, map its columns, normalize values, load
+  // ----------------------------------------------------------------------------------
+
+  const RECORD_KINDS = ['census', 'schedules', 'time', 'register', 'bank', 'gl'];
+  const KEY_COLS = {
+    census: ['emp_id', 'first_name', 'last_name', 'pay_type', 'flsa_status', 'hire_date'],
+    schedules: ['emp_id', 'work_date', 'scheduled_hours'],
+    time: ['emp_id', 'work_date', 'wfm_hours'],
+    register: ['emp_id', 'gross_pay', 'net_pay'],
+    bank: ['value_date', 'txn_type', 'amount'],
+    gl: ['account', 'debit', 'credit'],
+  };
+  // Common header names in WFM, payroll, bank and ERP exports, normalized to lowercase letters and digits.
+  const SYN = {
+    emp_id: ['employeeid', 'empid', 'employeenumber', 'employeeno', 'eeid', 'fileno', 'filenumber', 'associateid', 'workerid', 'personnumber', 'badgeid', 'badge', 'file', 'id'],
+    first_name: ['firstname', 'first', 'givenname', 'legalfirstname'],
+    last_name: ['lastname', 'last', 'surname', 'familyname', 'legallastname'],
+    employee_name: ['employeename', 'name', 'fullname', 'employee', 'workername', 'associatename'],
+    job_title: ['jobtitle', 'title', 'position', 'positiontitle', 'job', 'jobname'],
+    location: ['location', 'store', 'site', 'worklocation', 'branch'],
+    cost_center: ['costcenter', 'costcentre', 'department', 'dept', 'homedepartment', 'departmentcode', 'cc', 'costcentercode'],
+    work_state: ['workstate', 'state', 'workedinstate', 'taxstate', 'suistate'],
+    union_local: ['unionlocal', 'union', 'unioncode', 'bargainingunit', 'local'],
+    flsa_status: ['flsastatus', 'flsa', 'exemptstatus', 'flsaclassification', 'exemptnonexempt'],
+    ft_pt: ['ftpt', 'fulltimeparttime', 'fullparttime', 'ftptstatus', 'employmenttype', 'fulltime', 'timetype'],
+    pay_type: ['paytype', 'payclass', 'hourlysalary', 'compensationtype', 'paybasis', 'salaryhourly'],
+    hourly_rate: ['hourlyrate', 'payrate', 'baserate', 'regularrate', 'hourlypayrate', 'rate'],
+    annual_salary: ['annualsalary', 'salary', 'annualpay', 'annualrate', 'annualbase', 'basesalary'],
+    hire_date: ['hiredate', 'dateofhire', 'startdate', 'originalhiredate', 'doh', 'employmentstartdate'],
+    term_date: ['termdate', 'terminationdate', 'separationdate', 'dateofterm', 'enddate'],
+    status: ['status', 'employeestatus', 'employmentstatus', 'positionstatus'],
+    bank_routing: ['bankrouting', 'routing', 'routingnumber', 'aba', 'transitnumber'],
+    bank_last4: ['banklast4', 'accountlast4', 'acctlast4', 'depositaccountlast4', 'last4', 'depositaccount'],
+    bank_change_date: ['bankchangedate', 'depositchangedate', 'directdepositchangedate', 'accountchangedate'],
+    vac_carryover_hrs: ['vaccarryoverhrs', 'vacationcarryover', 'vaccarryover', 'carryoverhours', 'carryover'],
+    vac_current_hrs: ['vaccurrenthrs', 'vacationbalance', 'vacationcurrent', 'vacbalance', 'vacationhours'],
+    sick_hrs: ['sickhrs', 'sickhours', 'sickbalance', 'sick'],
+    k401_pct: ['k401pct', '401kpct', '401kpercent', 'deferralpct', 'retirementpct'],
+    medical_per_period: ['medicalperperiod', 'medicaldeduction', 'medicalpremium', 'healthdeduction'],
+    work_date: ['workdate', 'date', 'shiftdate', 'punchdate', 'businessdate', 'applydate', 'day'],
+    shift_start: ['shiftstart', 'scheduledstart', 'schedstart', 'starttime', 'start'],
+    shift_end: ['shiftend', 'scheduledend', 'schedend', 'endtime', 'end'],
+    meal_minutes: ['mealminutes', 'breakminutes', 'unpaidbreak', 'lunchminutes', 'meal'],
+    scheduled_hours: ['scheduledhours', 'schedhours', 'shifthours', 'plannedhours', 'hours', 'duration'],
+    pay_code: ['paycode', 'earningcode', 'earningscode', 'timecode', 'hourtype', 'code'],
+    punch_in: ['punchin', 'clockin', 'timein', 'inpunch', 'in'],
+    meal_out: ['mealout', 'lunchout', 'breakstart', 'mealstart', 'breakout'],
+    meal_in: ['mealin', 'lunchin', 'breakend', 'mealend', 'breakin'],
+    punch_out: ['punchout', 'clockout', 'timeout', 'outpunch', 'out'],
+    wfm_hours: ['wfmhours', 'totalhours', 'workedhours', 'paidhours', 'timecardhours', 'hours'],
+    manager_override: ['manageroverride', 'override', 'manualentry', 'manageredit', 'edited'],
+    override_by: ['overrideby', 'editedby', 'approvedby', 'manager'],
+    override_reason: ['overridereason', 'editreason', 'reason', 'comment', 'comments'],
+    rate: ['rate', 'payrate', 'hourlyrate', 'baserate'],
+    reg_hrs: ['reghrs', 'regularhours', 'reghours', 'regular'],
+    ot_hrs: ['othrs', 'overtimehours', 'othours', 'ot'],
+    dt_hrs: ['dthrs', 'doubletimehours', 'dthours', 'doubletime'],
+    vac_hrs: ['vachrs', 'vacationhours', 'vachours', 'ptohours'],
+    hol_hrs: ['holhrs', 'holidayhours', 'holhours', 'holiday'],
+    reg_pay: ['regpay', 'regularpay', 'regularearnings', 'regearnings'],
+    ot_pay: ['otpay', 'overtimepay', 'overtimeearnings', 'otearnings'],
+    dt_pay: ['dtpay', 'doubletimepay', 'doubletimeearnings'],
+    pto_pay: ['ptopay', 'vacationpay', 'timeoffpay', 'ptoearnings'],
+    gross_pay: ['grosspay', 'gross', 'totalgross', 'grossearnings', 'grosswages'],
+    fed_wh: ['fedwh', 'federalincometax', 'fit', 'fitw', 'federalwithholding', 'fedtax', 'federaltax'],
+    ss_ee: ['ssee', 'socialsecurity', 'socialsecurityee', 'eesocialsecurity', 'oasdi', 'socsec'],
+    medicare_ee: ['medicareee', 'medicare', 'eemedicare'],
+    state_wh: ['statewh', 'stateincometax', 'sit', 'statetax', 'statewithholding'],
+    state_other_ee: ['stateotheree', 'sdi', 'fli', 'statedisability', 'stateother'],
+    k401_ee: ['k401ee', '401k', '401kee', '401kdeduction', 'retirement'],
+    medical_ee: ['medicalee', 'medical', 'health', 'section125', 'sec125'],
+    net_pay: ['netpay', 'net', 'takehome', 'netamount', 'netcheck'],
+    ss_er: ['sser', 'employersocialsecurity', 'ersocialsecurity', 'oasdier'],
+    medicare_er: ['medicareer', 'employermedicare', 'ermedicare'],
+    futa_er: ['futaer', 'futa'],
+    sui_er: ['suier', 'sui', 'suta', 'stateunemployment'],
+    txn_id: ['txnid', 'transactionid', 'tracenumber', 'traceno', 'id'],
+    value_date: ['valuedate', 'postdate', 'effectivedate', 'settlementdate', 'transactiondate', 'date'],
+    txn_type: ['txntype', 'transactiontype', 'trancode', 'typecode', 'type'],
+    amount: ['amount', 'amt', 'transactionamount', 'value'],
+    payee: ['payee', 'counterparty', 'description', 'name'],
+    account_last4: ['accountlast4', 'receivingaccount', 'accountnumber', 'account', 'dda'],
+    return_code: ['returncode', 'reasoncode', 'achreturncode', 'return'],
+    jurisdiction: ['jurisdiction', 'taxagency', 'agency', 'state'],
+    reference: ['reference', 'ref', 'addenda', 'memo'],
+    je_id: ['jeid', 'journalid', 'journalnumber', 'journal', 'entryid', 'documentnumber', 'batch'],
+    line: ['line', 'lineno', 'linenumber'],
+    post_date: ['postdate', 'postingdate', 'gldate', 'effectivedate', 'date'],
+    account: ['account', 'accountnumber', 'glaccount', 'naturalaccount', 'acct', 'gl'],
+    account_name: ['accountname', 'accountdescription', 'description'],
+    debit: ['debit', 'dr', 'debitamount', 'debits'],
+    credit: ['credit', 'cr', 'creditamount', 'credits'],
+    memo: ['memo', 'linedescription', 'description', 'comment'],
+  };
+  const normH = (h) => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const headersOf = (rows) => Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  // The engine's CSV reader lowercases header names; keep the file's own spelling for display.
+  function rawHeader(text) {
+    const out = [];
+    let field = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c; continue; }
+      if (c === '"') q = true;
+      else if (c === ',') { out.push(field.trim()); field = ''; }
+      else if (c === '\n') break;
+      else if (c !== '\r') field += c;
+    }
+    out.push(field.trim());
+    return out;
+  }
+  const headerKey = (h) => h.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const sampleRowsCache = {};
+  const sampleRows = (kind) => sampleRowsCache[kind] || (sampleRowsCache[kind] = SAMPLE.files[SRC[kind].file] ? E.parseCSV(SAMPLE.files[SRC[kind].file]) : []);
+  const targetsFor = (kind) => Array.from(new Set(KEY_COLS[kind].concat(E.SCHEMAS[kind], Object.keys(sampleRows(kind)[0] || {}))));
+  let importSeq = 0;
+
+  // Column types come from the sample layout, so dates, times and amounts can be normalized.
+  const typeCache = {};
+  function colType(kind, c) {
+    const k = `${kind}.${c}`;
+    if (typeCache[k]) return typeCache[k];
+    const vals = sampleRows(kind).map((r) => r[c]).filter((v) => v !== undefined && v !== '');
+    let t = 'text';
+    if (/_date$/.test(c) || (vals.length && vals.every((v) => /^\d{4}-\d{2}-\d{2}$/.test(v)))) t = 'date';
+    else if (vals.length && vals.every((v) => /^\d{1,2}:\d{2}$/.test(v))) t = 'time';
+    else if (vals.length && vals.every((v) => /^-?\d+(\.\d+)?$/.test(v)) && !/(_id|last4|routing|^account$|^line$)/.test(c)) t = 'num';
+    return (typeCache[k] = t);
+  }
+  function valueHint(kind, c) {
+    if (colType(kind, c) !== 'text' || /(_id$|name|title|last4|^account$|cost_center|reference|memo|payee|reason|location|override_by)/.test(c)) return '';
+    const vals = Array.from(new Set(sampleRows(kind).map((r) => r[c]).filter(Boolean)));
+    return vals.length && vals.length <= 8 ? vals.join(', ') : '';
+  }
+  function isoDate(s) {
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    let m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
+    if (m) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; }
+    m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const d = new Date(s);
+    return isNaN(d) ? s : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function hhmmOf(s) {
+    const m = s.match(/^(\d{1,2}):?(\d{2})(?::\d{2})?\s*([AaPp])?\.?[Mm]?\.?$/);
+    if (!m) return s;
+    let h = +m[1];
+    const ap = m[3] && m[3].toLowerCase();
+    if (ap === 'p' && h < 12) h += 12;
+    if (ap === 'a' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${m[2]}`;
+  }
+  function numOf(s) {
+    if (!/^[\s$€£(),.\-+\d]+$/.test(s)) return s;
+    const neg = /^\(.*\)$/.test(s.trim()) || /^-/.test(s.replace(/[\s$€£]/g, ''));
+    const n = s.replace(/[^\d.]/g, '');
+    return n ? (neg ? '-' : '') + n : '';
+  }
+  function normVal(type, v) {
+    const s = String(v === null || v === undefined ? '' : v).trim();
+    if (!s) return '';
+    return type === 'date' ? isoDate(s) : type === 'time' ? hhmmOf(s) : type === 'num' ? numOf(s) : s;
+  }
+
+  function autoMap(kind, headers) {
+    const saved = store.mappings && store.mappings[kind];
+    if (saved && saved.sig === headers.join('|')) return Object.assign({}, saved.map);
+    const map = {}, used = new Set();
+    const targets = targetsFor(kind);
+    const hn = headers.map((h) => [h, normH(h)]);
+    targets.forEach((c) => { const hit = hn.find(([h, n]) => !used.has(h) && (h === c || n === normH(c))); if (hit) { map[c] = hit[0]; used.add(hit[0]); } });
+    targets.forEach((c) => {
+      if (map[c]) return;
+      for (const syn of SYN[c] || []) {
+        const hit = hn.find(([h, n]) => !used.has(h) && n === syn);
+        if (hit) { map[c] = hit[0]; used.add(hit[0]); return; }
+      }
+    });
+    return map;
+  }
+  function detectKind(name, headers) {
+    const n = normH(name);
+    const hints = { census: /census|employees|workers|roster/, schedules: /schedul/, time: /time|punch|clock/, register: /register|earning|payrun/, bank: /bank|ach|statement|treasury|transactions/, gl: /journal|ledger|^gl|glentry/ };
+    let best = null;
+    RECORD_KINDS.forEach((k) => {
+      const m = autoMap(k, headers);
+      const keys = KEY_COLS[k].filter((c) => m[c]).length / KEY_COLS[k].length;
+      const cover = E.SCHEMAS[k].filter((c) => m[c]).length / E.SCHEMAS[k].length;
+      const score = keys * 0.55 + cover * 0.45 + (hints[k].test(n) ? 0.1 : 0);
+      if (!best || score > best.score) best = { kind: k, score };
+    });
+    return best && best.score >= 0.5 ? best.kind : '';
+  }
+  function detectPolicy(j) {
+    if (j.steps && j.rates) return 'agreement';
+    if (j.wage_account_by_class || (j.accounts && j.cost_centers)) return 'glMap';
+    if (j.valid_pay_codes || j.expected_weekly_hours || j.vacation) return 'handbook';
+    return '';
+  }
+
+  function parseImport(name, text, forceKind) {
+    const it = { id: 'f' + (++importSeq), name, origin: 'upload' };
+    const t = String(text || '').replace(/^﻿/, '');
+    let json = null;
+    if (/^\s*[[{]/.test(t)) {
+      try { json = JSON.parse(t); } catch (e) { if (/\.json$/i.test(name)) { it.error = `${name} is not valid JSON.`; return it; } }
+    }
+    if (json && !Array.isArray(json) && typeof json === 'object') {
+      const arr = ['rows', 'data', 'items', 'records', 'results', 'workers', 'employees', 'timecards', 'transactions', 'lines', 'entries'].map((k) => json[k]).find(Array.isArray);
+      if (arr) json = arr;
+    }
+    if (json && !Array.isArray(json)) {
+      if (forceKind && SRC[forceKind].group !== 'policy') { it.error = `${name} is a JSON document, not a table of ${SRC[forceKind].title.toLowerCase()} rows.`; return it; }
+      return Object.assign(it, { type: 'policy', json, kind: forceKind || detectPolicy(json) });
+    }
+    if (forceKind && SRC[forceKind].group === 'policy') { it.error = `${SRC[forceKind].title} must be a JSON document.`; return it; }
+    const rows = json
+      ? json.filter((o) => o && typeof o === 'object').map((o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v)])))
+      : E.parseCSV(t);
+    if (!rows.length) { it.error = `${name} has no data rows.`; return it; }
+    it.type = 'table';
+    it.rows = rows;
+    it.headers = headersOf(rows);
+    it.labels = json ? {} : Object.fromEntries(rawHeader(t).map((h) => [headerKey(h), h]));
+    it.kind = forceKind || detectKind(name, it.headers);
+    it.map = it.kind ? autoMap(it.kind, it.headers) : {};
+    return it;
+  }
+
+  async function readFileImport(file, forceKind) {
+    if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+      const it = { id: 'f' + (++importSeq), name: file.name, origin: 'upload', format: 'pdf' };
+      if (forceKind && forceKind !== 'register') { it.error = 'Only the payroll register can be read from a PDF.'; return it; }
+      try {
+        const { lines, pages } = await pdfLines(new Uint8Array(await file.arrayBuffer()));
+        const { rows, problems } = E.parseRegisterLines(lines);
+        if (!rows.length) throw new Error('No employee lines were found. Use a text-based register PDF; scanned images need OCR first.');
+        Object.assign(it, { type: 'table', kind: 'register', rows, headers: headersOf(rows), pages, problems });
+        it.map = autoMap('register', it.headers);
+      } catch (e) { it.error = e.message; }
+      return it;
+    }
+    try { return parseImport(file.name, await file.text(), forceKind); } catch (e) { return { id: 'f' + (++importSeq), name: file.name, error: `${file.name} could not be read.` }; }
+  }
+
+  function importStatus(it) {
+    if (it.error) return { st: 'error', label: 'Error' };
+    if (it.kind === 'skip') return { st: 'skip', label: 'Skipped' };
+    if (!it.kind) return { st: 'map', label: 'Choose a source' };
+    if (it.type === 'table') {
+      const miss = KEY_COLS[it.kind].filter((c) => !it.map[c]);
+      if (miss.length) return { st: 'map', label: 'Map columns', miss };
+    }
+    return { st: 'ready', label: 'Ready' };
+  }
+
+  function mapRows(kind, rows, map) {
+    const targets = targetsFor(kind);
+    const types = Object.fromEntries(targets.map((c) => [c, colType(kind, c)]));
+    return rows.map((r) => {
+      const o = Object.assign({}, r);
+      targets.forEach((c) => { o[c] = normVal(types[c], map[c] ? r[map[c]] : ''); });
+      return o;
+    });
+  }
+
+  function applyItem(it) {
+    const prev = state.src[it.kind] || {};
+    const base = { name: it.name, origin: it.origin || 'upload', mode: prev.mode || 'upload', at: nowIso() };
+    if (it.type === 'policy') { state.src[it.kind] = Object.assign(base, { json: it.json }); return; }
+    state.src[it.kind] = Object.assign(base, { rows: mapRows(it.kind, it.rows, it.map), format: it.format || 'csv', pages: it.pages, problems: it.problems });
+    if (it.format !== 'pdf') store.mappings[it.kind] = { sig: it.headers.join('|'), map: it.map };
+  }
+
+  function loadImports(items) {
+    const ready = items.filter((it) => importStatus(it).st === 'ready');
+    if (!ready.length) return;
+    const wasSample = isSampleWorkspace();
+    const kinds = new Set(ready.map((it) => it.kind));
+    ready.forEach(applyItem);
+    const cleared = [];
+    if (wasSample && ready.some((it) => SRC[it.kind].group === 'records')) {
+      SOURCES.filter((s) => s.group === 'records' && !kinds.has(s.key) && state.src[s.key] && state.src[s.key].origin === 'sample').forEach((s) => {
+        state.src[s.key] = { mode: state.src[s.key].mode || 'upload', at: null };
+        cleared.push(s.title);
+      });
+    }
+    state.importQueue = state.importQueue.filter((q) => !ready.includes(q) && q.kind !== 'skip');
+    recompute();
+    const kept = persistSources();
+    log('Files imported', ready.map((it) => `${it.name} → ${SRC[it.kind].title}${it.rows ? ` (${plural(it.rows.length, 'record')})` : ''}`).join('; ') + (cleared.length ? ` · sample data cleared for ${cleared.join(', ')}` : ''));
+    const t = state.result.totals;
+    log('Checks run', `${t.checksRun} checks · ${t.blockers} blockers, ${t.review} to review`, { by: 'Rollcall' });
+    renderAll();
+    toast(`Imported ${plural(ready.length, 'file')} · ran ${t.checksRun} checks${cleared.length ? ' · sample data cleared' : ''}${kept ? '' : ' · too large to keep after a refresh'}`);
+  }
+
+  async function enqueueFiles(files, forceKind) {
+    if (!files.length) return;
+    if (state.page !== 'sources' && !forceKind) go('sources');
+    state.importBusy = `Reading ${plural(files.length, 'file')}…`;
+    renderImportQueue();
+    const items = [];
+    for (const f of files) items.push(await readFileImport(f, forceKind));
+    state.importBusy = '';
+    if (forceKind) {
+      const it = items[0];
+      if (it.error) { state.src[forceKind] = Object.assign({}, state.src[forceKind], { error: it.error }); renderImportQueue(); if (state.page === 'sources') renderSources(); return; }
+      if (importStatus(it).st === 'ready') { loadImports([it]); return; }
+      it.autoLoad = true;
+      state.importQueue.push(it);
+      renderImportQueue();
+      mappingModal(it);
+      return;
+    }
+    state.importQueue.push(...items);
+    renderImportQueue();
+  }
+
+  function renderImportQueue() {
+    const el = $('#importQueue');
+    if (el) el.innerHTML = queueHtml();
+  }
+
+  function importCardHtml() {
+    return `<section class="card import-card" id="importCard" aria-labelledby="importTitle">
+      <div class="drop" id="dropZone">
+        <span class="drop-icon" aria-hidden="true">${ICON.upload}</span>
+        <div><h3 id="importTitle">Import this cycle’s files</h3>
+          <p class="muted">Drop exports from WFM, payroll, the bank and the ERP here, several at once: CSV, JSON or the printed PDF register. Rollcall recognizes each file by its columns, and you can map any it doesn’t. Files are read in this browser and never sent anywhere.</p></div>
+        <div class="actions-row"><span class="btn primary file-btn">Choose files<input type="file" id="importFiles" multiple accept=".csv,.json,.pdf,text/csv,application/json,application/pdf" aria-label="Choose files to import"></span><button class="btn" type="button" data-action="templates">CSV templates</button></div>
+      </div>
+      <div id="importQueue">${queueHtml()}</div>
+    </section>`;
+  }
+
+  function queueHtml() {
+    if (state.importBusy) return `<p class="muted" style="padding:0 20px 16px">${esc(state.importBusy)}</p>`;
+    const q = state.importQueue;
+    if (!q.length) return '';
+    const statuses = q.map(importStatus);
+    const ready = q.filter((it, i) => statuses[i].st === 'ready');
+    const blocking = q.filter((it, i) => statuses[i].st === 'map' || statuses[i].st === 'error');
+    const options = (it) => {
+      const list = it.type === 'policy' ? SOURCES.filter((s) => s.group === 'policy') : it.format === 'pdf' ? [SRC.register] : SOURCES.filter((s) => s.group === 'records');
+      return `<option value="" disabled ${it.kind ? '' : 'selected'}>Choose a source…</option>${list.map((s) => `<option value="${s.key}" ${it.kind === s.key ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="skip" ${it.kind === 'skip' ? 'selected' : ''}>Don’t import</option>`;
+    };
+    const dupe = (it) => it.kind && it.kind !== 'skip' && q.filter((x) => x.kind === it.kind && !x.error).length > 1;
+    const pillCls = { ready: 'pass', map: 'review', error: 'blocker', skip: 'plain' };
+    return `<div class="table-wrap"><table class="import-table">
+      <thead><tr><th>File</th><th>Source</th><th>Columns</th><th>Status</th><th></th></tr></thead>
+      <tbody>${q.map((it, i) => {
+        const st = statuses[i];
+        const tbl = it.type === 'table' && it.kind && it.kind !== 'skip' && !it.error;
+        const targets = tbl ? targetsFor(it.kind) : [];
+        const matched = targets.filter((c) => it.map[c]).length;
+        return `<tr>
+          <td><b class="mono" style="font-size:var(--t-xs)">${esc(it.name)}</b><br><span class="muted" style="font-size:var(--t-xs)">${it.rows ? plural(it.rows.length, 'record') : it.type === 'policy' ? 'JSON document' : ''}${it.format === 'pdf' && it.pages ? ` · PDF, ${plural(it.pages, 'page')}` : ''}</span></td>
+          <td>${it.error ? '<span class="muted">—</span>' : `<select data-import-kind="${it.id}" aria-label="Source for ${esc(it.name)}">${options(it)}</select>`}${dupe(it) ? '<br><span class="muted" style="font-size:var(--t-xs)">Another file is set to this source too; the last one is used.</span>' : ''}</td>
+          <td class="wrap">${it.error ? `<span class="neg">${esc(it.error)}</span>` : tbl ? `${matched} of ${targets.length} matched${st.miss ? `<br><span class="neg" style="font-size:var(--t-xs)">Needs ${esc(st.miss.join(', '))}</span>` : ''}` : '<span class="muted">—</span>'}</td>
+          <td><span class="pill ${pillCls[st.st]}">${esc(st.label)}</span></td>
+          <td style="text-align:right">${tbl ? `<button class="btn small" type="button" data-action="map-cols" data-id="${it.id}">Map columns</button> ` : ''}<button class="linkish" type="button" data-action="import-remove" data-id="${it.id}" style="font-size:var(--t-xs)">Remove</button></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>
+      <div class="import-foot">
+        <span class="muted" style="font-size:var(--t-sm)">${blocking.length ? `Map, fix or skip ${plural(blocking.length, 'file')} above to continue.` : `${plural(ready.length, 'file')} ready.`}${isSampleWorkspace() && ready.some((it) => SRC[it.kind].group === 'records') ? ' Loading replaces the sample cycle.' : ''}</span>
+        <span class="spacer"></span>
+        <button class="linkish" type="button" data-action="import-clear">Clear</button>
+        <button class="btn primary" type="button" data-action="import-load" ${ready.length && !blocking.length ? '' : 'disabled'}>Load ${plural(ready.length, 'file')} and run checks</button>
+      </div>`;
+  }
+
+  function mappingModal(it, opener) {
+    const keys = new Set(KEY_COLS[it.kind]);
+    const schema = new Set(E.SCHEMAS[it.kind]);
+    const order = targetsFor(it.kind).sort((a, b) => (keys.has(b) - keys.has(a)) || (schema.has(b) - schema.has(a)));
+    openModal(`<div class="mh"><span class="eyebrow">${esc(it.name)} → ${esc(SRC[it.kind].title)}</span><h2 id="modalTitle">Map columns</h2></div>
+      <div class="mb">
+        <p>Match each Rollcall field to a column in your file. Required fields must be mapped; anything set to “Not in this file” is read as blank. Dates, times and amounts are normalized on import, and Rollcall remembers this mapping for files with the same columns.</p>
+        <div class="table-wrap map-table"><table>
+          <thead><tr><th>Rollcall field</th><th>Column in your file</th><th>First value</th></tr></thead>
+          <tbody>${order.map((c) => {
+            const hint = valueHint(it.kind, c);
+            return `<tr>
+              <td><b class="mono" style="font-size:var(--t-xs)">${esc(c)}</b>${keys.has(c) ? ' <span class="pill review">Required</span>' : ''}${hint ? `<br><span class="muted" style="font-size:var(--t-2xs)">Values like ${esc(hint)}</span>` : ''}</td>
+              <td><select data-map-col="${esc(c)}" aria-label="Column for ${esc(c)}"><option value="">— Not in this file —</option>${it.headers.map((h) => `<option value="${esc(h)}" ${it.map[c] === h ? 'selected' : ''}>${esc((it.labels && it.labels[h]) || h)}</option>`).join('')}</select></td>
+              <td class="mono map-ex" data-map-ex="${esc(c)}">${esc(firstValue(it, it.map[c]))}</td></tr>`;
+          }).join('')}</tbody></table></div>
+        <p class="form-err" id="mapErr" hidden></p>
+      </div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="save-map" data-id="${it.id}">${it.autoLoad ? 'Save and load' : 'Save mapping'}</button></div>`, opener, true);
+  }
+  const firstValue = (it, h) => { if (!h) return ''; const r = it.rows.find((x) => x[h] !== '' && x[h] !== undefined); return r ? r[h] : ''; };
+
+  function templatesModal(opener) {
+    openModal(`<div class="mh"><h2 id="modalTitle">CSV templates</h2></div>
+      <div class="mb"><p>Each template has Rollcall’s column names and one example row from the sample cycle. Your own exports don’t have to match; you can map their columns on import.</p>
+        <ul class="history">${SOURCES.filter((s) => s.group === 'records').map((s) => `<li style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><span><b>${esc(s.title)}</b><br><span class="muted" style="font-size:var(--t-xs)">Required: ${esc(KEY_COLS[s.key].join(', '))}</span></span><button class="btn small" type="button" data-action="dl-template" data-key="${s.key}">${ICON.download} CSV</button></li>`).join('')}</ul></div>
+      <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`, opener);
+  }
+
+  async function syncSource(key) {
+    const conn = store.connectors[key] || {};
+    const p = state.result.period;
+    const url = String(conn.url || '').trim().replace(/\{start\}/g, p.start).replace(/\{end\}/g, p.end);
     const prev = state.src[key] || {};
-    const mode = prev.mode || 'upload';
+    if (!/^https:\/\/\S+$/i.test(url)) { state.src[key] = Object.assign({}, prev, { error: 'Enter this source’s HTTPS endpoint first.' }); renderSources(); return; }
+    state.busy[key] = 'Syncing…';
+    state.src[key] = Object.assign({}, prev, { error: '' });
+    renderSources();
     try {
-      if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
-        if (key !== 'register') throw new Error('Only the payroll register can be read from a PDF.');
-        const buf = await file.arrayBuffer();
-        await loadRegisterPdf(new Uint8Array(buf), file.name, 'upload');
-        return;
-      }
-      const text = await file.text();
-      if (def.kind === 'json') {
-        let json;
-        try { json = JSON.parse(text); } catch (e) { throw new Error(`${file.name} is not valid JSON.`); }
-        state.src[key] = { json, name: file.name, origin: 'upload', mode, at: nowIso() };
-      } else {
-        const rows = E.parseCSV(text);
-        const missing = E.missingColumns(SCHEMA_OF[key], rows);
-        if (!rows.length) throw new Error(`${file.name} has no data rows.`);
-        if (missing.length) throw new Error(`${file.name} is missing ${plural(missing.length, 'column')}: ${missing.join(', ')}. The previous file is still in use.`);
-        state.src[key] = { rows, text, name: file.name, origin: 'upload', mode, format: 'csv', at: nowIso() };
-      }
-      sourceChanged(def, `${file.name}${state.src[key].rows ? ` · ${plural(state.src[key].rows.length, 'record')}` : ''}`);
-      toast(`${def.title}: loaded ${file.name} · re-ran ${state.result.totals.checksRun} checks`);
+      const headers = { Accept: 'text/csv, application/json;q=0.9, */*;q=0.5' };
+      if (state.auth[key]) headers.Authorization = state.auth[key];
+      let res;
+      try { res = await fetch(url, { headers, credentials: 'omit', cache: 'no-store' }); } catch (e) { throw new Error('Couldn’t reach the endpoint. Check the URL, and that it allows cross-origin requests from this site (CORS).'); }
+      if (!res.ok) throw new Error(`The endpoint answered ${res.status}${res.statusText ? ' ' + res.statusText : ''}.`);
+      const u = new URL(url);
+      const it = parseImport(u.host + u.pathname, await res.text(), key);
+      it.origin = 'api';
+      if (it.error) throw new Error(it.error);
+      delete state.busy[key];
+      if (importStatus(it).st === 'ready') loadImports([it]);
+      else { it.autoLoad = true; state.importQueue.push(it); renderSources(); mappingModal(it); }
     } catch (e) {
-      state.src[key] = Object.assign({}, prev, { error: e.message });
-      if (state.page === 'sources') renderSources();
+      delete state.busy[key];
+      state.src[key] = Object.assign({}, state.src[key] || prev, { error: e.message });
+      renderSources();
     }
   }
 
@@ -1292,7 +1703,7 @@
       <div id="copyFallback"></div>
       <article class="brief" aria-label="Release brief">
         <div class="memo-head">
-          <span class="eyebrow">Release brief · batch ${esc(cycleId())}</span>
+          <span class="eyebrow">Rollcall.ai · Release brief · batch ${esc(cycleId())}</span>
           <h3>${esc(store.workspace)}, pay period ${esc(periodText(m.p))}</h3>
           <span class="muted">${m.p.payDate ? `Pay date ${esc(F.fmtDate(m.p.payDate))} · ` : ''}${m.t.checksRun} checks across ${plural(m.t.people, 'person', 'people')} · generated ${esc(stamp(nowIso()))}</span>
         </div>
@@ -1308,7 +1719,7 @@
   function briefText() {
     const m = briefModel();
     const out = [];
-    out.push(`RELEASE BRIEF — ${store.workspace} — batch ${cycleId()}`);
+    out.push(`ROLLCALL.AI PAYROLL ASSURANCE · RELEASE BRIEF — ${store.workspace} — batch ${cycleId()}`);
     out.push(`Pay period ${periodText(m.p)}${m.p.payDate ? ` · pay date ${F.fmtDate(m.p.payDate)}` : ''} · generated ${stamp(nowIso())}`);
     out.push('');
     m.lead.forEach((l) => out.push(l));
@@ -1548,9 +1959,10 @@
   // Modals: release, reopen, accept risk in bulk, new cycle, reset
   // ----------------------------------------------------------------------------------
 
-  function openModal(html, opener) {
+  function openModal(html, opener, wide) {
     state.modalOpener = opener || document.activeElement;
     const m = $('#modal');
+    m.classList.toggle('wide', !!wide);
     m.innerHTML = html;
     m.hidden = false;
     $('#modalScrim').hidden = false;
@@ -1690,22 +2102,12 @@
     $('#navScrim').hidden = true;
   }
 
-  async function rerun() {
-    if (state.running) return;
-    state.running = true;
-    renderTopbar();
-    if (!reduceMotion && state.page === 'overview' && $('#stages')) {
-      for (let i = 0; i <= state.result.stages.length; i++) {
-        $('#stages').innerHTML = stageButtons(i);
-        await sleep(i === 0 ? 120 : 300);
-      }
-    } else await sleep(reduceMotion ? 0 : 350);
+  function rerun() {
     recompute();
-    state.running = false;
     const t = state.result.totals;
     log('Checks re-run', `${t.checksRun} checks · ${t.blockers} blockers, ${t.review} to review${diffText()}`, { by: 'Rollcall' });
     renderAll();
-    toast(`Ran ${t.checksRun} checks across ${plural(t.people, 'person', 'people')}${diffText() || ' · no change'}`);
+    toast(`Ran ${t.checksRun} checks across ${plural(t.people, 'person', 'people')}${diffText() || ' · nothing changed since the last run'}`);
   }
 
   let toastTimer = null;
@@ -1743,6 +2145,28 @@
     else if (a === 'confirm-new-cycle') { closeModal(); startNewCycle(); }
     else if (a === 'cycle-history') { state.activityScope = 'all'; go('activity'); }
     else if (a === 'rerun') rerun();
+    else if (a === 'go-import') {
+      go('sources');
+      setTimeout(() => { const c = $('#importCard'); if (c) { c.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); const b = $('#importFiles'); if (b) b.focus(); } }, 60);
+    } else if (a === 'templates') templatesModal(el);
+    else if (a === 'dl-template') {
+      const k = el.dataset.key, t = targetsFor(k), ex = sampleRows(k)[0] || {};
+      download(`${k}_template.csv`, E.toCSV([Object.fromEntries(t.map((c) => [c, ex[c] || '']))], t), 'text/csv');
+    } else if (a === 'map-cols') { const it = state.importQueue.find((x) => x.id === el.dataset.id); if (it) mappingModal(it, el); }
+    else if (a === 'save-map') {
+      const it = state.importQueue.find((x) => x.id === el.dataset.id);
+      if (!it) { closeModal(); return; }
+      const map = {};
+      document.querySelectorAll('#modal [data-map-col]').forEach((sel) => { if (sel.value) map[sel.dataset.mapCol] = sel.value; });
+      const miss = KEY_COLS[it.kind].filter((c) => !map[c]);
+      if (miss.length) { const e = $('#mapErr'); e.textContent = `Map the required ${miss.length === 1 ? 'field' : 'fields'} first: ${miss.join(', ')}.`; e.hidden = false; return; }
+      it.map = map;
+      closeModal();
+      if (it.autoLoad) loadImports([it]);
+      else renderImportQueue();
+    } else if (a === 'import-remove') { state.importQueue = state.importQueue.filter((x) => x.id !== el.dataset.id); renderImportQueue(); }
+    else if (a === 'import-clear') { state.importQueue = []; renderImportQueue(); }
+    else if (a === 'import-load') loadImports(state.importQueue.filter((x) => x.kind !== 'skip'));
     else if (a === 'release') releaseModal(el);
     else if (a === 'release-info') releaseInfoModal(el);
     else if (a === 'confirm-release') confirmRelease();
@@ -1814,18 +2238,8 @@
     else if (a === 'copy-brief') copyText(briefText(), $('#copyFallback'), 'the brief');
     else if (a === 'activity-scope') { state.activityScope = el.dataset.scope; renderActivity(); }
     else if (a === 'mode') { const s = state.src[el.dataset.key] || (state.src[el.dataset.key] = {}); s.mode = el.dataset.mode; persistSources(); renderSources(); }
-    else if (a === 'sync') {
-      const key = el.dataset.key;
-      state.busy[key] = 'Connecting…';
-      renderSources();
-      setTimeout(() => {
-        delete state.busy[key];
-        loadSample(key, 'api');
-        state.src[key].mode = 'api';
-        sourceChanged(SRC[key], `synced ${plural(state.src[key].rows.length, 'record')} by API`);
-        toast(`${SRC[key].title}: synced ${plural(state.src[key].rows.length, 'record')} · re-ran ${state.result.totals.checksRun} checks`);
-      }, reduceMotion ? 0 : 700);
-    } else if (a === 'sample') { loadSample(el.dataset.key); sourceChanged(SRC[el.dataset.key], `${SRC[el.dataset.key].file} (sample)`); toast(`${SRC[el.dataset.key].title}: using the sample file`); }
+    else if (a === 'sync') syncSource(el.dataset.key);
+    else if (a === 'sample') { loadSample(el.dataset.key); sourceChanged(SRC[el.dataset.key], `${SRC[el.dataset.key].file} (sample)`); toast(`${SRC[el.dataset.key].title}: using the sample file`); }
     else if (a === 'sample-pdf') loadRegisterPdf(samplePdfBytes(), 'payroll_register.pdf', 'sample');
     else if (a === 'reset-rule') {
       const f = RULE_FIELDS.find((x) => x.key === el.dataset.key);
@@ -1845,6 +2259,7 @@
       SOURCES.forEach((s) => { state.src[s.key] = { mode: 'upload' }; loadSample(s.key); });
       state.detail = null;
       state.sel.clear();
+      state.importQueue = [];
       state.result = null;
       recompute();
       save();
@@ -1856,7 +2271,17 @@
 
   document.addEventListener('change', (ev) => {
     const t = ev.target;
-    if (t.matches('input[type="file"][data-key]') && t.files && t.files[0]) handleFile(t.dataset.key, t.files[0]);
+    if (t.matches('input[type="file"][data-key]') && t.files && t.files[0]) { enqueueFiles([t.files[0]], t.dataset.key); t.value = ''; }
+    else if (t.id === 'importFiles' && t.files && t.files.length) { enqueueFiles(Array.from(t.files)); t.value = ''; }
+    else if (t.matches('[data-import-kind]')) {
+      const it = state.importQueue.find((x) => x.id === t.dataset.importKind);
+      if (it) { it.kind = t.value; it.map = it.type === 'table' && it.kind && it.kind !== 'skip' ? autoMap(it.kind, it.headers) : {}; renderImportQueue(); }
+    } else if (t.matches('[data-map-col]')) {
+      const id = ($('#modal [data-action="save-map"]') || {}).dataset;
+      const it = id && state.importQueue.find((x) => x.id === id.id);
+      const cell = document.querySelector(`#modal [data-map-ex="${t.dataset.mapCol}"]`);
+      if (it && cell) cell.textContent = firstValue(it, t.value);
+    } else if (t.matches('[data-conn-url]')) { store.connectors[t.dataset.connUrl] = { url: t.value.trim() }; save(); }
     else if (t.id === 'ownerSel') { state.filters.owner = t.value; renderQueue(); }
     else if (t.id === 'stageSel') { state.filters.stage = t.value; renderQueue(); }
     else if (t.id === 'selAll') { state.listKeys.forEach((k) => { if (t.checked) state.sel.add(k); else state.sel.delete(k); }); renderQueue(); }
@@ -1876,6 +2301,7 @@
     if (t.id === 'exSearch') { state.filters.q = t.value; renderQueue(); }
     else if (t.id === 'peopleSearch') { state.people.q = t.value; renderPeopleTable(); }
     else if (t.id === 'noteText') { const e = $('#noteErr'); if (e) e.hidden = true; }
+    else if (t.matches('[data-conn-auth]')) state.auth[t.dataset.connAuth] = t.value;
     else if (t.matches('input[type="number"][data-rule]')) onRuleInput(t);
   });
   document.addEventListener('keydown', (ev) => {
@@ -1890,6 +2316,21 @@
   $('#navScrim').addEventListener('click', closeNav);
   $('#modalScrim').addEventListener('click', closeModal);
   window.addEventListener('hashchange', route);
+  const hasFiles = (e) => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => { if (!hasFiles(e)) return; dragDepth++; document.body.classList.add('dragging'); });
+  document.addEventListener('dragleave', (e) => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
+  document.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    const files = Array.from(e.dataTransfer.files || []);
+    const card = e.target.closest && e.target.closest('.source');
+    const key = card && card.id.replace('src-', '');
+    enqueueFiles(files, key && SRC[key] && files.length === 1 ? key : null);
+  });
 
   // ----------------------------------------------------------------------------------
   // Boot

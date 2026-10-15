@@ -1,4 +1,6 @@
-# Rollcall Payroll Assurance
+# Rollcall.ai Payroll Assurance
+
+*Everyone Accounted For.*
 
 Validates every pay cycle end to end, **WFM → Payroll → Treasury → Finance**, and gates payroll release on the results. It covers time sheets, pre-payroll checks, the payroll register, funding and GL posting.
 
@@ -11,12 +13,13 @@ The workspace opens on a fictional sample cycle: Northloom Apparel, a clothing r
 - **Release gate.** *Release payroll* stays locked until every blocker in time, roster and register checks is resolved or accepted as a risk. Approval asks you to confirm the accepted risks and records the approver, a note and the totals. A released cycle can be reopened with a reason.
 - **People.** Register gross vs validated gross for everyone. Click a person for the timecard (scheduled vs worked), pay rebuilt from WFM time and contract rates, PTO balances and deposits.
 - **Controls.** All 38 checks by stage, each with its rule and its result.
-- **Data sources.** Each source is set to *File* or *API*. Upload CSV, JSON or the printed PDF register (read with pdf.js). Columns are validated and every check re-runs. *Start a new cycle* clears the WFM, payroll, bank and GL data so you can load your own files. Policies and rule changes carry over.
+- **Import.** Drop a cycle's exports anywhere in the app, several at once: CSV, JSON or the printed PDF register (read with pdf.js). Each file is matched to its source by its columns. Common vendor header names are recognized (for example "Employee ID", "File #", "Home Department", "Total Hours", "Lunch Out"). Anything unrecognized is mapped in a column mapper, and Rollcall remembers each mapping for files with the same columns. On import, US dates, 12-hour punches, `$1,234.56` amounts and `(negative)` amounts are normalized. Importing into the sample workspace replaces the sample cycle. CSV templates are available for each source.
+- **Data sources.** Each source is set to *File* or *API*. In API mode, the browser calls your HTTPS endpoint directly, with an optional Authorization header that is kept for the session only. Use `{start}`/`{end}` in the URL for the pay period dates. The endpoint must return CSV or JSON rows and allow CORS. *Start a new cycle* clears the WFM, payroll, bank and GL data; policies, rule changes and saved column mappings carry over.
 - **Rules.** Thresholds come from the union agreement and the handbook. Every change re-runs the checks and is logged.
 - **Reports.** Release brief (.txt), exception register with statuses and notes (.csv), pay variance (.csv) and audit trail (.csv).
 - **Activity.** An append-only log of every status change, note, reassignment, rule change, data load, re-run and release.
 
-Statuses, notes, releases, rule changes and uploaded files are stored in the browser (localStorage). Files are read client-side and are not sent anywhere. In the sample workspace, the API connectors return the sample cycle.
+Statuses, notes, releases, rule changes, column mappings and imported data are stored in the browser (localStorage). Files are read client-side and are not sent anywhere. Nothing is shared between browsers or teammates; that would need a backend.
 
 ## Run it
 
@@ -33,7 +36,14 @@ Vercel deploys `public/` as a static site with no build step. After you change a
 
 ## Branding
 
-The brand tokens are at the top of the `:root` block in `app/index.html`: `--brand`, `--brand-ink` and `--brand-soft`. The logo mark is the inline SVG in `.logo`. The product name lives in the `<title>` and `.logo .name`. To rebrand, swap those values.
+Branding follows the Rollcall.ai Branding Guide:
+
+- **Colors.** Primary: Vivid Blue `#3653FD`, Vivid Pink `#FD328E` and Sunrise Orange `#FE812B`. Secondary: Cloud Blue `#E5ECF9` and Midnight `#001137`. The blue → pink → orange gradient from the logo is used sparingly: the nav indicator, the readiness progress bar and the import icon.
+- **Type.** Sora for headings and Manrope for text, both from Google Fonts.
+- **Logo.** The checkmark + person mark and the Rollcall.ai wordmark are in `app/brand/`, extracted from the guide's artwork. The white wordmark is for the Midnight sidebar.
+- **Tagline.** "Everyone Accounted For", shown in the sidebar.
+
+The tokens are at the top of the `:root` block in `app/index.html`. Status colors (red, amber, green) are kept separate from the brand pink and orange so blockers never look like decoration.
 
 ## Where each point from the call lands
 
@@ -63,6 +73,7 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 
 ## Files
 
+- `app/brand/` — logo mark, wordmark, favicon and app icon.
 - `app/` — source. `index.html` is the shell and styles, `app.js` holds the pages, workflow, release gate and persistence, `engine.js` holds the checks, and `sample-data.js` has the sample files embedded. `index.html` is written without an `<html>` wrapper; `build_dist.py` adds one.
 - `public/` — the built static site for Vercel, made by `build_dist.py`
 - `data/` — the sample files to upload: census, schedules, time records, register (CSV and PDF), bank activity, GL journal, union agreement, handbook, GL mapping. `seeded_issues.json` lists what was planted.
