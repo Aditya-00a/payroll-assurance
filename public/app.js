@@ -96,7 +96,7 @@
     viewer: ['export'],
   };
   const defaultPerms = () => Object.fromEntries(ROLES.map((r) => [r.id, Object.fromEntries(CAPS.map((c) => [c.id, ROLE_CAPS[r.id].includes(c.id)]))]));
-  const defaultPolicy = () => ({ perms: defaultPerms(), sod: true, lockAfterRelease: true, dismissLimit: 500, approveNote: false, slaBlockerH: 24, slaReviewH: 72, aiExplain: true, aiClusters: true, aiChat: true, fixThreshold: 3, cutoffDays: 2, cutoffTime: '10:00', pin: null });
+  const defaultPolicy = () => ({ perms: defaultPerms(), sod: true, lockAfterRelease: true, dismissLimit: 500, approveNote: false, slaBlockerH: 24, slaReviewH: 72, aiExplain: true, aiClusters: true, aiChat: true, fixThreshold: 3, cutoffDays: 2, cutoffTime: '10:00', pin: null, employeePortal: true, aiEmployees: true });
   const defaultTeam = (name) => [
     { id: 'u1', name: name || 'Payroll ops', role: 'admin', queue: 'Payroll', active: true },
     { id: 'u2', name: 'Payroll approver', role: 'approver', queue: 'Payroll', active: true },
@@ -140,35 +140,30 @@
     plug: svg('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>', 14),
     chat: svg('<path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 9.5h8M8 12.5h5"/>'),
     close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    home: svg('<path d="M4 11.5 12 4l8 7.5"/><path d="M6.5 10v10h11V10"/><path d="M10 20v-5.5h4V20"/>'),
   };
 
   const NAV = [
     { group: 'Pay cycle', items: [
+      { id: 'home', label: 'My work', icon: 'home' },
       { id: 'overview', label: 'Overview', icon: 'overview' },
       { id: 'exceptions', label: 'Review queue', icon: 'flag' },
       { id: 'people', label: 'People', icon: 'people' },
     ] },
-    { group: 'Checks', items: [
-      { id: 'feedpulse', label: 'Data quality', icon: 'quality' },
-      { id: 'runradar', label: 'Pay accuracy', icon: 'dollar' },
-      { id: 'threeway', label: 'Bank and ledger', icon: 'match' },
-      { id: 'fixflow', label: 'Repeat issues', icon: 'repeat' },
-    ] },
-    { group: 'Records', items: [
-      { id: 'reports', label: 'Reports', icon: 'file' },
-      { id: 'activity', label: 'Activity log', icon: 'clock' },
+    { group: 'Checks and records', items: [
+      { id: 'feedpulse', label: 'Checks', icon: 'quality', match: ['feedpulse', 'runradar', 'threeway', 'fixflow'], tab: 'Checks' },
+      { id: 'reports', label: 'Reports', icon: 'file', match: ['reports', 'activity'], tab: 'Reports' },
     ] },
     { group: 'Setup', items: [
       { id: 'sources', label: 'Data sources', icon: 'db' },
-      { id: 'rules', label: 'Rules', icon: 'rules' },
-      { id: 'controls', label: 'All checks', icon: 'shield' },
+      { id: 'rules', label: 'Rules', icon: 'rules', match: ['rules', 'controls'], tab: 'Rules' },
       { id: 'settings', label: 'Settings', icon: 'sliders' },
     ] },
     { group: 'Admin', items: [
       { id: 'admin', label: 'Admin console', icon: 'key' },
     ] },
   ];
-  const PAGES = NAV.flatMap((g) => g.items.map((i) => i.id));
+  const PAGES = NAV.flatMap((g) => g.items.flatMap((i) => i.match || [i.id]));
   const LEGACY = { intake: 'sources', checks: 'controls', brief: 'reports', variance: 'exceptions' };
 
   // ----------------------------------------------------------------------------------
@@ -177,7 +172,7 @@
 
   const STORE_KEY = 'rollcall.payroll-assurance.v1';
   const FILES_KEY = 'rollcall.payroll-assurance.sources.v1';
-  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {}, team: defaultTeam('Payroll ops'), userId: 'u1', policy: defaultPolicy(), customSources: [], customRules: [] });
+  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {}, team: defaultTeam('Payroll ops'), userId: 'u1', policy: defaultPolicy(), customSources: [], customRules: [], questions: [] });
   let store = loadStore();
 
   function loadStore() {
@@ -215,7 +210,7 @@
   }
   function log(action, detail, opts) {
     opts = opts || {};
-    store.audit.unshift({ t: nowIso(), by: opts.by || store.user, cycle: opts.cycle || cycleId(), action, detail: detail || '', ref: opts.ref || '' });
+    store.audit.unshift({ t: nowIso(), by: opts.by || actorName(), cycle: opts.cycle || cycleId(), action, detail: detail || '', ref: opts.ref || '' });
     if (store.audit.length > 1000) store.audit.length = 1000;
     save();
   }
@@ -319,7 +314,7 @@
   function keyed(list) {
     const seen = {};
     return list.map((x) => {
-      const base = `${x.check}|${x.empId || ''}|${x.date || ''}`;
+      const base = x.qid ? `Q1|${x.qid}` : `${x.check}|${x.empId || ''}|${x.date || ''}`;
       seen[base] = (seen[base] || 0) + 1;
       return seen[base] > 1 ? `${base}#${seen[base]}` : base;
     });
@@ -364,6 +359,7 @@
     const from = it.status;
     if (from === to) return false;
     it.status = to;
+    if (x.qid) syncQuestion(x, to);
     it.events.push({ t: nowIso(), by: store.user, type: 'status', from, to, text: note || '' });
     log(STATUS_VERB[to], exLabel(x) + (note ? ` — “${note}”` : ''), { ref: x.key });
     return true;
@@ -432,13 +428,17 @@
   }
 
   function renderWorkspace() {
+    if (isEmp()) { renderEmpWorkspace(); return; }
     $('#workspace').innerHTML = `<span class="ws-mark" aria-hidden="true">${esc(initials(store.workspace))}</span>
       <span><b>${esc(store.workspace)}</b><small>${isSampleWorkspace() ? 'Sample workspace · fictional data' : 'Your files'}</small></span>`;
-    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Working as <b>${esc(store.user)}</b> · ${esc(roleLabel(me()))}. Statuses, notes and approvals are saved in this browser.`;
+    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Signed in as <b>${esc(store.user)}</b> · ${esc(roleLabel(me()))}. Statuses, notes and approvals are saved in this browser.
+      <button class="side-out" type="button" data-action="sign-out">Sign out</button>`;
   }
 
   function navBadge(id) {
     const r = state.result;
+    if (isEmp()) return empBadge(id);
+    if (id === 'home') { const mi = myItems().mine; return mi.length ? `<span class="badge ${mi.some(pastSla) ? 'crit' : ''}">${mi.length}</span>` : ''; }
     if (id === 'exceptions') {
       const n = r.exceptions.filter((x) => isOpen(x) && x.severity !== 'info').length;
       return n ? `<span class="badge ${readiness().preOpen.length ? 'crit' : ''}">${n}</span>` : '';
@@ -452,16 +452,17 @@
   }
 
   function renderNav() {
-    $('#nav').innerHTML = NAV.map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => `
-      <a href="#${i.id}" ${state.page === i.id ? 'aria-current="page"' : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
+    $('#nav').innerHTML = (isEmp() ? EMP_NAV : NAV).map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => `
+      <a href="#${(i.tab && state.lastTab[i.tab]) || i.id}" ${(i.match || [i.id]).includes(state.page) ? 'aria-current="page"' : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
   }
 
   function renderTopbar() {
+    if (isEmp()) { renderEmpTopbar(); return; }
     const r = state.result, p = r.period, rd = readiness();
     const rel = rd.released;
     let releaseBtn;
     if (rd.state === 'released') releaseBtn = `<button class="btn" type="button" data-action="release-info">${ICON.check} Released</button>`;
-    else releaseBtn = `<button class="btn primary" type="button" data-action="release" ${rd.state === 'ready' ? '' : 'aria-disabled="true"'} title="${rd.state === 'ready' ? 'Approve and release this batch' : rd.state === 'nodata' ? 'Load the cycle data first' : rd.state === 'hold' ? 'Release is on hold' : `Clear ${plural(rd.preOpen.length, 'blocker')} first`}">Release payroll</button>`;
+    else releaseBtn = `<button class="btn primary" type="button" data-action="release" ${rd.state === 'ready' ? '' : 'aria-disabled="true"'} title="${rd.state === 'ready' ? 'Approve and release this batch' : 'See what is left before release'}">Release payroll</button>`;
     $('#topbar').innerHTML = `
       <button class="btn small menu-btn" type="button" data-action="nav-toggle" aria-label="Open navigation" aria-expanded="${$('#shell').classList.contains('nav-open')}">${ICON.menu}</button>
       <button class="cycle-btn" type="button" data-action="cycle-menu" aria-haspopup="true" aria-expanded="false">
@@ -477,11 +478,14 @@
   }
 
   function renderPage() {
-    const fn = { feedpulse: renderFeedpulse, runradar: renderRunradar, threeway: renderThreeway, fixflow: renderFixflow, overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings, admin: renderAdmin }[state.page];
+    const fn = { feedpulse: renderFeedpulse, runradar: renderRunradar, threeway: renderThreeway, fixflow: renderFixflow, overview: renderOverview, exceptions: renderExceptions, people: renderPeople, controls: renderControls, sources: renderSources, rules: renderRules, reports: renderReports, activity: renderActivity, settings: renderSettings, admin: renderAdmin, home: renderHome, me: renderMe, 'me-time': renderMeTime, 'me-help': renderMeHelp }[state.page];
+    renderSubtabs();
     fn();
+    decorateTerms($('#page'));
   }
 
   function renderAll() {
+    if (!signedIn()) { renderSignin(); return; }
     renderShell();
     renderChat();
     if (!(state.page === 'rules' && state.keepRules)) renderPage();
@@ -491,7 +495,8 @@
   function route() {
     let h = (location.hash || '').replace(/^#/, '').split('/')[0];
     if (LEGACY[h]) h = LEGACY[h];
-    const next = PAGES.includes(h) ? h : 'overview';
+    if (!signedIn()) { renderSignin(); return; }
+    const next = (isEmp() ? EMP_PAGES : PAGES).includes(h) ? h : isEmp() ? 'me' : 'home';
     const changed = next !== state.page;
     state.page = next;
     closeNav();
@@ -677,7 +682,7 @@
     $('#page').innerHTML = `
       <div class="page-head">
         <div><span class="eyebrow">Step 3 of 5</span><h1>Review queue</h1><p>Every exception the checks found. Select one to see why it happened, the records behind it and the policy that applies, then approve, dismiss or escalate it. Blockers in the time, roster and register checks must be approved or dismissed before payroll can be released.</p></div>
-        <div class="actions"><button class="btn small" type="button" data-action="export-ex">${ICON.download} Export CSV</button></div>
+        <div class="actions"><button class="btn small" type="button" data-action="shortcuts" title="Press ? for keyboard shortcuts">Keyboard shortcuts</button><button class="btn small" type="button" data-action="export-ex">${ICON.download} Export CSV</button></div>
       </div>
       <div class="toolbar">
         <div class="seg" role="group" aria-label="Status" id="statusSeg"></div>
@@ -717,7 +722,7 @@
 
     const allSel = list.length && list.every((x) => state.sel.has(x.key));
     $('#qlist').innerHTML = list.length ? `<div class="qlist" role="list">
-      <div class="qhead"><input type="checkbox" class="cb" id="selAll" aria-label="Select all shown" ${allSel ? 'checked' : ''}><span class="qid">Severity</span><span>Exception</span><span class="qown">Owner</span><span class="qimp">Impact</span><span class="qst">Status</span></div>
+      <div class="qhead"><input type="checkbox" class="cb" id="selAll" aria-label="Select all shown" ${allSel ? 'checked' : ''}><span class="qid">Severity</span><span>Exception</span><span class="qown">Owner</span><span class="qimp">Impact</span><span class="qst">Status</span><span class="qact"><span class="sr-only">Approve</span></span></div>
       ${list.map(qRow).join('')}</div>`
       : `<div class="qlist"><div class="empty"><h3>${r.exceptions.length ? 'Nothing matches these filters' : 'No exceptions'}</h3><p>${r.exceptions.length ? 'Change the status, severity or owner filters to see more.' : 'Every check that ran passed.'}</p></div></div>`;
     renderBulk();
@@ -738,10 +743,11 @@
       <span class="qown">${esc(ownerOf(x))}</span>
       <span class="qimp">${impact}</span>
       <span class="qst">${statusPill(st)}</span>
+      <span class="qact">${!closed && can('review') && !changeBlock(x, 'approved') ? `<button class="qa" type="button" data-action="quick-approve" data-key="${esc(x.key)}" title="Approve (A)" aria-label="Approve ${esc(x.title)}">${ICON.check}</button>` : ''}</span>
     </div>`;
   }
   // Approved items read green, dismissed ones neutral; open items keep their severity.
-  const doneOrSev = (x, st) => (st === 'approved' ? '<span class="pill pass">Approved</span>' : st === 'dismissed' ? '<span class="pill plain">Dismissed</span>' : `<span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>`);
+  const doneOrSev = (x, st) => (st === 'approved' ? `<span class="pill pass">${x.qid ? 'Answered' : 'Approved'}</span>` : st === 'dismissed' ? `<span class="pill plain">${x.qid ? 'Closed' : 'Dismissed'}</span>` : `<span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>`);
   const statusPill = (st) => `<span class="st ${st}"><i aria-hidden="true"></i>${STATUS_LABEL[st]}</span>`;
 
   function renderBulk() {
@@ -784,6 +790,7 @@
       approved: [['open', 'Reopen', '']],
       dismissed: [['open', 'Reopen', '']],
     }[st];
+    if (x.qid) btns.forEach((b) => { b[1] = { approved: 'Mark answered', dismissed: 'Close without reply' }[b[0]] || b[1]; });
     const lockWhy = changeBlock(x, null);
     const dWhy = !lockWhy && (st === 'open' || st === 'escalated') ? changeBlock(x, 'dismissed') : '';
     const ev = [];
@@ -800,11 +807,11 @@
           <span class="close-x" style="display:flex;gap:6px">${next ? `<button class="btn small" type="button" data-action="select-ex" data-key="${esc(next)}">Next</button>` : ''}<button class="btn small" type="button" data-action="close-detail">Close</button></span></div>
         <h2>${esc(x.title)}</h2>
         <div class="row">${statusPill(st)}<span class="muted" style="font-size:var(--t-xs)">Owner: ${esc(ownerOf(x))}</span></div>
-        ${(() => { const done = st === 'approved' || st === 'dismissed' ? it.events.filter((e) => e.type === 'status' && e.to === st).slice(-1)[0] : null; return done ? `<div class="done-banner ${st === 'approved' ? 'ok' : 'dis'}"><b>${st === 'approved' ? '✓ Approved' : 'Dismissed'}</b> <span>by ${esc(done.by)} · ${esc(stamp(done.t))}${done.text ? ` — “${esc(done.text)}”` : ''}</span></div>` : ''; })()}
+        ${(() => { const done = st === 'approved' || st === 'dismissed' ? it.events.filter((e) => e.type === 'status' && e.to === st).slice(-1)[0] : null; return done ? `<div class="done-banner ${st === 'approved' ? 'ok' : 'dis'}"><b>${st === 'approved' ? (x.qid ? '✓ Answered' : '✓ Approved') : x.qid ? 'Closed' : 'Dismissed'}</b> <span>by ${esc(done.by)} · ${esc(stamp(done.t))}${done.text ? ` — “${esc(done.text)}”` : ''}</span></div>` : ''; })()}
       </div>
       <div class="detail-body">
         ${emp ? `<section><h4>Employee</h4><button class="who" type="button" data-action="open-emp" data-emp="${esc(emp.id)}"><b>${esc(emp.name)}</b><span>${esc(emp.id)}${emp.title ? ' · ' + esc(emp.title) : ''}${emp.location ? ' · ' + esc(emp.location) : ''}</span></button></section>` : ''}
-        ${varianceVoiceHtml(x)}
+        ${x.qid ? questionThreadHtml(x) : varianceVoiceHtml(x)}
         <h4 style="margin-bottom:-8px">Finding</h4>
         <div class="ev">${ev.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
         ${x.action ? `<section><h4>Recommended action</h4><p>${esc(x.action)}</p></section>` : ''}
@@ -822,6 +829,7 @@
         </section>
         <section><h4>History</h4><ul class="history">${hist.map(histItem).join('')}</ul></section>
       </div>`;
+    decorateTerms(el);
   }
 
   function histItem(ev) {
@@ -1786,6 +1794,7 @@
   const RUNRADAR_TIME = new Set(['T5', 'T6', 'T7', 'T10']);
   const appOf = (x) => {
     const c = typeof x === 'string' ? x : x.check;
+    if (c === 'Q1') return 'question';
     if (CHECK_OF[c] && CHECK_OF[c].custom) {
       const st = typeof x === 'string' ? CHECK_OF[c].stage : x.stage;
       return st === 'payroll' ? 'runradar' : st === 'funding' || st === 'gl' ? 'threeway' : 'feedpulse';
@@ -1794,7 +1803,7 @@
     if (c[0] === 'P' || RUNRADAR_TIME.has(c)) return 'runradar';
     return 'feedpulse';
   };
-  const APP_NAME = { feedpulse: 'Data quality', runradar: 'Pay accuracy', threeway: 'Bank and ledger' };
+  const APP_NAME = { feedpulse: 'Data quality', runradar: 'Pay accuracy', threeway: 'Bank and ledger', question: 'Employee question' };
   const appChip = (id) => `<span class="appchip" data-app="${id}">${esc(APP_NAME[id] || APP_BY_ID[id === 'variance' ? 'exceptions' : id].name)}</span>`;
 
   // ---- Policy clauses cited by each check
@@ -1931,7 +1940,8 @@
     pairs.sort((a, b) => b[0].length - a[0].length);
     const accts = {};
     let acctN = 0;
-    const acct = (d) => accts[d] || (accts[d] = `ACCT-${String(++acctN).padStart(2, '0')}`);
+    const acctBack = {};
+    const acct = (d) => accts[d] || (accts[d] = `ACCT-${String(++acctN).padStart(2, '0')}`, acctBack[accts[d]] = d, accts[d]);
     const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const nameRe = pairs.length ? new RegExp(`\\b(${pairs.map((p) => reEsc(p[0])).join('|')})\\b`, 'g') : null;
     const nameMap = Object.fromEntries(pairs);
@@ -1953,7 +1963,8 @@
       return [k, text(v)];
     }));
     const unmask = (s) => String(s || '').replace(/EMP-\d{3}/g, (m) => back[m] || m);
-    maskCache = { result: r, id: (eid) => idMap[eid] || eid, text, obj, unmask };
+    const unacct = (s) => String(s || '').replace(/ACCT-\d{2}/g, (m) => (acctBack[m] ? `••••${acctBack[m]}` : m));
+    maskCache = { result: r, id: (eid) => idMap[eid] || eid, text, obj, unmask, unacct };
     return maskCache;
   }
 
@@ -2669,6 +2680,7 @@
   const roleLabel = (m) => (ROLE_OF[m && m.role] || { label: (m && m.role) || 'Unknown' }).label;
   const permsOf = (role) => store.policy.perms[role] || {};
   function can(cap) {
+    if (isEmp()) return false;
     const m = me();
     return !!(m && m.active !== false && permsOf(m.role)[cap]);
   }
@@ -2694,7 +2706,7 @@
   function changeBlock(x, to) {
     const role = roleLabel(me());
     if (!can('review')) return `Your role (${role}) can’t work exceptions.`;
-    if (cyc().released && store.policy.lockAfterRelease && isPre(x)) return `${cycleId()} is released, so pre-release items are locked. Reopen the cycle to change them.`;
+    if (cyc().released && store.policy.lockAfterRelease && isPre(x) && !x.qid) return `${cycleId()} is released, so pre-release items are locked. Reopen the cycle to change them.`;
     if (to === 'dismissed' && !can('dismiss')) return `Your role (${role}) can’t dismiss exceptions.`;
     if (to === 'dismissed' && bigBlocker(x) && !can('dismissLarge')) return `Blockers of ${F.money(store.policy.dismissLimit)} or more need a payroll approver or admin to dismiss.`;
     return '';
@@ -2776,6 +2788,7 @@
     const was = me();
     store.userId = m.id;
     store.user = m.name;
+    if (session && session.type === 'employer') writeSession(Object.assign({}, session, { userId: m.id }));
     log('Switched user', `${was.name} (${roleLabel(was)}) → ${m.name} (${roleLabel(m)})`);
     state.unmask = state.unmask && can('unmask');
     renderAll();
@@ -2927,6 +2940,7 @@
     sod: 'Different person must release', lockAfterRelease: 'Lock pre-release items after release', dismissLimit: 'Dismissal limit',
     approveNote: 'Note to approve a blocker', slaBlockerH: 'Blockers due within', slaReviewH: 'Review items due within', aiExplain: 'AI explanations',
     aiClusters: 'AI-suggested causes', aiChat: 'AI chat', fixThreshold: 'Count an issue as repeating at', cutoffDays: 'Data due', cutoffTime: 'Data due by',
+    employeePortal: 'Employee sign-in', aiEmployees: 'Employees can ask the AI',
   };
   function polFmt(key, v) {
     if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -3038,7 +3052,7 @@
   const ADMIN_TABS = [['monitor', 'Monitor'], ['team', 'Team and access'], ['policies', 'Policies'], ['data', 'Data and audit']];
   const ADMIN_ACTIONS = new Set(['Action blocked', 'Switched user', 'Name changed', 'Team changed', 'Permission changed', 'Policy changed', 'Admin PIN',
     'Release hold', 'Hold lifted', 'Payroll released', 'Cycle reopened', 'Rule changed', 'Rule created', 'Rule deleted', 'Rule turned on', 'Rule turned off',
-    'Data source added', 'Data source changed', 'Data source removed', 'Backup exported', 'Backup restored', 'Workspace cleared']);
+    'Data source added', 'Data source changed', 'Data source removed', 'Backup exported', 'Backup restored', 'Workspace cleared', 'Signed in', 'Signed out', 'Sign-in failed']);
 
   function renderAdmin() {
     const tab = ADMIN_TABS.some(([id]) => id === state.adminTab) ? state.adminTab : 'monitor';
@@ -3327,6 +3341,11 @@
         <div class="rule"><label for="pol-cutoffTime">Data is due by</label><input type="time" id="pol-cutoffTime" data-policy="cutoffTime" value="${esc(p.cutoffTime)}" ${dis}></div>
         <div class="rule"><span>Mask names, IDs and bank details</span><span class="pill pass" style="justify-self:end">Always on</span><p class="hint">Applied before anything is sent to the AI. Not configurable.</p></div>
         <div class="rule"><span>AI service</span>${state.ai && state.ai.available ? '<span class="conn ok" style="justify-self:end">Connected</span>' : '<span class="conn idle" style="justify-self:end">Not connected</span>'}<p class="hint">${state.ai && state.ai.available ? `${esc(state.ai.model)}. Only masked records are sent.` : 'Add GROQ_API_KEY to the deployment to turn it on.'}</p></div>
+      </section>
+      <section class="rule-card"><div><h4>Employee access</h4><p class="src">Employee sign-in and their pay pages</p></div>
+        ${chk('employeePortal', 'Employees can sign in', 'With their employee ID and the last 4 digits of the account their pay goes to. They see only their own pay, hours, time off and questions.')}
+        ${chk('aiEmployees', 'Employees can ask the AI about their own pay', 'Answers use only that person’s records and your policies, with names hidden from the AI. Needs AI chat on.')}
+        <div class="rule"><span>Employee questions</span><span class="muted" style="justify-self:end">${plural((store.questions || []).length, 'question')}</span><p class="hint">Questions arrive in the review queue as “Employee questions” for the team that owns the topic. Replies show on the employee’s Questions page.</p></div>
       </section>
     </div>`;
   }
@@ -3620,6 +3639,7 @@
         });
       });
     });
+    questionFindings(r).forEach(add);
     const sevRank = { blocker: 0, review: 1, info: 2 };
     const stageRank = Object.fromEntries(E.STAGES.map((s, i) => [s.id, i]));
     const seq = {};
@@ -3908,7 +3928,7 @@
   // Keyword retrieval with a few payroll-aware boosts: people and check IDs named in the question,
   // open blockers for release questions, policy text for policy questions, priced items for money.
   function retrieve(question, k) {
-    const chunks = ragChunks();
+    const chunks = isEmp() ? empChunks() : ragChunks();
     const ql = question.toLowerCase();
     const terms = new Set(tokenize(question).flatMap((w) => SYNONYMS[w] || [w]));
     const people = new Set(state.result.employees.filter((e) => {
@@ -3951,13 +3971,15 @@
     }
     return {
       company: 'Retail apparel employer, NY and NJ stores (synthetic demo data)',
+      audience: isEmp() ? 'employee' : 'reviewer',
+      ...(isEmp() && myEmp() ? { employee: m.id(myEmp().id) } : {}),
       question: m.text(question),
       earlier: hist,
       records: refs.map((c, i) => ({ ref: `R${i + 1}`, type: KIND_LABEL[c.kind], text: m.text(c.text).slice(0, 700) })),
     };
   }
 
-  const chatAiOn = () => !!(state.ai && state.ai.available && store.policy.aiChat && can('ai'));
+  const chatAiOn = () => (isEmp() ? empAiOn() : !!(state.ai && state.ai.available && store.policy.aiChat && can('ai')));
   async function askChat(question) {
     question = String(question || '').trim();
     if (!question || state.chat.busy) return;
@@ -3967,7 +3989,7 @@
     state.chat.msgs.push({ role: 'user', text: question, at: nowIso() });
     state.chat.draft = '';
     if (!chatAiOn()) {
-      const why = !store.policy.aiChat ? 'AI chat is turned off by a payroll admin.' : !can('ai') ? `Your role (${roleLabel(me())}) can’t use the AI.` : 'The AI service isn’t connected on this deployment.';
+      const why = isEmp() ? 'The AI assistant isn’t available right now.' : !store.policy.aiChat ? 'AI chat is turned off by a payroll admin.' : !can('ai') ? `Your role (${roleLabel(me())}) can’t use the AI.` : 'The AI service isn’t connected on this deployment.';
       state.chat.msgs.push({ role: 'ai', local: true, refs: msgRefs, why });
       renderChat();
       return;
@@ -3988,6 +4010,7 @@
 
   const CHAT_SUGGEST = ['What’s stopping payroll from being released?', 'Who is owed money this cycle, and how much?', 'Summarize the bank and ledger differences', 'Which store keeps missing lunch check-ins?', 'What does the handbook say about sick time?'];
   function chatShow(s) {
+    if (isEmp()) return empShow(s);
     const m = masker();
     return can('unmask') && state.chatNames !== false ? m.unmask(s) : m.text(s);
   }
@@ -4022,6 +4045,7 @@
     const tb = document.querySelector('[data-action="chat-toggle"]');
     if (tb) tb.setAttribute('aria-expanded', open);
     if (!open) return;
+    if (isEmp()) { renderEmpChat(el); return; }
     const msgs = state.chat.msgs;
     const ai = chatAiOn();
     const suggest = CHAT_SUGGEST.concat(isSampleWorkspace() ? ['Show everything for Diego Santos'] : []);
@@ -4041,6 +4065,7 @@
     const msg = state.chat.msgs[Number(el.dataset.m)];
     const x = msg && msg.refs.find((y) => y.ref === el.dataset.ref);
     if (!x) return;
+    if (isEmp() && empRef(x)) return;
     const narrow = !window.matchMedia('(min-width: 1181px)').matches;
     if (!x.nav) {
       const d = $(`#msgsrc-${el.dataset.m}`);
@@ -4056,6 +4081,909 @@
     else if (x.nav.type === 'check' && CHECK_OF[x.nav.id]) filterExceptions({ check: x.nav.id, status: 'all' });
     else if (x.nav.type === 'page') go(x.nav.page);
   }
+
+  // ----------------------------------------------------------------------------------
+  // Sign-in: employer (a team member) or employee (employee ID and the last 4 digits of the
+  // account their pay goes to). This is demo sign-in that runs in the browser: anyone with the
+  // link can pick a name. Production sign-in uses the company's single sign-on and a server.
+  // ----------------------------------------------------------------------------------
+
+  const SESSION_KEY = 'rollcall.payroll-assurance.session.v1';
+  const LOCK_KEY = 'rollcall.payroll-assurance.signin-lock.v1';
+  const MAX_TRIES = 5;
+  const LOCK_MS = 5 * 60 * 1000;
+  let session = readSession();
+  function readSession() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      return s && (s.type === 'employer' || s.type === 'employee') ? s : null;
+    } catch (e) { return null; }
+  }
+  function writeSession(s) {
+    session = s;
+    try { if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s)); else localStorage.removeItem(SESSION_KEY); } catch (e) { /* in memory only */ }
+  }
+  const signedIn = () => !!session;
+  const isEmp = () => !!(session && session.type === 'employee');
+  const myEmp = () => (isEmp() && state.result ? state.result.empById[session.empId] || null : null);
+  const actorName = () => (isEmp() ? `${(myEmp() || {}).name || session.empId} (employee)` : store.user);
+  const portalOn = () => store.policy.employeePortal !== false;
+  const empAccount = (e) => String((e && e.census && e.census.bank_last4) || '');
+
+  // Drop a saved session that no longer matches the team, the data or the policy.
+  function checkSession() {
+    if (!session) return;
+    if (session.type === 'employer') {
+      const m = store.team.find((x) => x.id === session.userId && x.active !== false);
+      if (!m) { writeSession(null); return; }
+      store.userId = m.id;
+      store.user = m.name;
+    } else if (!portalOn() || !empAccount(state.result.empById[session.empId])) writeSession(null);
+  }
+
+  function lockState() {
+    try { return JSON.parse(localStorage.getItem(LOCK_KEY) || 'null') || { fails: 0, until: 0 }; } catch (e) { return { fails: 0, until: 0 }; }
+  }
+  function setLock(l) {
+    try { localStorage.setItem(LOCK_KEY, JSON.stringify(l)); } catch (e) { /* in memory only */ }
+  }
+
+  function renderSignin() {
+    document.body.classList.add('signed-out');
+    document.body.classList.remove('emp-mode');
+    ['#modal', '#modalScrim', '#drawer', '#scrim', '#navScrim', '#chat'].forEach((s) => { const n = $(s); if (n) n.hidden = true; });
+    $('#shell').classList.remove('chat-open', 'nav-open');
+    document.body.style.overflow = '';
+    hideTip();
+    const el = $('#signin');
+    el.hidden = false;
+    const mode = state.signinMode === 'employee' ? 'employee' : 'employer';
+    const team = store.team.filter((m) => m.active !== false);
+    const sm = team.find((m) => m.id === state.signinUser) || team.find((m) => m.id === store.userId) || team[0];
+    const needPin = !!(sm && permsOf(sm.role).admin && store.policy.pin);
+    const lk = lockState();
+    const locked = lk.until > Date.now();
+    const employer = `
+      <p class="si-lead">For the payroll, HR, store, treasury and accounting teams who check and release payroll.</p>
+      <label for="siUser"><b>Your name</b></label>
+      <select class="text" id="siUser">${team.map((m) => `<option value="${esc(m.id)}" ${m.id === sm.id ? 'selected' : ''}>${esc(m.name)} · ${esc(roleLabel(m))}</option>`).join('')}</select>
+      <p class="hint">${esc(roleLabel(sm))}: ${esc((ROLE_OF[sm.role] || {}).desc || 'custom role')}.</p>
+      ${needPin ? '<label for="siPin"><b>Admin PIN</b></label><input class="text" id="siPin" type="password" inputmode="numeric" autocomplete="current-password">' : ''}`;
+    const employee = portalOn() ? `
+      <p class="si-lead">See your pay, hours and time off, and ask the payroll team a question.</p>
+      <label for="siEmp"><b>Employee ID</b></label>
+      <input class="text" id="siEmp" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="For example E1012" value="${esc(state.signinEmp || '')}" ${locked ? 'disabled' : ''}>
+      <label for="siLast4"><b>Last 4 digits of the bank account your pay goes to</b></label>
+      <input class="text" id="siLast4" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" ${locked ? 'disabled' : ''}>
+      ${isSampleWorkspace() ? '<p class="hint">Sample employee: <b>E1012</b>, account ending <b>4471</b>.</p>' : ''}
+      ${locked ? `<p class="form-err">Too many tries on this device. Try again after ${esc(clock(new Date(lk.until).toISOString()))}.</p>` : ''}`
+      : '<div class="notice">Your payroll admin has turned off employee sign-in. Ask them, or the payroll team, for your pay details.</div>';
+    const canSubmit = mode === 'employer' || (portalOn() && !locked);
+    el.innerHTML = `
+      <div class="si-wrap">
+        <div class="si-brand"><img src="brand/rollcall-mark.png" alt="" width="40" height="40"><div><img class="si-word" src="brand/rollcall-wordmark-white.png" alt="Rollcall.ai" width="132" height="25"><span>Payroll Assurance</span></div></div>
+        <div class="si-card">
+          <h1>Sign in to ${esc(store.workspace)}</h1>
+          <div class="seg si-tabs" role="tablist" aria-label="Sign in as">
+            <button type="button" role="tab" id="siTabEmployer" aria-selected="${mode === 'employer'}" aria-pressed="${mode === 'employer'}" aria-controls="siForm" data-action="si-mode" data-mode="employer">${ICON.key} Employer</button>
+            <button type="button" role="tab" id="siTabEmployee" aria-selected="${mode === 'employee'}" aria-pressed="${mode === 'employee'}" aria-controls="siForm" data-action="si-mode" data-mode="employee">${ICON.people} Employee</button>
+          </div>
+          <form class="si-form" id="siForm" role="tabpanel" aria-labelledby="${mode === 'employer' ? 'siTabEmployer' : 'siTabEmployee'}" novalidate>
+            ${mode === 'employer' ? employer : employee}
+            <p class="form-err" id="siErr" role="alert" ${state.signinErr ? '' : 'hidden'}>${esc(state.signinErr || '')}</p>
+            ${canSubmit ? '<button class="btn primary si-go" type="submit">Sign in</button>' : ''}
+          </form>
+        </div>
+        <p class="si-demo"><b>Demo sign-in.</b> Accounts and data live in this browser, and anyone with the link can sign in as anyone on the team. A production setup signs people in through your company’s single sign-on and keeps the data on a server.</p>
+        <p class="si-tag">Everyone Accounted For</p>
+      </div>`;
+  }
+
+  function signinError(msg, focus) {
+    state.signinErr = msg;
+    renderSignin();
+    const f = focus && $(focus);
+    if (f && !f.disabled) { f.focus(); if (f.select) f.select(); }
+  }
+
+  function submitSignin() {
+    state.signinErr = '';
+    if (state.signinMode !== 'employee') {
+      const m = store.team.find((x) => x.id === ($('#siUser') || {}).value && x.active !== false);
+      if (!m) return;
+      if (permsOf(m.role).admin && store.policy.pin && pinHash((($('#siPin') || {}).value || '').trim()) !== store.policy.pin) {
+        log('Sign-in failed', `${m.name} · wrong admin PIN`, { by: 'Sign-in' });
+        signinError('That PIN is not right.', '#siPin');
+        return;
+      }
+      state.signinUser = m.id;
+      store.userId = m.id;
+      store.user = m.name;
+      writeSession({ type: 'employer', userId: m.id, at: nowIso() });
+      log('Signed in', `${m.name} · ${roleLabel(m)}`);
+      enterApp();
+      return;
+    }
+    if (!portalOn()) return;
+    const lk = lockState();
+    if (lk.until > Date.now()) { renderSignin(); return; }
+    const id = (($('#siEmp') || {}).value || '').trim().toUpperCase();
+    const l4 = (($('#siLast4') || {}).value || '').trim();
+    state.signinEmp = id;
+    if (!id || !l4) { signinError('Enter your employee ID and the last 4 digits of your account.', id ? '#siLast4' : '#siEmp'); return; }
+    const e = state.result.empById[id];
+    if (!e || !empAccount(e) || empAccount(e) !== l4) {
+      const fails = (lk.fails || 0) + 1;
+      const lockNow = fails >= MAX_TRIES;
+      setLock(lockNow ? { fails: 0, until: Date.now() + LOCK_MS } : { fails, until: 0 });
+      log('Sign-in failed', `Employee sign-in for ${/^E\d{4}$/.test(id) ? id : 'an unknown ID'}${lockNow ? ' · locked for 5 minutes on this device' : ''}`, { by: 'Sign-in' });
+      signinError(lockNow ? 'Too many tries. Employee sign-in is locked for 5 minutes on this device.' : 'That employee ID and account number don’t match our records.', '#siLast4');
+      return;
+    }
+    setLock({ fails: 0, until: 0 });
+    state.signinEmp = '';
+    writeSession({ type: 'employee', empId: e.id, at: nowIso() });
+    log('Signed in', `${e.name} (${e.id}) · employee`);
+    enterApp();
+  }
+
+  function enterApp() {
+    state.signinErr = '';
+    $('#signin').hidden = true;
+    $('#signin').innerHTML = '';
+    document.body.classList.remove('signed-out');
+    document.body.classList.toggle('emp-mode', isEmp());
+    state.chat = { open: false, msgs: [], busy: false, draft: '' };
+    state.detail = null;
+    state.drawer = null;
+    state.sel.clear();
+    state.unmask = false;
+    history.replaceState(null, '', `#${isEmp() ? 'me' : 'home'}`);
+    route();
+    renderChat();
+  }
+
+  function signOut() {
+    const who = actorName();
+    state.signinMode = isEmp() ? 'employee' : 'employer';
+    log('Signed out', who, { by: who });
+    writeSession(null);
+    if (!$('#modal').hidden) closeModal();
+    state.chat = { open: false, msgs: [], busy: false, draft: '' };
+    state.detail = null;
+    state.drawer = null;
+    state.sel.clear();
+    clearTimeout(toastTimer);
+    $('#toast').hidden = true;
+    history.replaceState(null, '', location.pathname + location.search);
+    renderSignin();
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Employee pages: their own pay, time and questions, in plain words
+  // ----------------------------------------------------------------------------------
+
+  const EMP_NAV = [{ group: 'Your pay', items: [
+    { id: 'me', label: 'My pay', icon: 'dollar' },
+    { id: 'me-time', label: 'My time', icon: 'clock' },
+    { id: 'me-help', label: 'Questions', icon: 'chat' },
+  ] }];
+  const EMP_PAGES = EMP_NAV.flatMap((g) => g.items.map((i) => i.id));
+  const Q_TOPICS = [
+    ['pay', 'My pay amount', 'Payroll'], ['hours', 'Hours or timecard', 'WFM admin'], ['timeoff', 'Time off', 'HR'],
+    ['deposit', 'Direct deposit', 'Payroll'], ['tax', 'Taxes or deductions', 'Payroll'], ['other', 'Something else', 'Payroll'],
+  ];
+  const Q_TOPIC = Object.fromEntries(Q_TOPICS.map(([k, l]) => [k, l]));
+  const Q_OWNER = Object.fromEntries(Q_TOPICS.map(([k, , o]) => [k, o]));
+  const qById = (id) => (store.questions || []).find((q) => q.id === id);
+  const myQuestions = () => (isEmp() ? (store.questions || []).filter((q) => q.empId === session.empId) : []);
+  const firstName = (s) => String(s || '').split(' ')[0];
+
+  // Other people's names and IDs never show on an employee's pages.
+  let scrubCache = null;
+  function scrubFor(e) {
+    if (scrubCache && scrubCache.result === state.result && scrubCache.id === e.id) return scrubCache.fn;
+    const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const names = state.result.employees.filter((o) => o.id !== e.id && o.name && o.name.length > 3).map((o) => o.name).sort((a, b) => b.length - a.length);
+    const nameRe = names.length ? new RegExp(`\\b(${names.map(reEsc).join('|')})\\b`, 'g') : null;
+    const fn = (s) => {
+      let t = String(s || '');
+      if (nameRe) t = t.replace(nameRe, 'another employee');
+      return t.replace(/\bE\d{4}\b/g, (m) => (m === e.id ? m : 'another employee'));
+    };
+    scrubCache = { result: state.result, id: e.id, fn };
+    return fn;
+  }
+
+  const empIssues = (e) => e.exceptions.filter((x) => x.severity !== 'info' && x.check !== 'Q1');
+  const EMP_ST = { open: ['review', 'Being checked'], escalated: ['review', 'Being checked'], approved: ['pass', 'Checked'], dismissed: ['plain', 'Checked · no change'] };
+  function empImpact(x) {
+    if (!x.impact) return '';
+    const a = F.money(x.impact.amount);
+    return {
+      underpaid: `You may be owed ${a}.`, overpaid: `You may have been paid ${a} too much. Payroll will contact you before changing anything.`,
+      cash: `Affects a deposit of ${a}.`, liability: `Affects ${a} of time off.`, tax: `Affects ${a} of tax withholding.`,
+    }[x.impact.kind] || '';
+  }
+  function empPayState(e) {
+    const r = state.result, p = r.period, rel = cyc().released;
+    const open = e ? empIssues(e).filter(isOpen) : [];
+    const pay = p.payDate ? F.fmtDate(p.payDate) : 'the pay date';
+    if (rel) return { chip: 'released', word: 'Pay approved', text: `Payroll approved this pay on ${shortDate(rel.at.slice(0, 10))}. It is paid on ${pay}.${open.length ? ` The payroll team is still checking ${plural(open.length, 'item')} on your pay.` : ''}` };
+    if (open.length) return { chip: 'checking', word: 'Being checked', text: `Payroll is checking this pay before it goes out on ${pay}, including ${plural(open.length, 'item')} on your pay. You don’t need to do anything unless they contact you.` };
+    return { chip: 'checking', word: 'Being checked', text: `Payroll is checking this pay before it goes out on ${pay}. Nothing on your pay needs attention.` };
+  }
+
+  function renderEmpWorkspace() {
+    const e = myEmp();
+    $('#workspace').innerHTML = `<span class="ws-mark" aria-hidden="true">${esc(initials(store.workspace))}</span>
+      <span><b>${esc(store.workspace)}</b><small>Employee view</small></span>`;
+    $('#sideFoot').innerHTML = `<div class="tagline">Everyone Accounted For</div>Signed in as <b>${esc(e ? e.name : session.empId)}</b> · ${esc(session.empId)}. You see only your own records.
+      <button class="side-out" type="button" data-action="sign-out">Sign out</button>`;
+  }
+  function renderEmpTopbar() {
+    const p = state.result.period, st = empPayState(myEmp());
+    $('#topbar').innerHTML = `
+      <button class="btn small menu-btn" type="button" data-action="nav-toggle" aria-label="Open navigation" aria-expanded="${$('#shell').classList.contains('nav-open')}">${ICON.menu}</button>
+      <span class="emp-period"><b>Pay period</b><span>${esc(periodText(p))}${p.payDate ? ` · paid ${esc(F.fmtDate(p.payDate))}` : ''}</span></span>
+      <span class="status-chip ${st.chip}">${esc(st.word)}</span>
+      <span class="top-spacer"></span>
+      ${store.policy.aiEmployees !== false ? `<button class="btn chat-btn" type="button" data-action="chat-toggle" aria-expanded="${!!state.chat.open}" aria-controls="chat">${ICON.chat.replace(/16/g, '15')} <span>Ask about my pay</span></button>` : ''}
+      <button class="btn" type="button" data-action="sign-out">Sign out</button>`;
+  }
+  function empBadge(id) {
+    if (id !== 'me-help') return '';
+    const n = myQuestions().filter((q) => q.unread).length;
+    return n ? `<span class="badge crit" title="New replies">${n}</span>` : '';
+  }
+
+  function payStatement(e) {
+    const R = e.R, n = E.util.num;
+    if (!R) return '<div class="empty"><p>You’re not on this cycle’s payroll register yet. Ask the payroll team.</p></div>';
+    const salaried = e.cls && e.cls.salaried;
+    const hrs = (h) => (n(h) ? F.fmtH(n(h)) : '');
+    const earn = [
+      [salaried ? 'Salary' : `Regular${n(R.rate) ? ` · ${F.money(n(R.rate))}/h` : ''}`, salaried ? '' : hrs(R.reg_hrs), n(R.reg_pay)],
+      ['Overtime', hrs(R.ot_hrs), n(R.ot_pay)],
+      ['Sunday premium', hrs(R.dt_hrs), n(R.dt_pay)],
+      ['Time off (vacation, sick, holiday)', hrs(n(R.vac_hrs) + n(R.sick_hrs) + n(R.hol_hrs)), n(R.pto_pay)],
+    ].filter((row, i) => i === 0 || row[2] || row[1]);
+    const tax = [['Federal income tax', n(R.fed_wh)], ['Social Security', n(R.ss_ee)], ['Medicare', n(R.medicare_ee)], ['State income tax', n(R.state_wh)], ['Other state taxes', n(R.state_other_ee)]].filter((x) => x[1]);
+    const ded = [['401(k)', n(R.k401_ee)], ['Medical', n(R.medical_ee)]].filter((x) => x[1]);
+    const line = (k, h, v, cls) => `<tr class="${cls || ''}"><td>${esc(k)}</td><td class="n">${esc(h || '')}</td><td class="n">${F.money(v)}</td></tr>`;
+    return `<div class="table-wrap"><table class="stmt"><thead><tr><th>Earnings</th><th class="n">Hours</th><th class="n">Amount</th></tr></thead><tbody>
+      ${earn.map(([k, h, v]) => line(k, h, v)).join('')}
+      ${line('Gross pay', '', n(R.gross_pay), 'sum')}
+      ${tax.length ? `<tr class="grp"><td colspan="3">Taxes</td></tr>${tax.map(([k, v]) => line(k, '', -v)).join('')}` : ''}
+      ${ded.length ? `<tr class="grp"><td colspan="3">Deductions</td></tr>${ded.map(([k, v]) => line(k, '', -v)).join('')}` : ''}
+      ${line('Take-home pay', '', n(R.net_pay), 'sum net')}
+    </tbody></table></div>`;
+  }
+  function empBalances(e) {
+    const R = e.R, n = E.util.num;
+    if (!R) return '<p class="muted">No balances on the register yet.</p>';
+    return `<div class="facts">
+      <div><span>Vacation carried over</span><b>${F.fmtH(n(R.vac_co_end))}</b></div>
+      <div><span>Vacation this year</span><b>${F.fmtH(n(R.vac_cur_end))}</b></div>
+      <div><span>Sick time</span><b>${F.fmtH(n(R.sick_end))}</b></div>
+    </div><p class="muted emp-note">Balances after this pay period, as payroll has them.</p>`;
+  }
+  function empDeposits(e) {
+    const c = e.census;
+    if (!e.ach.length) return `<p class="muted emp-note">No deposit in the bank file yet${c && c.bank_last4 ? `. Your pay goes to the account ending ${esc(c.bank_last4)}` : ''}.</p>`;
+    return `<div class="table-wrap"><table><thead><tr><th>Date</th><th>What happened</th><th>Account</th><th class="n">Amount</th></tr></thead><tbody>${e.ach.map((b) => `<tr>
+      <td>${esc(F.fmtDate(b.value_date))}</td>
+      <td>${b.txn_type === 'ACH_RETURN' ? `<span class="pill blocker">Sent back by the bank</span>` : 'Direct deposit'}</td>
+      <td><span class="mono">****${esc(b.account_last4)}</span>${c && c.bank_last4 && b.account_last4 !== c.bank_last4 ? ' <span class="pill review">Not the account on file</span>' : ''}</td>
+      <td class="n">${F.money(E.util.num(b.amount))}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  function empIssuesHtml(e) {
+    const scrub = scrubFor(e);
+    const list = empIssues(e).slice().sort((a, b) => (isOpen(b) ? 1 : 0) - (isOpen(a) ? 1 : 0));
+    if (!list.length) return '<div class="empty"><h3>Nothing flagged</h3><p>Your hours, pay, deposit and time off match across the time system, payroll and the bank.</p></div>';
+    return `<ul class="emp-issues">${list.map((x) => {
+      const st = statusOf(x);
+      const [cls, word] = EMP_ST[st];
+      return `<li id="iss-${esc(x.key.replace(/[^A-Za-z0-9_-]/g, '_'))}" data-st="${st}"><div class="ei-top"><span class="pill ${cls}">${esc(word)}</span><b>${esc(scrub(x.title))}</b></div>
+        <p>${esc(scrub(x.detail))}</p>${empImpact(x) ? `<p class="ei-amt">${esc(empImpact(x))}</p>` : ''}</li>`;
+    }).join('')}</ul>`;
+  }
+
+  function renderMe() {
+    const e = myEmp();
+    if (!e) { $('#page').innerHTML = '<div class="empty"><h3>We can’t find you in this pay cycle</h3><p>Ask the payroll team, or sign out and try again.</p></div>'; return; }
+    const r = state.result, p = r.period, R = e.R, n = E.util.num, st = empPayState(e);
+    const open = empIssues(e).filter(isOpen);
+    const paid = R ? regHours(R) : 0;
+    const acct = (R && R.bank_last4) || empAccount(e);
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">Pay period ${esc(periodText(p))}</span><h1>Hi ${esc(firstName(e.name))}</h1><p>${esc(st.text)}</p></div>
+        <div class="actions"><a class="btn small" href="#me-help">Ask the payroll team</a></div></div>
+      <div class="kpis emp-kpis">
+        <div class="kpi"><span class="label">Take-home pay</span><span class="value">${R ? F.money(n(R.net_pay)) : '—'}</span><span class="sub">After taxes and deductions</span></div>
+        <div class="kpi"><span class="label">Gross pay</span><span class="value">${R ? F.money(n(R.gross_pay)) : '—'}</span><span class="sub">Before taxes</span></div>
+        <div class="kpi"><span class="label">Hours paid</span><span class="value">${R ? F.fmtH(paid) : '—'}</span><span class="sub">${F.fmtH(e.wfmWorked)} worked · ${F.fmtH(e.wfmPto)} time off in the time system</span></div>
+        <div class="kpi"><span class="label">Paid to</span><span class="value mono">${acct ? `****${esc(acct)}` : '—'}</span><span class="sub">${p.payDate ? `Direct deposit on ${esc(F.fmtDate(p.payDate))}` : 'Direct deposit'}</span></div>
+      </div>
+      ${open.length ? `<div class="notice warn emp-banner" role="note"><span><b>Payroll is checking ${plural(open.length, 'thing')} on your pay.</b> They’re listed below. You don’t need to do anything unless the payroll team contacts you.</span></div>` : ''}
+      <div class="grid emp-grid">
+        <section class="card"><div class="card-head"><h3>Pay statement</h3><span class="muted">${esc(cycleId())}</span></div><div class="card-pad">${payStatement(e)}</div></section>
+        <section class="card"><div class="card-head"><h3>Things payroll is checking</h3></div><div class="card-pad">${empIssuesHtml(e)}</div></section>
+      </div>
+      <div class="grid emp-grid">
+        <section class="card"><div class="card-head"><h3>Direct deposit</h3></div><div class="card-pad">${empDeposits(e)}</div></section>
+        <section class="card"><div class="card-head"><h3>Time off left</h3><a class="more" href="#me-time">My time</a></div>${empBalances(e)}</section>
+      </div>`;
+  }
+
+  function renderMeTime() {
+    const e = myEmp();
+    if (!e) { renderMe(); return; }
+    const sched = sum(e.days.filter((d) => !e.census || d.inWindow), (d) => d.schedHours);
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">Pay period ${esc(periodText(state.result.period))}</span><h1>My time</h1>
+        <p>Your schedule and time-clock punches for this pay period, as the time system has them. If a punch is missing or wrong, ask your manager to fix it in the time system, or send a question to payroll.</p></div></div>
+      <div class="kpis emp-kpis">
+        <div class="kpi"><span class="label">Scheduled</span><span class="value">${F.fmtH(sched)}</span><span class="sub">Hours on your schedule</span></div>
+        <div class="kpi"><span class="label">Worked</span><span class="value">${F.fmtH(e.wfmWorked)}</span><span class="sub">From your punches</span></div>
+        <div class="kpi"><span class="label">Time off</span><span class="value">${F.fmtH(e.wfmPto)}</span><span class="sub">Vacation, sick and holiday</span></div>
+        <div class="kpi"><span class="label">Paid</span><span class="value">${e.R ? F.fmtH(regHours(e.R)) : '—'}</span><span class="sub">Hours on your pay statement</span></div>
+      </div>
+      <section class="card" style="margin-top:16px"><div class="card-head"><h3>Timecard</h3><span class="muted">Scheduled vs worked</span></div>
+        <div class="card-pad">${e.hasWfm ? timecardHtml(e) : '<p class="muted">No schedule or punches in the time system for this pay period.</p>'}</div></section>
+      <section class="card" style="margin-top:16px"><div class="card-head"><h3>Time off left</h3></div>${empBalances(e)}</section>`;
+  }
+
+  function qStatus(q) {
+    return { open: ['review', 'Waiting for payroll'], answered: ['pass', 'Answered'], closed: ['plain', 'Closed'] }[q.status] || ['review', 'Waiting for payroll'];
+  }
+  function renderMeHelp() {
+    const e = myEmp();
+    if (!e) { renderMe(); return; }
+    const qs = myQuestions().slice().reverse();
+    let seen = false;
+    qs.forEach((q) => { if (q.unread) { q.unread = false; seen = true; } });
+    if (seen) { save(); renderNav(); }
+    $('#page').innerHTML = `
+      <div class="page-head"><div><h1>Questions</h1><p>Ask the payroll team about your pay, hours, time off or direct deposit. Their answer shows here.</p></div></div>
+      <div class="grid emp-grid">
+        <section class="card"><div class="card-head"><h3>Ask a question</h3></div>
+          <div class="card-pad q-form">
+            <label for="qTopic"><b>About</b></label>
+            <select class="text" id="qTopic">${Q_TOPICS.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select>
+            <label for="qText"><b>Your question</b></label>
+            <textarea class="text" id="qText" maxlength="2000" placeholder="For example: My overtime on Sunday the 20th doesn’t look right."></textarea>
+            <p class="form-err" id="qErr" hidden></p>
+            <div class="actions-row"><button class="btn primary" type="button" data-action="q-send">Send to payroll</button></div>
+            <p class="muted emp-note">The payroll team usually answers within ${plural(Math.max(1, Math.round(store.policy.slaReviewH / 24)), 'working day')}. Don’t include bank or Social Security numbers.</p>
+          </div></section>
+        <section class="card"><div class="card-head"><h3>Your questions</h3><span class="muted">${qs.length}</span></div>
+          <div class="card-pad">${qs.length ? `<ul class="q-list">${qs.map((q) => {
+            const [cls, word] = qStatus(q);
+            return `<li class="q-item" id="q-${esc(q.id)}"><div class="ei-top"><span class="pill ${cls}">${esc(word)}</span><b>${esc(Q_TOPIC[q.topic] || 'Question')}</b><span class="muted q-when">${esc(stamp(q.at))}</span></div>
+              ${qThread(q, 'employee')}
+              ${q.status === 'open' ? '' : `<label class="sr-only" for="qf-${esc(q.id)}">Write back</label><textarea class="text q-follow" id="qf-${esc(q.id)}" maxlength="2000" placeholder="Write back if you need more help"></textarea>
+              <div class="actions-row"><button class="btn small" type="button" data-action="q-followup" data-id="${esc(q.id)}">Send</button></div>`}</li>`;
+          }).join('')}</ul>` : '<div class="empty"><p>You haven’t asked anything yet.</p></div>'}</div></section>
+      </div>`;
+  }
+
+  function qThread(q, view) {
+    const e = state.result.empById[q.empId];
+    return `<ol class="q-thread">${q.msgs.map((m) => `<li class="${m.by === 'employee' ? 'from-emp' : 'from-pay'}">
+      <span class="q-who">${m.by === 'employee' ? (view === 'employee' ? 'You' : esc(e ? e.name : q.empId)) : `${esc(view === 'employee' ? 'Payroll team' : m.name || 'Payroll')}`}</span><span class="q-when">${esc(stamp(m.at))}</span>
+      <p>${esc(m.text)}</p></li>`).join('')}</ol>`;
+  }
+
+  function nextQuestionId() {
+    const max = (store.questions || []).reduce((mx, q) => Math.max(mx, Number(String(q.id).replace(/\D/g, '')) || 0), 0);
+    return `Q-${String(max + 1).padStart(4, '0')}`;
+  }
+  function sendQuestion() {
+    const e = myEmp();
+    if (!e) return;
+    const text = (($('#qText') || {}).value || '').trim().slice(0, 2000);
+    const topic = ($('#qTopic') || {}).value || 'other';
+    if (!text) { const er = $('#qErr'); er.textContent = 'Write your question first.'; er.hidden = false; $('#qText').focus(); return; }
+    store.questions = store.questions || [];
+    const at = nowIso();
+    store.questions.push({ id: nextQuestionId(), empId: e.id, cycle: cycleId(), topic, at, status: 'open', unread: false, msgs: [{ by: 'employee', text, at }] });
+    log('Employee question', `${e.name} (${e.id}) asked about ${(Q_TOPIC[topic] || 'something').toLowerCase()}`);
+    recompute();
+    renderAll();
+    toast('Sent to the payroll team');
+  }
+  function sendFollowUp(id) {
+    const e = myEmp(), q = qById(id);
+    if (!e || !q || q.empId !== e.id) return;
+    const ta = document.getElementById(`qf-${id}`);
+    const text = ((ta && ta.value) || '').trim().slice(0, 2000);
+    if (!text) { if (ta) ta.focus(); return; }
+    const at = nowIso();
+    q.msgs.push({ by: 'employee', text, at });
+    q.status = 'open';
+    const x = state.result.exceptions.find((y) => y.qid === id);
+    if (x) {
+      const it = item(x);
+      if (it.status === 'approved' || it.status === 'dismissed') { const from = it.status; it.status = 'open'; it.events.push({ t: at, by: actorName(), type: 'status', from, to: 'open', text }); }
+      else it.events.push({ t: at, by: actorName(), type: 'note', text });
+    }
+    log('Employee question', `${e.name} (${e.id}) wrote back about ${(Q_TOPIC[q.topic] || 'something').toLowerCase()}`, { ref: x ? x.key : '' });
+    renderAll();
+    toast('Sent to the payroll team');
+  }
+
+  // Questions join the review queue as check Q1, so they get an owner, a due time and history.
+  function questionFindings(r) {
+    const id = batchLabel(r.period.start);
+    CHECK_OF.Q1 = { id: 'Q1', stage: 'payroll', title: 'Employee questions', custom: true, rule: () => 'Questions employees send from their pay pages.' };
+    return (store.questions || []).filter((q) => q.cycle === id && r.empById[q.empId]).map((q) => ({
+      check: 'Q1', qid: q.id, stage: 'payroll', severity: 'review', owner: Q_OWNER[q.topic] || 'Payroll', empId: q.empId,
+      title: `Question about ${(Q_TOPIC[q.topic] || 'something else').toLowerCase()}`,
+      detail: `“${q.msgs[0].text.slice(0, 400)}”${q.msgs.length > 1 ? ` · ${plural(q.msgs.length - 1, 'more message')}` : ''}`,
+      action: 'Reply to the employee here. They see your answer on their Questions page.',
+    }));
+  }
+  function syncQuestion(x, to) {
+    const q = x.qid && qById(x.qid);
+    if (q) q.status = to === 'approved' ? 'answered' : to === 'dismissed' ? 'closed' : 'open';
+  }
+  function questionThreadHtml(x) {
+    const q = qById(x.qid);
+    if (!q) return '';
+    const fn = firstName(x.empName) || 'the employee';
+    return `<section><h4>Conversation</h4>${qThread(q, 'payroll')}
+      ${can('review') ? `<label for="qReply" style="display:block;margin-top:10px"><b>Reply to ${esc(fn)}</b></label>
+      <textarea class="text" id="qReply" placeholder="Your answer. ${esc(fn)} sees it on their Questions page."></textarea>
+      <p class="form-err" id="qReplyErr" hidden></p>
+      <div class="actions-row" style="margin-top:8px"><button class="btn small primary" type="button" data-action="q-reply" data-key="${esc(x.key)}">Send reply</button></div>
+      <p class="muted" style="font-size:var(--t-xs);margin-top:6px">Sending marks the question answered. If ${esc(fn)} writes back, it opens again here. Closing without a reply shows them “Closed” and keeps your reason internal.</p>` : ''}</section>`;
+  }
+  function sendReply(key) {
+    const x = exByKey(key);
+    if (!x || !x.qid) return;
+    const q = qById(x.qid);
+    const why = changeBlock(x, 'approved');
+    if (why) { blocked(`Reply to ${x.empName}`, why); return; }
+    const text = (($('#qReply') || {}).value || '').trim().slice(0, 2000);
+    if (!text) { const er = $('#qReplyErr'); er.textContent = 'Write your reply first.'; er.hidden = false; $('#qReply').focus(); return; }
+    const nk = state.page === 'exceptions' && state.detail === key ? nextAfter(key) : null;
+    q.msgs.push({ by: 'payroll', name: store.user, text, at: nowIso() });
+    q.unread = true;
+    if (!setStatus(x, 'approved', `Reply sent: ${text}`)) log('Replied to employee', `${exLabel(x)} — “${text.slice(0, 200)}”`, { ref: x.key });
+    if (nk) state.detail = nk;
+    afterWorkflow();
+    toast(`Reply sent to ${x.empName}`);
+  }
+
+  // Ask AI for an employee: only their records and the policies, names hidden from the AI.
+  function empChunks() {
+    const e = myEmp();
+    if (!e) return [];
+    const scrub = scrubFor(e), r = state.result, p = r.period, R = e.R, n = E.util.num, rel = cyc().released;
+    const chunks = [];
+    const push = (kind, label, text, nav, extra) => chunks.push(Object.assign({ kind, label, text, nav, empId: e.id }, extra || {}));
+    push('summary', 'Your pay this period', `Pay for ${e.id} ${e.name}, pay period ${p.start} to ${p.end}, pay date ${p.payDate || 'unknown'}. Payroll status: ${rel ? 'approved' : 'being checked before release'}. ${R
+      ? `Gross pay ${F.money(n(R.gross_pay))}, take-home pay ${F.money(n(R.net_pay))}. Hours paid: regular ${n(R.reg_hrs)}, overtime ${n(R.ot_hrs)}, Sunday ${n(R.dt_hrs)}, vacation ${n(R.vac_hrs)}, sick ${n(R.sick_hrs)}, holiday ${n(R.hol_hrs)}. Pay rate ${e.cls && e.cls.salaried ? 'salaried' : F.money(n(R.rate)) + ' an hour'}. Taxes: federal ${F.money(n(R.fed_wh))}, Social Security ${F.money(n(R.ss_ee))}, Medicare ${F.money(n(R.medicare_ee))}, state ${F.money(n(R.state_wh) + n(R.state_other_ee))}. Deductions: 401(k) ${F.money(n(R.k401_ee))}, medical ${F.money(n(R.medical_ee))}. Deposit to the account ending ****${R.bank_last4 || empAccount(e)}.`
+      : 'Not on this cycle’s payroll register yet.'} Time system: ${E.util.r2(e.wfmWorked)} hours worked, ${E.util.r2(e.wfmPto)} hours of time off.`, { type: 'me', page: 'me' }, { always: true });
+    if (R) push('employee', 'Your time-off balances', `Time-off balances after this pay period: vacation carried over ${n(R.vac_co_end)} hours, vacation this year ${n(R.vac_cur_end)} hours, sick ${n(R.sick_end)} hours.`, { type: 'me', page: 'me-time' });
+    e.ach.forEach((b) => push('employee', `Deposit on ${F.fmtDate(b.value_date)}`, `${b.txn_type === 'ACH_RETURN' ? `Deposit returned by the bank (code ${b.return_code})` : 'Direct deposit'} on ${b.value_date}: ${F.money(n(b.amount))} to the account ending ****${b.account_last4}${e.census && e.census.bank_last4 && b.account_last4 !== e.census.bank_last4 ? `, which is not the account on file (****${e.census.bank_last4})` : ''}.`, { type: 'me', page: 'me' }));
+    empIssues(e).forEach((x) => push('exception', `Being checked: ${scrub(x.title)}`, `Item payroll is checking on this pay: ${scrub(x.title)}. ${scrub(x.detail)} Status: ${EMP_ST[statusOf(x)][1].toLowerCase()}. ${empImpact(x)}`,
+      { type: 'me', page: 'me', anchor: `iss-${x.key.replace(/[^A-Za-z0-9_-]/g, '_')}` }, { open: isOpen(x), sev: x.severity, money: !!x.impact }));
+    myQuestions().forEach((q) => push('employee', `Your question about ${(Q_TOPIC[q.topic] || 'something').toLowerCase()}`, `Question sent ${q.at.slice(0, 10)} about ${(Q_TOPIC[q.topic] || 'something').toLowerCase()}, status ${qStatus(q)[1].toLowerCase()}. ${q.msgs.map((m) => `${m.by === 'employee' ? 'Employee' : 'Payroll'}: ${m.text}`).join(' ')}`, { type: 'me', page: 'me-help', anchor: `q-${q.id}` }));
+    e.days.filter((d) => d.records.length || d.sched.length).forEach((d) => {
+      const s = d.sched[0];
+      const flags = Array.from(new Set(d.records.flatMap((a) => a.flags))).map((f) => FLAG_LABEL[f] || f);
+      push('row', `Timecard ${F.fmtDate(d.date)}`, `Timecard ${d.date}: scheduled ${s ? `${s.shift_start}-${s.shift_end}` : 'off'}, worked ${E.util.r2(d.worked)} hours${d.ptoHours ? `, ${E.util.r2(d.ptoHours)} hours time off (${Object.keys(d.pto).join(', ')})` : ''}${flags.length ? `. Flags: ${flags.join(', ')}` : ''}.`, { type: 'me', page: 'me-time' });
+    });
+    Object.values(allClauses()).forEach((c) => push('policy', `${c.id} ${c.title}`, `Policy ${c.id} ${c.title} (${c.doc}): ${c.text}`, null, { empId: null }));
+    return chunks;
+  }
+  const empAiOn = () => !!(state.ai && state.ai.available && store.policy.aiChat && store.policy.aiEmployees !== false);
+  const EMP_SUGGEST = ['Why is my pay what it is this time?', 'Was I paid for all my overtime?', 'How much vacation do I have left?', 'Is there a problem with my direct deposit?', 'What does the handbook say about sick time?'];
+  function empShow(s) {
+    const e = myEmp(), m = masker();
+    let t = String(s || '');
+    if (e) t = t.split(m.id(e.id)).join(e.name);
+    return m.unacct(t);
+  }
+  function renderEmpChat(el) {
+    const msgs = state.chat.msgs, ai = empAiOn();
+    el.innerHTML = `
+      <header class="chat-head"><span class="chat-icon" aria-hidden="true">${ICON.chat}</span><div><h2 id="chatTitle">Ask about your pay</h2>
+        <small>${ai ? `Answers from your own pay records and company policies, written by ${esc(state.ai.model)}. Your name is hidden from the AI.` : 'Searches your own pay records and company policies.'}</small></div>
+        <button class="btn small chat-x" type="button" data-action="chat-close" aria-label="Close the chat">${ICON.close}</button></header>
+      <div class="chat-tools"><span class="muted">Only your records are used. For a correction, send payroll a question.</span><span class="spacer"></span>${msgs.length ? '<button class="linkish" type="button" data-action="chat-clear">Clear</button>' : ''}</div>
+      <div class="chat-log" id="chatLog">${msgs.length ? msgs.map((msg, i) => (msg.role === 'user' ? `<div class="msg user">${esc(msg.text)}</div>` : chatAnswerHtml(msg, i))).join('')
+        : `<div class="chat-empty"><p>Ask about your pay, hours, time off or direct deposit for ${esc(periodText(state.result.period))}.</p><div class="msg-follow">${EMP_SUGGEST.map((q) => `<button class="chip-btn" type="button" data-action="chat-ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}
+        ${state.chat.busy ? '<div class="msg ai busy" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Reading your records…</div>' : ''}</div>
+      <form class="chat-form" id="chatForm"><textarea id="chatInput" rows="2" aria-label="Your question" placeholder="Ask about your pay, hours or time off" ${state.chat.busy ? 'disabled' : ''}>${esc(state.chat.draft || '')}</textarea><button class="btn primary" type="submit" ${state.chat.busy ? 'disabled' : ''}>Ask</button></form>`;
+    const lg = $('#chatLog');
+    if (lg) lg.scrollTop = lg.scrollHeight;
+  }
+  function empRef(x) {
+    if (!x.nav) return false;
+    if (!window.matchMedia('(min-width: 1181px)').matches) { state.chat.open = false; renderChat(); }
+    if (state.page !== x.nav.page) go(x.nav.page);
+    if (x.nav.anchor) setTimeout(() => { const n = document.getElementById(x.nav.anchor); if (n) { n.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); } }, 60);
+    return true;
+  }
+
+  // ----------------------------------------------------------------------------------
+  // My work: the employer's landing page. Their queue first, then what blocks release.
+  // ----------------------------------------------------------------------------------
+
+  const urgency = (x) => [pastSla(x) ? 0 : 1, x.severity === 'blocker' ? 0 : 1, isPre(x) ? 0 : 1, -ageH(x)];
+  const byUrgency = (a, b) => { const ua = urgency(a), ub = urgency(b); for (let i = 0; i < ua.length; i++) if (ua[i] !== ub[i]) return ua[i] - ub[i]; return 0; };
+  function myItems() {
+    const m = me();
+    const open = state.result.exceptions.filter((x) => isOpen(x) && x.severity !== 'info');
+    const mine = m.queue ? open.filter((x) => ownerOf(x) === m.queue) : open.filter((x) => x.severity === 'blocker');
+    return { open, mine: mine.sort(byUrgency) };
+  }
+  function greeting() {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  }
+  function homeRow(x) {
+    const late = pastSla(x);
+    const ok = can('review') && !changeBlock(x, 'approved');
+    return `<li class="mw-row" data-st="${statusOf(x)}">
+      <span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>
+      <button class="mw-t linkless" type="button" data-action="goto-ex" data-key="${esc(x.key)}"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')} · ${esc(ownerOf(x))}${x.impact ? ` · ${F.money(x.impact.amount)}` : ''}</span></button>
+      <span class="mw-age ${late ? 'late' : ''}">${late ? `Overdue ${hrs(ageH(x) - slaH(x))}` : `Due in ${hrs(Math.max(0, slaH(x) - ageH(x)))}`}</span>
+      <span class="mw-act">${ok ? `<button class="btn small" type="button" data-action="quick-approve" data-key="${esc(x.key)}" aria-label="Approve ${esc(x.title)}">${ICON.check} Approve</button>` : ''}</span>
+    </li>`;
+  }
+  function renderHome() {
+    const r = state.result, p = r.period, rd = readiness(), m = me();
+    const { open, mine } = myItems();
+    const late = mine.filter(pastSla);
+    const qs = open.filter((x) => x.check === 'Q1').sort(byUrgency);
+    const checks = releaseChecks();
+    const todo = checks.filter((c) => !c.ok);
+    const payIn = p.payDate ? Math.round((new Date(p.payDate + 'T00:00:00') - new Date(todayIso() + 'T00:00:00')) / 864e5) : null;
+    const recent = store.audit.filter((a) => a.by === store.user && a.cycle === cycleId() && !/^(Signed in|Signed out|Switched user)$/.test(a.action)).slice(0, 6);
+    const queueName = m.queue ? `the ${m.queue} queue` : 'all open blockers';
+    const tile = (label, value, sub, action, cls) => `<${action ? `button type="button" ${action}` : 'div'} class="kpi ${cls || ''}"><span class="label">${esc(label)}</span><span class="value ${value ? '' : 'zero'}">${value}</span><span class="sub">${esc(sub)}</span></${action ? 'button' : 'div'}>`;
+    $('#page').innerHTML = `
+      <div class="page-head"><div><span class="eyebrow">${esc(cycleId())} · ${esc(periodText(p))}</span><h1>${esc(greeting())}, ${esc(firstName(m.name))}</h1>
+        <p>${esc(roleLabel(m))} · showing ${esc(queueName)}. ${rd.state === 'released' ? `${cycleId()} is released.` : payIn !== null ? (payIn > 0 ? `Pay date in ${plural(payIn, 'day')}.` : payIn === 0 ? 'Pay date is today.' : `Pay date was ${plural(-payIn, 'day')} ago.`) : ''}</p></div>
+        <div class="actions"><button class="btn small" type="button" data-action="shortcuts">Keyboard shortcuts</button></div></div>
+      <div class="kpis mw-kpis">
+        ${tile(m.queue ? 'Waiting for you' : 'Open blockers', mine.length, m.queue ? `Open in ${m.queue}` : 'Across every queue', m.queue ? `data-action="filter-owner" data-owner="${esc(m.queue)}"` : 'data-action="go-blockers"')}
+        ${tile('Overdue', late.length, late.length ? 'Past the due time an admin set' : 'Nothing past due', '', late.length ? 'warn' : '')}
+        ${tile('Blocking release', rd.preOpen.length, rd.preOpen.length ? 'Must be approved or dismissed' : 'Nothing blocks release', 'data-action="go-blockers"')}
+        ${tile('Employee questions', qs.length, qs.length ? 'Waiting for a reply' : 'No open questions', qs.length ? 'data-action="check" data-check="Q1"' : '')}
+      </div>
+      <div class="grid mw-grid">
+        <section class="card"><div class="card-head"><h3>${m.queue ? 'Your queue' : 'Open blockers'}</h3>${mine.length ? `<button class="more linkish" type="button" ${m.queue ? `data-action="filter-owner" data-owner="${esc(m.queue)}"` : 'data-action="go-blockers"'}>See all ${mine.length} in the review queue</button>` : ''}</div>
+          ${mine.length ? `<ul class="mw-list">${mine.slice(0, 8).map(homeRow).join('')}</ul>` : `<div class="empty"><h3>Nothing waiting for you</h3><p>${m.queue ? `Every item in ${esc(m.queue)} is approved or dismissed.` : 'No open blockers.'} <a href="#exceptions">Open the review queue</a></p></div>`}
+        </section>
+        <section class="card"><div class="card-head"><h3>Before release</h3><span class="muted">${rd.state === 'released' ? 'Released' : `${checks.length - todo.length} of ${checks.length} done`}</span></div>
+          ${rd.state === 'released' ? `<div class="card-pad"><p>${esc(cycleId())} was released ${esc(stamp(rd.released.at))} by ${esc(rd.released.by)}.</p><div class="actions-row" style="margin-top:10px"><button class="btn small" type="button" data-action="release-info">View release record</button></div></div>`
+            : `<ol class="rel-check compact">${checks.map(checkItemHtml).join('')}</ol><div class="card-pad"><button class="btn small ${todo.length ? '' : 'primary'}" type="button" data-action="release">${todo.length ? 'Open the release checklist' : 'Release payroll'}</button></div>`}
+        </section>
+      </div>
+      <div class="grid mw-grid" style="margin-top:16px">
+        <section class="card"><div class="card-head"><h3>Employee questions</h3>${qs.length ? `<button class="more linkish" type="button" data-action="check" data-check="Q1">All questions</button>` : ''}</div>
+          ${qs.length ? `<ul class="mw-list">${qs.slice(0, 5).map((x) => `<li class="mw-row q"><span class="pill review">Question</span>
+            <button class="mw-t linkless" type="button" data-action="goto-ex" data-key="${esc(x.key)}"><b>${esc(x.empName)} · ${esc(x.title.replace(/^Question about /, ''))}</b><span>${esc(x.detail)}</span></button>
+            <span class="mw-age ${pastSla(x) ? 'late' : ''}">${esc(ago(item(x).seen || nowIso()))}</span>
+            <span class="mw-act">${can('review') ? `<button class="btn small" type="button" data-action="goto-ex" data-key="${esc(x.key)}">Reply</button>` : ''}</span></li>`).join('')}</ul>`
+            : '<div class="empty"><p>No open questions from employees. Employees sign in with their employee ID to see their pay and ask payroll a question.</p></div>'}
+        </section>
+        <section class="card"><div class="card-head"><h3>Your recent actions</h3><a class="more" href="#activity">Activity log</a></div>
+          ${recent.length ? `<ul class="feed">${recent.map(feedItem).join('')}</ul>` : '<div class="empty"><p>Nothing yet this cycle. Approvals, dismissals and notes you make show here.</p></div>'}
+        </section>
+      </div>
+      ${can('admin') ? `<section class="card" style="margin-top:16px"><div class="card-head"><h3>Team at a glance</h3><button class="more linkish" type="button" data-action="admin-tab" data-tab="monitor">Admin console</button></div>
+        ${byOwner(open).length ? `<div class="table-wrap"><table><thead><tr><th>Queue</th><th class="n">Open</th><th class="n">Blockers</th><th class="n">Overdue</th></tr></thead><tbody>${byOwner(open).map(([o, l]) => `<tr class="clickable" data-action="filter-owner" data-owner="${esc(o)}"><td><b>${esc(o)}</b></td><td class="n">${l.length}</td><td class="n">${l.filter((x) => x.severity === 'blocker').length || '<span class="muted">0</span>'}</td><td class="n">${l.filter(pastSla).length ? `<span class="neg">${l.filter(pastSla).length}</span>` : '<span class="muted">0</span>'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><p>Nothing open in any queue.</p></div>'}
+      </section>` : ''}`;
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Release checklist: what is left before this batch can go, each with a way to fix it
+  // ----------------------------------------------------------------------------------
+
+  function releaseChecks() {
+    const rd = readiness();
+    const records = SOURCES.filter((s) => ['census', 'time', 'register'].includes(s.key));
+    const missing = records.filter((s) => !(state.src[s.key] && state.src[s.key].rows && state.src[s.key].rows.length));
+    const req = SOURCES.filter((s) => s.group === 'custom' && s.custom && s.custom.required);
+    const reqMissing = req.filter((s) => !sourceRows(s.key).length);
+    const owners = byOwner(rd.preOpen);
+    const role = roleLabel(me());
+    const list = [];
+    list.push({ id: 'data', ok: rd.stagesRan && !missing.length, title: 'Cycle data loaded',
+      detail: rd.stagesRan && !missing.length ? 'Census, time records and payroll register are in, and every check ran.' : `Still missing: ${esc((missing.length ? missing : records).map((s) => s.title).join(', '))}.`,
+      fix: '<a class="btn small" href="#sources" data-action="close-modal">Go to data sources</a>' });
+    if (req.length) list.push({ id: 'req', ok: !reqMissing.length, title: 'Required files received',
+      detail: reqMissing.length ? `Not received: ${esc(reqMissing.map((s) => s.title).join(', '))}.` : `${plural(req.length, 'required file')} received.`,
+      fix: '<a class="btn small" href="#sources" data-action="close-modal">Upload files</a>' });
+    list.push({ id: 'blockers', ok: rd.stagesRan && !rd.preOpen.length, title: 'Pre-release blockers cleared',
+      detail: !rd.stagesRan ? 'Checks run once the data is in.' : rd.preOpen.length
+        ? `${plural(rd.preOpen.length, 'blocker')} open. <span class="rc-owners">${owners.map(([o, l]) => `<button type="button" class="chip-btn" data-action="filter-owner" data-owner="${esc(o)}" data-pre="1">${esc(o)} <b>${l.length}</b></button>`).join('')}</span>`
+        : rd.pre.length ? `All ${rd.pre.length} cleared: ${rd.approved.length} approved, ${rd.dismissed.length} dismissed with a reason.` : 'Every time, roster and register check passed.',
+      fix: '<button class="btn small" type="button" data-action="go-blockers">Work the blockers</button>' });
+    list.push({ id: 'hold', ok: !rd.hold, title: 'No release hold',
+      detail: rd.hold ? `${esc(rd.hold.by)} put release on hold ${esc(stamp(rd.hold.at))}: “${esc(rd.hold.reason)}”` : 'Nobody has put this cycle on hold.',
+      fix: can('admin') ? '<button class="btn small" type="button" data-action="admin-tab" data-tab="policies">Lift the hold</button>' : '' });
+    list.push({ id: 'who', ok: can('release'), title: 'You can release payroll',
+      detail: can('release') ? `Your role (${esc(role)}) can release.` : `Your role (${esc(role)}) can’t release. A payroll approver or admin releases this batch.`, fix: '' });
+    if (store.policy.sod && can('release')) {
+      const mine = sodConflicts();
+      list.push({ id: 'sod', ok: !mine.length, title: 'Someone else dismissed the blockers',
+        detail: mine.length ? `You dismissed ${plural(mine.length, 'pre-release blocker')}, so a different person has to release this batch.${mine.length ? `<ul class="rc-sub">${mine.slice(0, 4).map((x) => `<li>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</li>`).join('')}</ul>` : ''}` : 'You didn’t dismiss any pre-release blockers yourself.', fix: '' });
+    }
+    return list;
+  }
+  function checkItemHtml(c) {
+    return `<li class="${c.ok ? 'ok' : 'todo'}"><span class="rc-mark" aria-hidden="true">${c.ok ? ICON.check : '!'}</span><div class="rc-body"><b>${esc(c.title)}</b><span class="sr-only">${c.ok ? 'done' : 'to do'}</span><p>${c.detail}</p></div>${!c.ok && c.fix ? `<span class="rc-fix">${c.fix}</span>` : ''}</li>`;
+  }
+  function checklistModal(list, opener) {
+    const todo = list.filter((c) => !c.ok);
+    const has = (id) => todo.some((c) => c.id === id);
+    const title = has('data') ? 'Nothing to release yet' : has('hold') ? 'Release is on hold' : has('blockers') || has('req') ? 'Release is blocked' : has('who') ? 'Ready for an approver' : 'A different person must release';
+    const first = todo[0];
+    openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())} · Release checklist</span><h2 id="modalTitle">${esc(title)}</h2></div>
+      <div class="mb"><p>${todo.length === 1 ? 'One thing is left' : `${todo.length} things are left`} before this batch can be released.</p>
+        <ol class="rel-check">${list.map(checkItemHtml).join('')}</ol></div>
+      <div class="mf"><button class="btn ${first && first.fix ? '' : 'primary'}" type="button" data-action="close-modal">Close</button>${first && first.fix ? first.fix.replace('btn small', 'btn primary') : ''}</div>`, opener);
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Faster reviewing: approve from the row, keyboard shortcuts, auto-advance and Undo
+  // ----------------------------------------------------------------------------------
+
+  let undoFn = null;
+  const snapshot = (xs) => xs.map((x) => ({ key: x.key, status: item(x).status, owner: item(x).owner }));
+  function undoable(snap, label) {
+    if (!snap.length) return null;
+    return () => {
+      let n = 0;
+      snap.forEach((s) => {
+        const x = exByKey(s.key);
+        if (!x) return;
+        const it = item(x);
+        if (it.status === s.status && it.owner === s.owner) return;
+        if (changeBlock(x, null)) return;
+        if (it.status !== s.status) {
+          const from = it.status;
+          it.status = s.status;
+          it.events.push({ t: nowIso(), by: store.user, type: 'status', from, to: s.status, text: 'Undo' });
+          if (x.qid) syncQuestion(x, s.status);
+        }
+        if (it.owner !== s.owner) {
+          const from = ownerOf(x);
+          it.owner = s.owner;
+          it.events.push({ t: nowIso(), by: store.user, type: 'owner', from, to: ownerOf(x) });
+        }
+        n++;
+      });
+      if (!n) { toast('Nothing to undo'); return; }
+      log('Action undone', `${label} · ${plural(n, 'exception')} put back`);
+      afterWorkflow();
+      toast(`Undone: ${label}`);
+    };
+  }
+  function runUndo() {
+    if (!undoFn) return;
+    const f = undoFn;
+    undoFn = null;
+    clearTimeout(toastTimer);
+    $('#toast').hidden = true;
+    f();
+  }
+  function nextAfter(key) {
+    const i = state.listKeys.indexOf(key);
+    return i < 0 ? null : state.listKeys[i + 1] || state.listKeys[i - 1] || null;
+  }
+  function scrollSel() {
+    const row = document.querySelector('.qrow.sel');
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  }
+  function needNote(x) {
+    state.detail = x.key;
+    if (state.page !== 'exceptions') { go('exceptions'); setTimeout(() => needNote(x), 80); return; }
+    selectEx(x.key);
+    const e = $('#noteErr');
+    if (e) { e.textContent = 'Add a note saying what was fixed or checked before approving a blocker.'; e.hidden = false; }
+    const t = $('#noteText');
+    if (t) t.focus();
+  }
+  function quickApprove(key) {
+    const x = exByKey(key);
+    if (!x) return;
+    const why = changeBlock(x, 'approved');
+    if (why) { blocked(`Approve ${x.check}${x.empId ? ' ' + x.empId : ''}`, why); return; }
+    const current = state.page === 'exceptions' && state.detail === key;
+    const note = current ? noteValue() : '';
+    if (x.severity === 'blocker' && store.policy.approveNote && !note) { needNote(x); return; }
+    const snap = snapshot([x]);
+    const nk = current ? nextAfter(key) : null;
+    setStatus(x, 'approved', note);
+    if (nk) state.detail = nk;
+    afterWorkflow();
+    if (nk) scrollSel();
+    toast(`Approved: ${x.title}`, undoable(snap, `Approve ${x.check}`));
+  }
+  function keyDismiss() {
+    const x = exByKey(state.detail);
+    if (!x) return;
+    const why = changeBlock(x, 'dismissed');
+    if (why) { blocked(`Dismiss ${x.check}${x.empId ? ' ' + x.empId : ''}`, why); return; }
+    const note = noteValue();
+    if (!note) { dismissModal([x.key], document.activeElement); return; }
+    const snap = snapshot([x]);
+    const nk = nextAfter(x.key);
+    setStatus(x, 'dismissed', note);
+    if (nk) state.detail = nk;
+    afterWorkflow();
+    scrollSel();
+    toast(`Dismissed: ${x.title}`, undoable(snap, `Dismiss ${x.check}`));
+  }
+  function moveSel(d) {
+    const keys = state.listKeys;
+    if (!keys.length) return;
+    let i = keys.indexOf(state.detail);
+    i = i < 0 ? (d > 0 ? 0 : keys.length - 1) : Math.min(keys.length - 1, Math.max(0, i + d));
+    selectEx(keys[i]);
+    scrollSel();
+  }
+  function shortcutsModal(opener) {
+    const rows = [['J or ↓', 'Next item'], ['K or ↑', 'Previous item'], ['A', 'Approve, then go to the next item'], ['D', 'Dismiss (uses the note, or asks for a reason)'], ['E', 'Escalate'],
+      ['X', 'Select or unselect the item'], ['/', 'Search'], ['U or Ctrl+Z', 'Undo the last change'], ['Esc', 'Close a panel or dialog'], ['?', 'Show these shortcuts']];
+    openModal(`<div class="mh"><h2 id="modalTitle">Keyboard shortcuts</h2></div>
+      <div class="mb"><p>In the review queue, when you aren’t typing in a box.</p>
+        <table class="kbd-table"><tbody>${rows.map(([k, l]) => `<tr><td>${k.split(' or ').map((s) => `<kbd>${esc(s)}</kbd>`).join(' or ')}</td><td>${esc(l)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Done</button></div>`, opener);
+  }
+  const typing = (t) => !!t && (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|color|file)$/.test(t.type)));
+
+  // ----------------------------------------------------------------------------------
+  // Short checks navigation: one sidebar item per area, tabs inside
+  // ----------------------------------------------------------------------------------
+
+  const SUBTABS = [
+    ['Checks', [['feedpulse', 'Data quality'], ['runradar', 'Pay accuracy'], ['threeway', 'Bank and ledger'], ['fixflow', 'Repeat issues']]],
+    ['Rules', [['rules', 'Rules'], ['controls', 'All checks']]],
+    ['Reports', [['reports', 'Reports'], ['activity', 'Activity log']]],
+  ];
+  state.lastTab = {};
+  function renderSubtabs() {
+    const el = $('#subtabs');
+    if (!el) return;
+    const grp = isEmp() ? null : SUBTABS.find(([, tabs]) => tabs.some(([id]) => id === state.page));
+    if (!grp) { el.hidden = true; el.innerHTML = ''; return; }
+    state.lastTab[grp[0]] = state.page;
+    el.hidden = false;
+    el.setAttribute('aria-label', grp[0]);
+    el.innerHTML = `<div class="subtab-row">${grp[1].map(([id, label]) => `<a href="#${id}" ${id === state.page ? 'aria-current="page"' : ''}>${esc(label)}${subBadge(id)}</a>`).join('')}</div>`;
+  }
+  function subBadge(id) {
+    const r = state.result;
+    const n = id === 'controls' ? `${r.totals.checksRun}/${r.checks.length}` : ['feedpulse', 'runradar', 'threeway'].includes(id) ? r.exceptions.filter((x) => appOf(x) === id && isOpen(x) && x.severity !== 'info').length || '' : '';
+    return n !== '' ? ` <span class="n">${n}</span>` : '';
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Plain-word tooltips on payroll terms: the first time each term appears on a page
+  // ----------------------------------------------------------------------------------
+
+  const TERMS = [
+    ['GL', '\\bGL\\b', 'General ledger: the company’s accounting books. Payroll posts a journal entry to it each cycle.', ''],
+    ['ACH', '\\bACH\\b', 'The bank network that sends direct deposits and collects payroll funding.', ''],
+    ['WFM', '\\bWFM\\b', 'Workforce management: the system that holds schedules and time-clock punches.', ''],
+    ['PTO', '\\bPTO\\b', 'Paid time off: vacation, sick and holiday hours.', ''],
+    ['FLSA', '\\bFLSA\\b', 'The federal wage-and-hour law that sets the overtime rules.', ''],
+    ['Cost center', '\\bcost centers?\\b', 'The department or store a person’s pay is charged to in the ledger.', 'i'],
+    ['Blocker', '\\bblockers?\\b', 'An issue that stops payroll release until someone approves or dismisses it.', 'i'],
+    ['Census', '\\bcensus\\b', 'The employee list in payroll: who is active, their pay rate, start date and bank account.', 'i'],
+    ['Payroll register', '\\b(payroll )?register\\b', 'What payroll calculated for each person this cycle: hours, gross pay, taxes and take-home pay.', 'i'],
+    ['Non-exempt', '\\bnon-exempt\\b', 'Paid by the hour and owed overtime under the FLSA.', 'i'],
+    ['Exempt', '\\bexempt\\b', 'Salaried and not owed overtime under the FLSA.', 'i'],
+    ['Carryover', '\\bcarryover\\b', 'Vacation hours rolled over from last year, usually up to a cap.', 'i'],
+    ['Accrual', '\\baccru(al|als|es|ed)\\b', 'Time off earned as you work, added each pay period.', 'i'],
+    ['Gross pay', '\\bgross( pay)?\\b', 'Pay before taxes and deductions.', 'i'],
+    ['Net pay', '\\b(net pay|take-home pay)\\b', 'Take-home pay: what is left after taxes and deductions.', 'i'],
+    ['Escalate', '\\bescalat(e|ed|es|ing)\\b', 'Hand an item to another team. It stays open, and a blocker keeps blocking release, until they act.', 'i'],
+    ['Dismiss', '\\bdismiss(ed|es|ing)?\\b', 'Close an item as not an error, with a reason. A dismissed blocker stops blocking release.', 'i'],
+    ['Journal entry', '\\bjournal( entry)?\\b', 'The accounting record of payroll that is posted to the general ledger.', 'i'],
+    ['Separation of duties', '\\b(separation of duties|different person must release)\\b', 'The person who dismissed a blocker can’t also release payroll, so two people see every risky call.', 'i'],
+  ];
+  const TERM_RE = TERMS.map(([title, src, def, fl]) => ({ title, def, re: new RegExp(src, fl) }));
+  const TERM_SKIP = 'a, button, select, option, textarea, input, label, code, pre, kbd, .mono, .term, svg, .pill, .chip, .chip-btn, .badge, h1, h2, h3, .qt, .seg, th, .appchip, .st, .eyebrow, .status-chip, .q-thread, .msg, .rc-body > b, .ei-top';
+  function decorateTerms(root) {
+    if (!root) return;
+    const nodes = [];
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        const p = n.parentElement;
+        if (!p || !n.nodeValue.trim() || p.closest(TERM_SKIP) || !p.closest('p, li, .hint, .sub, .notice')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    while (walk.nextNode()) nodes.push(walk.currentNode);
+    TERM_RE.forEach((t) => {
+      if (root.querySelector(`.term[data-term="${t.title}"]`)) return;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (!node.parentNode || node.parentElement.closest('.term')) continue;
+        const m = t.re.exec(node.nodeValue);
+        if (!m) continue;
+        const mid = node.splitText(m.index);
+        const rest = mid.splitText(m[0].length);
+        const span = document.createElement('span');
+        span.className = 'term';
+        span.tabIndex = 0;
+        span.dataset.term = t.title;
+        span.dataset.tip = `${t.title}\n${t.def}`;
+        span.textContent = mid.nodeValue;
+        mid.parentNode.replaceChild(span, mid);
+        nodes.splice(i + 1, 0, rest);
+        break;
+      }
+    });
+  }
+
+  // ---- Events for sign-in, the employee pages, My work, reviewing and the checklist
+  document.addEventListener('click', (ev) => {
+    const term = ev.target.closest && ev.target.closest('.term');
+    if (term) { const r = term.getBoundingClientRect(); showTip(term, r.left + r.width / 2, r.top); }
+    const el = ev.target.closest('[data-action]');
+    if (!el) return;
+    const a = el.dataset.action;
+    if (a === 'sign-out') signOut();
+    else if (a === 'si-mode') { state.signinMode = el.dataset.mode; state.signinErr = ''; renderSignin(); const f = $(state.signinMode === 'employee' ? '#siEmp' : '#siUser'); if (f && !f.disabled) f.focus(); }
+    else if (a === 'quick-approve') quickApprove(el.dataset.key);
+    else if (a === 'undo') runUndo();
+    else if (a === 'shortcuts') shortcutsModal(el);
+    else if (a === 'q-send') sendQuestion();
+    else if (a === 'q-followup') sendFollowUp(el.dataset.id);
+    else if (a === 'q-reply') sendReply(el.dataset.key);
+  });
+  document.addEventListener('change', (ev) => {
+    if (ev.target.id === 'siUser') { state.signinUser = ev.target.value; state.signinErr = ''; renderSignin(); const f = $('#siPin') || $('#siUser'); if (f) f.focus(); }
+  });
+  document.addEventListener('input', (ev) => {
+    if (ev.target.id === 'qText') { const e = $('#qErr'); if (e) e.hidden = true; }
+    else if (ev.target.id === 'qReply') { const e = $('#qReplyErr'); if (e) e.hidden = true; }
+  });
+  document.addEventListener('submit', (ev) => {
+    if (ev.target.id !== 'siForm') return;
+    ev.preventDefault();
+    submitSignin();
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (!signedIn() || isEmp() || ev.defaultPrevented) return;
+    if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'z') {
+      if (undoFn && !typing(ev.target) && $('#modal').hidden) { ev.preventDefault(); runUndo(); }
+      return;
+    }
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target) || !$('#modal').hidden || state.drawer) return;
+    const k = ev.key;
+    if (k === '?') { ev.preventDefault(); shortcutsModal(document.activeElement); return; }
+    if (k === 'u' && undoFn) { ev.preventDefault(); runUndo(); return; }
+    if (state.page !== 'exceptions') return;
+    const inList = ev.target.closest && ev.target.closest('#qlist');
+    if (k === 'j' || (k === 'ArrowDown' && inList)) { ev.preventDefault(); moveSel(1); }
+    else if (k === 'k' || (k === 'ArrowUp' && inList)) { ev.preventDefault(); moveSel(-1); }
+    else if (k === '/') { ev.preventDefault(); const s = $('#exSearch'); if (s) s.focus(); }
+    else if (!state.detail) return;
+    else if (k === 'a') { ev.preventDefault(); quickApprove(state.detail); }
+    else if (k === 'd') { ev.preventDefault(); keyDismiss(); }
+    else if (k === 'e') {
+      ev.preventDefault();
+      const x = exByKey(state.detail);
+      const why = x && changeBlock(x, 'escalated');
+      if (why) blocked(`Escalate ${x.check}`, why); else if (x) escalateModal([x.key], document.activeElement);
+    } else if (k === 'x') {
+      ev.preventDefault();
+      if (state.sel.has(state.detail)) state.sel.delete(state.detail); else state.sel.add(state.detail);
+      renderQueue();
+    }
+  });
 
   // ----------------------------------------------------------------------------------
   // Employee drawer
@@ -4079,6 +5007,45 @@
     if (state.drawerOpener && document.body.contains(state.drawerOpener)) state.drawerOpener.focus();
   }
 
+  function timecardHtml(e) {
+    const c = e.census;
+    const rows = [];
+    [0, 1].forEach((w) => {
+      const days = e.days.filter((d) => d.week === w);
+      days.forEach((d) => {
+        const flags = d.records.flatMap((a) => a.flags);
+        const crit = flags.some((f) => f === 'MISSING_OUT' || f === 'MISSING_IN' || f === 'NO_PUNCH');
+        const outside = c && !d.inWindow;
+        const noShow = d.schedHours > 0 && !d.records.length && !outside;
+        const unsched = d.schedHours === 0 && d.worked > 0 && e.cls && !e.cls.exempt;
+        const warn = !crit && (flags.length > 0 || noShow || unsched);
+        const s = d.sched[0];
+        const reg = d.records.filter((a) => a.code === 'REG');
+        const p = (k) => reg.map((a) => a.raw[k]).filter(Boolean).join(', ');
+        const meal = reg.filter((a) => a.raw.meal_out || a.raw.meal_in).map((a) => `${a.raw.meal_out || '?'}–${a.raw.meal_in || '?'}`).join(', ');
+        const tags = [
+          ...Object.entries(d.pto).map(([k, v]) => `<span class="tag-s pto">${esc(k)} ${F.fmtH(v)}</span>`),
+          ...Array.from(new Set(flags)).map((f) => `<span class="tag-s ${f === 'MISSING_OUT' || f === 'MISSING_IN' || f === 'NO_PUNCH' ? 'crit' : 'warn'}">${esc(FLAG_LABEL[f] || f)}</span>`),
+          ...reg.filter((a) => a.override).map((a) => `<span class="muted">by ${esc(a.raw.override_by)}</span>`),
+          noShow ? '<span class="tag-s warn">No-show</span>' : '',
+          unsched ? '<span class="tag-s warn">Unscheduled</span>' : '',
+          outside && (d.records.length || d.sched.length) ? `<span class="tag-s crit">${e.hire && d.date < e.hire ? 'Before hire date' : 'After termination'}</span>` : '',
+        ].filter(Boolean).join(' ');
+        const empty = !s && !d.records.length;
+        rows.push(`<tr class="${outside ? 'out' : ''} ${crit ? 'flagged' : warn ? 'warned' : ''}">
+          <td class="day">${esc(F.fmtDate(d.date))}</td>
+          <td class="p">${s ? `${esc(s.shift_start)}–${esc(s.shift_end)}` : '<span class="muted">Off</span>'}</td>
+          <td class="p">${esc(p('punch_in'))}</td><td class="p">${esc(meal)}</td><td class="p">${esc(p('punch_out'))}</td>
+          <td class="h">${reg.length ? F.fmtH(d.worked) : empty ? '' : '—'}</td>
+          <td class="tags">${tags}</td></tr>`);
+      });
+      const tot = sum(days.filter((d) => !c || d.inWindow), (d) => d.worked);
+      const pto = sum(days.filter((d) => !c || d.inWindow), (d) => d.ptoHours);
+      rows.push(`<tr class="week"><td colspan="5">Week ${w + 1} · ${esc(F.md(days[0].date))}–${esc(F.md(days[6].date))}</td><td class="h">${F.fmtH(tot)}</td><td>${pto ? `+ ${F.fmtH(pto)} time off` : ''}</td></tr>`);
+    });
+    return `<div class="table-wrap timecard"><table><thead><tr><th>Day</th><th>Scheduled</th><th>In</th><th>Meal</th><th>Out</th><th class="n">Worked</th><th>Notes</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  }
+
   function renderDrawer() {
     const r = state.result;
     const e = r.empById[state.drawer];
@@ -4097,43 +5064,7 @@
       ? `<div class="mini-ex">${exs.map((x) => `<button type="button" data-action="goto-ex" data-key="${esc(x.key)}"><span class="h"><span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>${statusPill(statusOf(x))}<span class="mono muted" style="font-size:var(--t-xs)">${esc(x.check)}</span>${esc(x.title)}${x.impact ? ` <span class="mono" style="margin-left:auto">${F.money(x.impact.amount)}</span>` : ''}</span><p>${esc(x.detail)}</p></button>`).join('')}</div>`
       : '<p class="muted">No exceptions. Time, pay, deposit and balances tie out.</p>';
 
-    const tcRows = () => {
-      const rows = [];
-      [0, 1].forEach((w) => {
-        const days = e.days.filter((d) => d.week === w);
-        days.forEach((d) => {
-          const flags = d.records.flatMap((a) => a.flags);
-          const crit = flags.some((f) => f === 'MISSING_OUT' || f === 'MISSING_IN' || f === 'NO_PUNCH');
-          const outside = c && !d.inWindow;
-          const noShow = d.schedHours > 0 && !d.records.length && !outside;
-          const unsched = d.schedHours === 0 && d.worked > 0 && e.cls && !e.cls.exempt;
-          const warn = !crit && (flags.length > 0 || noShow || unsched);
-          const s = d.sched[0];
-          const reg = d.records.filter((a) => a.code === 'REG');
-          const p = (k) => reg.map((a) => a.raw[k]).filter(Boolean).join(', ');
-          const meal = reg.filter((a) => a.raw.meal_out || a.raw.meal_in).map((a) => `${a.raw.meal_out || '?'}–${a.raw.meal_in || '?'}`).join(', ');
-          const tags = [
-            ...Object.entries(d.pto).map(([k, v]) => `<span class="tag-s pto">${esc(k)} ${F.fmtH(v)}</span>`),
-            ...Array.from(new Set(flags)).map((f) => `<span class="tag-s ${f === 'MISSING_OUT' || f === 'MISSING_IN' || f === 'NO_PUNCH' ? 'crit' : 'warn'}">${esc(FLAG_LABEL[f] || f)}</span>`),
-            ...reg.filter((a) => a.override).map((a) => `<span class="muted">by ${esc(a.raw.override_by)}</span>`),
-            noShow ? '<span class="tag-s warn">No-show</span>' : '',
-            unsched ? '<span class="tag-s warn">Unscheduled</span>' : '',
-            outside && (d.records.length || d.sched.length) ? `<span class="tag-s crit">${e.hire && d.date < e.hire ? 'Before hire date' : 'After termination'}</span>` : '',
-          ].filter(Boolean).join(' ');
-          const empty = !s && !d.records.length;
-          rows.push(`<tr class="${outside ? 'out' : ''} ${crit ? 'flagged' : warn ? 'warned' : ''}">
-            <td class="day">${esc(F.fmtDate(d.date))}</td>
-            <td class="p">${s ? `${esc(s.shift_start)}–${esc(s.shift_end)}` : '<span class="muted">Off</span>'}</td>
-            <td class="p">${esc(p('punch_in'))}</td><td class="p">${esc(meal)}</td><td class="p">${esc(p('punch_out'))}</td>
-            <td class="h">${reg.length ? F.fmtH(d.worked) : empty ? '' : '—'}</td>
-            <td class="tags">${tags}</td></tr>`);
-        });
-        const tot = sum(days.filter((d) => !c || d.inWindow), (d) => d.worked);
-        const pto = sum(days.filter((d) => !c || d.inWindow), (d) => d.ptoHours);
-        rows.push(`<tr class="week"><td colspan="5">Week ${w + 1} · ${esc(F.md(days[0].date))}–${esc(F.md(days[6].date))}</td><td class="h">${F.fmtH(tot)}</td><td>${pto ? `+ ${F.fmtH(pto)} time off` : ''}</td></tr>`);
-      });
-      return `<div class="table-wrap timecard"><table><thead><tr><th>Day</th><th>Scheduled</th><th>In</th><th>Meal</th><th>Out</th><th class="n">Worked</th><th>Notes</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
-    };
+    const tcRows = () => timecardHtml(e);
 
     let payHtml = '<p class="muted">Not on the payroll register.</p>';
     if (R && c) {
@@ -4215,40 +5146,9 @@
 
   function releaseModal(opener) {
     const r = state.result, rd = readiness(), p = r.period;
-    if (rd.state === 'nodata') {
-      openModal(`<div class="mh"><h2 id="modalTitle">Nothing to release yet</h2></div>
-        <div class="mb"><p>Load the census, time records and payroll register for ${esc(cycleId())}. Release opens once the time, roster and register checks have run.</p></div>
-        <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button><a class="btn primary" href="#sources" data-action="close-modal">Go to data sources</a></div>`, opener);
-      return;
-    }
-    if (rd.state === 'hold') {
-      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release is on hold</h2></div>
-        <div class="mb"><p>${esc(rd.hold.by)} put release on hold ${esc(stamp(rd.hold.at))}: “${esc(rd.hold.reason)}”.</p><p>A payroll admin lifts the hold in the Admin console, under Policies.</p></div>
-        <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button>${can('admin') ? '<button class="btn primary" type="button" data-action="admin-tab" data-tab="policies">Open release controls</button>' : ''}</div>`, opener);
-      return;
-    }
-    if (rd.state === 'blocked') {
-      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Release is blocked</h2></div>
-        <div class="mb"><p>${plural(rd.preOpen.length, 'pre-release blocker')} ${rd.preOpen.length === 1 ? 'is' : 'are'} still open. Approve or dismiss each one in the review queue, and release opens.</p>
-          <ul class="history">${rd.preOpen.slice(0, 8).map((x) => `<li><span class="pill blocker" style="grid-column:1/-1;justify-self:start">${esc(x.check)} · ${esc(ownerOf(x))}</span><span style="grid-column:1/-1">${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</span></li>`).join('')}</ul>
-          ${rd.preOpen.length > 8 ? `<p class="muted">and ${rd.preOpen.length - 8} more</p>` : ''}</div>
-        <div class="mf"><button class="btn" type="button" data-action="close-modal">Close</button><button class="btn primary" type="button" data-action="go-blockers">Work the blockers</button></div>`, opener);
-      return;
-    }
-    if (!can('release')) {
-      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">Ready for an approver</h2></div>
-        <div class="mb"><p>Every pre-release blocker is cleared. Your role (${esc(roleLabel(me()))}) can’t release payroll; a payroll approver or admin releases this batch.</p></div>
-        <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`, opener);
-      return;
-    }
-    const mine = sodConflicts();
-    if (mine.length) {
-      openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())}</span><h2 id="modalTitle">A different person must release</h2></div>
-        <div class="mb"><p>You dismissed ${plural(mine.length, 'pre-release blocker')}, so someone else has to release this batch. A payroll admin set this rule in the Admin console.</p>
-          <ul class="history">${mine.map((x) => `<li style="grid-template-columns:1fr"><span><b>${esc(x.empId ? x.empName + ': ' : '')}${esc(x.title)}</b><div class="note">${esc(lastNote(x) || 'No reason recorded')}</div></span></li>`).join('')}</ul></div>
-        <div class="mf"><button class="btn primary" type="button" data-action="close-modal">Close</button></div>`, opener);
-      return;
-    }
+    if (rd.state === 'released') { releaseInfoModal(opener); return; }
+    const list = releaseChecks();
+    if (list.some((c) => !c.ok)) { checklistModal(list, opener); return; }
     const n = E.util.num;
     openModal(`<div class="mh"><span class="eyebrow">${esc(cycleId())} · ${esc(periodText(p))}${p.payDate ? ` · pay ${esc(F.fmtDate(p.payDate))}` : ''}</span><h2 id="modalTitle">Approve and release payroll</h2></div>
       <div class="mb">
@@ -4383,12 +5283,22 @@
   }
 
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, undo) {
     const el = $('#toast');
     el.textContent = msg;
+    undoFn = undo || null;
+    if (undo) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-undo';
+      b.dataset.action = 'undo';
+      b.textContent = 'Undo';
+      el.appendChild(document.createTextNode(' '));
+      el.appendChild(b);
+    }
     el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 3800);
+    toastTimer = setTimeout(() => { el.hidden = true; undoFn = null; }, undo ? 8000 : 3800);
   }
 
   // ----------------------------------------------------------------------------------
@@ -4457,7 +5367,7 @@
     else if (a === 'close-modal') closeModal();
     else if (a === 'go-blockers') { closeModal(); filterExceptions({ stage: 'pre', sev: { blocker: true, review: false, info: false } }); }
     else if (a === 'go-post') filterExceptions({ stage: 'post' });
-    else if (a === 'filter-owner') filterExceptions(el.dataset.pre ? { owner: el.dataset.owner, stage: 'pre', sev: { blocker: true, review: false, info: false } } : { owner: el.dataset.owner });
+    else if (a === 'filter-owner') { if (!$('#modal').hidden) closeModal(); filterExceptions(el.dataset.pre ? { owner: el.dataset.owner, stage: 'pre', sev: { blocker: true, review: false, info: false } } : { owner: el.dataset.owner }); }
     else if (a === 'stage') filterExceptions({ stage: el.dataset.stage });
     else if (a === 'kind') filterExceptions({ kind: el.dataset.kind, sev: { blocker: true, review: true, info: true } });
     else if (a === 'check') { if (el.getAttribute('aria-disabled') !== 'true') filterExceptions({ check: el.dataset.check, status: 'all' }); }
@@ -4485,9 +5395,13 @@
       if (to === 'approved' && x.severity === 'blocker' && store.policy.approveNote && !note) { const e = $('#noteErr'); e.textContent = 'Add a note saying what was fixed or checked before approving a blocker.'; e.hidden = false; $('#noteText').focus(); return; }
       if (to === 'escalated') { escalateModal([x.key], el); return; }
       if (to === 'dismissed' && !note) { const e = $('#noteErr'); e.textContent = 'Add the reason for dismissing this exception in the note first.'; e.hidden = false; $('#noteText').focus(); return; }
+      const snap = snapshot([x]);
+      const nk = to === 'approved' || to === 'dismissed' ? nextAfter(x.key) : null;
       setStatus(x, to, note);
+      if (nk) state.detail = nk;
       afterWorkflow();
-      toast(`${STATUS_VERB[to]}: ${x.title}`);
+      if (nk) scrollSel();
+      toast(`${STATUS_VERB[to]}: ${x.title}`, undoable(snap, `${ACT[to]} ${x.check}`));
     } else if (a === 'add-note') {
       const x = exByKey(state.detail);
       const note = noteValue();
@@ -4505,11 +5419,12 @@
         if (needNote.length) { pt.ok = pt.ok.filter((x) => x.severity !== 'blocker'); pt.skipped += needNote.length; pt.reason = pt.reason || 'Approving a blocker needs a note; approve those one at a time.'; }
       }
       let n = 0;
+      const snap = snapshot(pt.ok);
       pt.ok.forEach((x) => { if (setStatus(x, to, '')) n++; });
       if (pt.skipped) log('Action blocked', `${ACT[to]} ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
       afterWorkflow();
-      toast(`${STATUS_VERB[to]}: ${plural(n, 'exception')}${skippedText(pt)}`);
+      toast(`${STATUS_VERB[to]}: ${plural(n, 'exception')}${skippedText(pt)}`, n ? undoable(snap, `${ACT[to]} ${plural(n, 'exception')}`) : null);
     } else if (a === 'bulk-dismiss') dismissModal(Array.from(state.sel), el);
     else if (a === 'bulk-escalate') escalateModal(Array.from(state.sel), el);
     else if (a === 'confirm-dismiss') {
@@ -4517,23 +5432,28 @@
       if (!note) { const e = $('#dismissErr'); e.textContent = 'Give a reason.'; e.hidden = false; $('#dismissNote').focus(); return; }
       let n = 0;
       const pt = partition(el.dataset.keys.split('\n'), 'dismissed');
+      const snap = snapshot(pt.ok);
+      const nk = pt.ok.length === 1 && pt.ok[0].key === state.detail && state.page === 'exceptions' ? nextAfter(state.detail) : null;
       pt.ok.forEach((x) => { if (setStatus(x, 'dismissed', note)) n++; });
       if (pt.skipped) log('Action blocked', `Dismiss ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
+      if (nk) state.detail = nk;
       closeModal();
       afterWorkflow();
-      toast(`Dismissed: ${plural(n, 'exception')}${skippedText(pt)}`);
+      if (nk) scrollSel();
+      toast(`Dismissed: ${plural(n, 'exception')}${skippedText(pt)}`, n ? undoable(snap, `Dismiss ${plural(n, 'exception')}`) : null);
     } else if (a === 'confirm-escalate') {
       const owner = $('#escOwner').value;
       const note = ($('#escNote').value || '').trim();
       let n = 0;
       const pt = partition(el.dataset.keys.split('\n'), 'escalated');
+      const snap = snapshot(pt.ok);
       pt.ok.forEach((x) => { setOwner(x, owner); if (setStatus(x, 'escalated', note)) n++; });
       if (pt.skipped) log('Action blocked', `Escalate ${plural(pt.skipped, 'exception')} · ${pt.reason}`);
       state.sel.clear();
       closeModal();
       afterWorkflow();
-      toast(`Escalated ${plural(n, 'exception')} to ${owner}${skippedText(pt)}`);
+      toast(`Escalated ${plural(n, 'exception')} to ${owner}${skippedText(pt)}`, pt.ok.length ? undoable(snap, `Escalate ${plural(pt.ok.length, 'exception')}`) : null);
     } else if (a === 'clear-sel') { state.sel.clear(); renderQueue(); }
     else if (a === 'open-emp') openDrawer(el.dataset.emp, el);
     else if (a === 'close-drawer') closeDrawer();
@@ -4636,15 +5556,16 @@
       const x = exByKey(t.dataset.key);
       const why = x ? changeBlock(x, null) : '';
       if (why) { blocked(`Reassign ${x.check}`, why); renderDetail(); }
-      else if (x && setOwner(x, t.value)) { afterWorkflow(); toast(`Assigned to ${t.value}`); }
+      else if (x) { const snap = snapshot([x]); if (setOwner(x, t.value)) { afterWorkflow(); toast(`Assigned to ${t.value}`, undoable(snap, `Reassign ${x.check}`)); } }
     }
     else if (t.id === 'bulkOwner' && t.value) {
       let n = 0;
       const pt = partition(Array.from(state.sel), null);
+      const snap = snapshot(pt.ok);
       pt.ok.forEach((x) => { if (setOwner(x, t.value)) n++; });
       state.sel.clear();
       afterWorkflow();
-      toast(`Assigned ${plural(n, 'exception')} to ${t.value}${skippedText(pt)}`);
+      toast(`Assigned ${plural(n, 'exception')} to ${t.value}${skippedText(pt)}`, n ? undoable(snap, `Reassign ${plural(n, 'exception')}`) : null);
     } else if (t.id === 'setName') { const v = t.value.trim(); if (v && v !== store.user) { const was = store.user; store.user = v; me().name = v; log('Name changed', `${was} → ${v}`); renderShell(); toast('Name saved'); } }
     else if (t.id === 'setWs') { const v = t.value.trim(); if (v && v !== store.workspace) { store.workspace = v; save(); renderShell(); toast('Company name saved'); } }
     else if (t.matches('select[data-rd]')) onDraftField(t);
@@ -4716,6 +5637,7 @@
     syncCustomSources();
     restoreSources();
     recompute();
+    checkSession();
     if (!store.audit.some((a) => a.cycle === cycleId())) log('Checks run', `${state.result.totals.checksRun} checks · ${state.result.totals.blockers} blockers, ${state.result.totals.review} to review`, { by: 'Rollcall' });
     route();
     checkAi();

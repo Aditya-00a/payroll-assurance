@@ -8,6 +8,7 @@
 //        task "explain":  one exception, its cited records and policy clauses -> explanation
 //        task "clusters": recurring exception groups across pay periods      -> root cause and fix
 //        task "chat":     a question plus the records the browser retrieved   -> answer with citations
+//                         (audience "employee": one employee asking about their own pay)
 //
 // Runs on Groq. Set GROQ_API_KEY in the Vercel project to turn it on. Optional: GROQ_MODEL to use
 // a different Groq model, and AI_ACCESS_CODE, which callers must send as the x-access-code header.
@@ -17,7 +18,7 @@ const PROVIDER = 'Groq';
 const MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const MAX_BODY = 60000;
 
-const SYSTEM = `You are the AI assistant in Rollcall.ai Payroll Assurance. Reviewers in payroll, HR, treasury and accounting read your output before they approve, dismiss or escalate a payroll exception and before payroll is released.
+const SYSTEM = `You are the AI assistant in Rollcall.ai Payroll Assurance. Reviewers in payroll, HR, treasury and accounting read your output before they approve, dismiss or escalate a payroll exception and before payroll is released. Employees also ask about their own pay.
 
 How the system works:
 - Deterministic rules detected each exception and calculated every dollar amount. Never recalculate, adjust or invent amounts; use the figures you are given.
@@ -108,11 +109,18 @@ function prompt(task, payload) {
       text: `Explain this payroll exception for the reviewer. Use only the records and policy clauses below.\n\n${JSON.stringify(payload, null, 2)}`,
     };
   }
+  if (task === 'chat' && payload && payload.audience === 'employee') {
+    return {
+      name: 'payroll_chat_answer',
+      schema: CHAT_SCHEMA,
+      text: `Answer the employee's question about their own pay, using only the records below. The employee is ${String(payload.employee || 'the employee in the records').slice(0, 20)}; address them as "you". Cite the records you use as [R#]. Quote dollar figures and hours exactly as given; never recalculate them. Don't promise a correction or a payment: the payroll team decides. If the records show an item payroll is checking, say so plainly. If the records don't answer the question, say so and suggest sending a question to the payroll team from the Questions page. The employee's pages are My pay, My time and Questions.\n\n${JSON.stringify(payload, null, 2)}`,
+    };
+  }
   if (task === 'chat') {
     return {
       name: 'payroll_chat_answer',
       schema: CHAT_SCHEMA,
-      text: `Answer the reviewer's question using only the records below, which were retrieved from this pay cycle's data sources. Cite the records you use as [R#]. Quote dollar figures exactly as given; never recalculate them. The app's pages are Overview, Review queue, People, Data quality, Pay accuracy, Bank and ledger, Repeat issues, Data sources and Rules.\n\n${JSON.stringify(payload, null, 2)}`,
+      text: `Answer the reviewer's question using only the records below, which were retrieved from this pay cycle's data sources. Cite the records you use as [R#]. Quote dollar figures exactly as given; never recalculate them. The app's pages are My work, Overview, Review queue, People, Checks (tabs: Data quality, Pay accuracy, Bank and ledger, Repeat issues), Reports, Data sources and Rules.\n\n${JSON.stringify(payload, null, 2)}`,
     };
   }
   return {

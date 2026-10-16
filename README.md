@@ -6,6 +6,26 @@ Validates every pay cycle end to end, **WFM → Payroll → Treasury → Finance
 
 The workspace opens on a fictional sample cycle: Northloom Apparel, a clothing retailer with NY and NJ stores, a distribution center and a pop-up. The pay period runs Sun 2026-09-13 to Sat 2026-09-26, with a pay date of Fri 2026-10-02. There are 38 people on payroll plus one person who exists only in WFM. Issues are seeded on purpose so every check has something to find.
 
+## Signing in
+
+The app opens on a sign-in page with two options.
+
+- **Employer** is for the payroll, HR, store, treasury and accounting teams. Pick your name from the team list. Payroll admins also enter the admin PIN when one is set. You land on *My work*.
+- **Employee** is for anyone on the payroll. Enter your employee ID and the last 4 digits of the bank account your pay goes to. In the sample, use **E1012** and **4471**. After 5 wrong tries, employee sign-in is locked for 5 minutes on that device. Sign-ins, sign-outs and failed tries are logged.
+
+**This is demo sign-in.** It runs in the browser, and anyone with the link can sign in as anyone on the team. For production, sign people in through your company's single sign-on (Okta, Microsoft Entra or Google) and keep the data on a server. See *Notes*.
+
+### What employees see
+
+Employees see only their own records. Other people's names and IDs are removed from anything shown to them.
+
+- **My pay.** Take-home pay, gross pay, hours paid and the account paid to. Below that: a pay statement (earnings, taxes, deductions), the items payroll is checking on their pay in plain words ("Being checked", "Checked", "You may be owed $X"), deposits (including any the bank sent back), and time off left.
+- **My time.** Scheduled, worked, time-off and paid hours, and the full timecard with punches and flags.
+- **Questions.** Ask the payroll team about pay, hours, time off, direct deposit or taxes. Each question goes into the review queue as an *Employee question* for the team that owns the topic, with a due time like any other item. The reviewer replies from the queue, and the employee sees the answer on this page. If the employee writes back, the question opens again. Closing without a reply shows the employee "Closed" and keeps the reviewer's reason internal.
+- **Ask about my pay.** The AI chat, limited to that employee's own records and the company policies, with their name hidden from the AI. An admin can turn this off.
+
+An admin can turn employee sign-in and the employee AI chat on or off under *Admin console → Policies → Employee access*.
+
 ## How a pay cycle is checked
 
 One tool checks each bi-weekly payroll in five steps, from the time clock to the general ledger. Each step answers one question:
@@ -57,6 +77,26 @@ Every demo case in the use case is seeded in the sample cycle, and the Overview'
 - **Your data sources** (Data sources page). Add any file the team checks each cycle, such as tips, garnishments, benefits or contractor pay. Set where it comes from, its step and owner, and whether it's required every cycle. A required file that's missing puts a blocker in the review queue. Files are uploaded on the source's card, through API sync, or straight from the import queue, where *New data source…* creates one from an unrecognized file. Columns are kept as they are and become available to rules and to Ask AI. Columns that look like names, addresses, SSNs or account numbers are never shown to the AI.
 - **Approved items turn green.** This applies across the review queue, the check lists, Pay accuracy, All checks (*Cleared*), Bank and ledger (*Reviewed*), the detail panel and the admin stage meters.
 
+## Working faster
+
+- **My work** is the employer's home page. It shows the items in your queue, overdue ones first and then blockers, each with an *Approve* button. It also shows what's left before release, open employee questions, your recent actions, and, for admins, open and overdue work by queue.
+- **A shorter sidebar.** *Checks* holds Data quality, Pay accuracy, Bank and ledger and Repeat issues as tabs. *Rules* holds All checks. *Reports* holds the Activity log. Each sidebar link remembers the last tab you used.
+- **Faster reviewing.** Every row in the review queue has an approve button. Approving or dismissing moves you to the next item. Every change shows *Undo* for 8 seconds, and undoing is logged. In the review queue, these keyboard shortcuts work when you aren't typing in a box:
+
+  | Key | Does |
+  |---|---|
+  | J or ↓ / K or ↑ | Next / previous item |
+  | A | Approve, then go to the next item |
+  | D | Dismiss, using the note, or ask for a reason |
+  | E | Escalate |
+  | X | Select or unselect the item |
+  | / | Search |
+  | U or Ctrl+Z | Undo the last change |
+  | ? | Show the shortcuts |
+
+- **Release checklist.** *Release payroll* lists what's left: data loaded, required files, pre-release blockers by owner, any hold, whether you can release, and the different-person rule. Each item links to where you fix it. When everything is done, it opens the approval.
+- **Plain-word tooltips.** Payroll terms such as GL, ACH, WFM, PTO, census, payroll register, blocker, exempt, carryover and accrual are underlined the first time they appear on a page. Hover over one, or tap it, for a short definition.
+
 ## Ask AI
 
 The *Ask AI* button opens a chat panel on the right. Ask about the cycle in plain words, for example "What's stopping payroll from being released?", "Who is owed money?" or "What does the handbook say about sick time?".
@@ -83,7 +123,7 @@ The payroll admin's page (*Admin console* in the sidebar) has four tabs.
   - **Data due time:** when time records, schedules and the employee list are due.
 - **Data and audit.** Download a backup of everything in the browser and restore it on another computer; audit trail counts and CSV export; cycles stored; storage used; clear workspace data (team, roles and policies are kept).
 
-Each person picks themselves under Settings → *Working as*. Roles are enforced for everyone using that browser, and every blocked action is logged. For production, put single sign-on in front so each person signs in as themselves.
+People sign in as themselves on the sign-in page. Settings → *Working as* switches to another team member without signing out (the admin PIN still applies). Roles are enforced for everyone using that browser, and every blocked action is logged.
 
 ## What it does
 
@@ -91,12 +131,12 @@ Each person picks themselves under Settings → *Working as*. Roles are enforced
 - **Review queue.** Filter by status, severity, stage, owner or search. The detail panel shows why it happened, the cited evidence, the policy clause, owner reassignment, notes and full history. Bulk actions: assign, approve, dismiss (reason required), escalate. Buttons a person's role doesn't allow are disabled, with the reason shown.
 - **Release gate.** *Release payroll* stays locked until every pre-release blocker (the time, roster and register checks) is approved or dismissed. It also respects the admin's hold and the different-person rule. Approval asks you to confirm the dismissed blockers and their reasons, and records the approver, a note and the totals. Released cycles feed Repeat issues' history. A released cycle can be reopened with a reason.
 - **People.** Register gross vs validated gross for everyone. Click a person for the timecard (scheduled vs worked), pay rebuilt from WFM time and contract rates, PTO balances and deposits.
-- **All checks.** All 39 checks by stage, each with its rule and its result.
+- **All checks** (a tab of Rules). All 39 checks by stage, each with its rule and its result.
 - **Import.** Drop a cycle's exports anywhere in the app, several at once: CSV, JSON or the printed PDF register (read with pdf.js). Each file is matched to its source by its columns. Common vendor header names are recognized (for example "Employee ID", "File #", "Home Department", "Total Hours", "Lunch Out"). Anything unrecognized is mapped in a column mapper, and Rollcall remembers each mapping for files with the same columns. On import, US dates, 12-hour punches, `$1,234.56` amounts and `(negative)` amounts are normalized. Importing into the sample workspace replaces the sample cycle. CSV templates are available for each source.
 - **Data sources.** Each source is set to *File* or *API*. In API mode, the browser calls your HTTPS endpoint directly, with an optional Authorization header that is kept for the session only. Use `{start}`/`{end}` in the URL for the pay period dates. The endpoint must return CSV or JSON rows and allow CORS. *Start a new cycle* clears the WFM, payroll, bank and GL data; policies, rule changes and saved column mappings carry over.
 - **Rules.** Your own rules (see above), plus the thresholds from the union agreement and the handbook. Every change re-runs the checks and is logged.
 - **Reports.** Release brief (.txt), exception register with statuses and notes (.csv), pay variance (.csv) and audit trail (.csv).
-- **Activity log.** An append-only log of every status change, note, reassignment, rule change, data load, re-run, release, admin change and blocked action.
+- **Activity log** (a tab of Reports). An append-only log of every status change, note, reassignment, rule change, data load, re-run, release, admin change and blocked action.
 
 Statuses, notes, releases, team, roles, policies, rule changes, column mappings and imported data are stored in the browser (localStorage). Files are read client-side and are not sent anywhere. Nothing is shared between browsers or teammates automatically. Use the admin console's backup to move a workspace; sharing it live would need a backend.
 
@@ -162,6 +202,8 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 - `tests/engine.test.js` — regression test against the seeded issues
 
 ## Notes
+
+- **Sign-in and shared data need a backend for production.** Today everything (team, statuses, questions, sign-in sessions) lives in one browser's storage, so teammates and employees on different devices don't see each other's work. A production setup needs an identity provider for single sign-on, a database for the workspace and questions (for example a Postgres database added to the Vercel project), and API routes that check each person's role and, for employees, return only their own records.
 
 - The definitions follow the FLSA: non-exempt employees are hourly and earn overtime; exempt employees are salaried and don't.
 - Dollar impacts marked *est.* are estimates. A missing check-out is valued at the scheduled shift. Time for someone missing from payroll is valued at the median rate for that location.
