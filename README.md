@@ -35,13 +35,35 @@ Every demo case in the use case is seeded in the sample cycle, and the Overview'
 
 ### AI service
 
-`api/ai.mjs` is a Vercel function. It runs on [Groq](https://groq.com) through the official `groq-sdk`, using `openai/gpt-oss-120b` by default. Answers come back as strict structured JSON (`response_format: json_schema`) and the function checks their shape before the app uses them. If you pick a model without structured-output support, the function falls back to JSON mode with the schema written into the prompt.
+`api/ai.mjs` is a Vercel function with three tasks: *explain* (Why it happened), *clusters* (suggested causes) and *chat* (Ask AI). It runs on [Groq](https://groq.com) through the official `groq-sdk`, using `openai/gpt-oss-120b` by default. Answers come back as strict structured JSON (`response_format: json_schema`) and the function checks their shape before the app uses them. If you pick a model without structured-output support, the function falls back to JSON mode with the schema written into the prompt.
 
 - **Turning it on.** Create a key at console.groq.com, add it as `GROQ_API_KEY` in the Vercel project's environment variables and redeploy. To keep strangers from using the endpoint, also set `AI_ACCESS_CODE`; reviewers then enter that code under Settings → AI service.
 - **Changing the model.** Set `GROQ_MODEL` to any model id from Groq's model list (for example `openai/gpt-oss-20b` for lower cost).
 - **Without a key.** *Why it happened* shows the explanation the rules put together from the records, with the same citations and policy clauses, and Repeat issues takes causes from rule templates. The app says which source produced each explanation.
 
 **Hiding names.** All sample data is synthetic. Before anything leaves the browser, names, employee IDs, bank accounts, routing numbers and trace references are replaced with synthetic identifiers (`EMP-013`, `ACCT-01`). The review queue shows exactly what the AI sees, under *What the AI sees (names hidden)*. AI output keeps names hidden by default; *Show real names* puts them back in the browser only. The function also rejects any payload that still contains an employee ID, a 9-digit routing number or an SSN pattern.
+
+## Your rules and data sources
+
+- **Your rules** (Rules page). Build a check on any data source, including ones you add, without code. Pick the source and check each row or each employee's total. Then add conditions on any column: more or less than, equals, contains, is one of, is empty, or a comparison with another column, combined with *all* or *any*. Each rule also sets:
+  - the level (blocker, review or info)
+  - the step of the pay cycle
+  - the owner
+  - a title that can include column values, like `{wfm_hours}`
+  - an optional dollar impact column
+  - a suggested fix
+
+  A live preview shows what the rule finds in this cycle before you save. Six starter templates cover common cases, such as an hourly rate below $20, more than 80 hours in the period, and deposits over $2,500. Matches go to the review queue, count toward the release gate (blockers in steps before release), appear on All checks marked *Your rule*, and get the same *Why it happened* panel. Rules can be edited, turned off or deleted, and every change is logged.
+- **Your data sources** (Data sources page). Add any file the team checks each cycle, such as tips, garnishments, benefits or contractor pay. Set where it comes from, its step and owner, and whether it's required every cycle. A required file that's missing puts a blocker in the review queue. Files are uploaded on the source's card, through API sync, or straight from the import queue, where *New data source…* creates one from an unrecognized file. Columns are kept as they are and become available to rules and to Ask AI. Columns that look like names, addresses, SSNs or account numbers are never shown to the AI.
+- **Approved items turn green.** This applies across the review queue, the check lists, Pay accuracy, All checks (*Cleared*), Bank and ledger (*Reviewed*), the detail panel and the admin stage meters.
+
+## Ask AI
+
+The *Ask AI* button opens a chat panel on the right. Ask about the cycle in plain words, for example "What's stopping payroll from being released?", "Who is owed money?" or "What does the handbook say about sick time?".
+
+- **How it answers (RAG).** The browser searches this cycle's data first: exceptions, people, policy clauses, checks, bank and ledger lines, repeat issues, and the rows of every data source, built-in or added. It sends only the best-matching records to the AI, with names, employee IDs and account details replaced. The AI answers from those records and cites them as [R1], [R2]…; each citation opens the exception, person or page it came from.
+- **Without the AI** (not connected, turned off in the admin console, or a role without AI access), the panel still searches and lists the closest records.
+- Questions are logged in the activity log. *Show real names* is available to roles allowed to see them.
 
 ## Admin console
 
@@ -56,7 +78,7 @@ The payroll admin's page (*Admin console* in the sidebar) has four tabs.
   - **Dismissal limit:** blockers at or above it need an approver or admin to dismiss.
   - **Approval note:** optionally required to approve a blocker.
   - **Due times:** for blockers and review items. Overdue items can be escalated in one click.
-  - **AI on or off:** separately for explanations and suggested causes.
+  - **AI on or off:** separately for explanations, suggested causes and the Ask AI chat.
   - **Repeat issues threshold.**
   - **Data due time:** when time records, schedules and the employee list are due.
 - **Data and audit.** Download a backup of everything in the browser and restore it on another computer; audit trail counts and CSV export; cycles stored; storage used; clear workspace data (team, roles and policies are kept).
@@ -72,7 +94,7 @@ Each person picks themselves under Settings → *Working as*. Roles are enforced
 - **All checks.** All 39 checks by stage, each with its rule and its result.
 - **Import.** Drop a cycle's exports anywhere in the app, several at once: CSV, JSON or the printed PDF register (read with pdf.js). Each file is matched to its source by its columns. Common vendor header names are recognized (for example "Employee ID", "File #", "Home Department", "Total Hours", "Lunch Out"). Anything unrecognized is mapped in a column mapper, and Rollcall remembers each mapping for files with the same columns. On import, US dates, 12-hour punches, `$1,234.56` amounts and `(negative)` amounts are normalized. Importing into the sample workspace replaces the sample cycle. CSV templates are available for each source.
 - **Data sources.** Each source is set to *File* or *API*. In API mode, the browser calls your HTTPS endpoint directly, with an optional Authorization header that is kept for the session only. Use `{start}`/`{end}` in the URL for the pay period dates. The endpoint must return CSV or JSON rows and allow CORS. *Start a new cycle* clears the WFM, payroll, bank and GL data; policies, rule changes and saved column mappings carry over.
-- **Rules.** Thresholds come from the union agreement and the handbook. Every change re-runs the checks and is logged.
+- **Rules.** Your own rules (see above), plus the thresholds from the union agreement and the handbook. Every change re-runs the checks and is logged.
 - **Reports.** Release brief (.txt), exception register with statuses and notes (.csv), pay variance (.csv) and audit trail (.csv).
 - **Activity log.** An append-only log of every status change, note, reassignment, rule change, data load, re-run, release, admin change and blocked action.
 

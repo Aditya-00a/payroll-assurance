@@ -96,7 +96,7 @@
     viewer: ['export'],
   };
   const defaultPerms = () => Object.fromEntries(ROLES.map((r) => [r.id, Object.fromEntries(CAPS.map((c) => [c.id, ROLE_CAPS[r.id].includes(c.id)]))]));
-  const defaultPolicy = () => ({ perms: defaultPerms(), sod: true, lockAfterRelease: true, dismissLimit: 500, approveNote: false, slaBlockerH: 24, slaReviewH: 72, aiExplain: true, aiClusters: true, fixThreshold: 3, cutoffDays: 2, cutoffTime: '10:00', pin: null });
+  const defaultPolicy = () => ({ perms: defaultPerms(), sod: true, lockAfterRelease: true, dismissLimit: 500, approveNote: false, slaBlockerH: 24, slaReviewH: 72, aiExplain: true, aiClusters: true, aiChat: true, fixThreshold: 3, cutoffDays: 2, cutoffTime: '10:00', pin: null });
   const defaultTeam = (name) => [
     { id: 'u1', name: name || 'Payroll ops', role: 'admin', queue: 'Payroll', active: true },
     { id: 'u2', name: 'Payroll approver', role: 'approver', queue: 'Payroll', active: true },
@@ -138,6 +138,8 @@
     ledger: svg('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>'),
     upload: svg('<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>', 18),
     plug: svg('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>', 14),
+    chat: svg('<path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 9.5h8M8 12.5h5"/>'),
+    close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   };
 
   const NAV = [
@@ -175,7 +177,7 @@
 
   const STORE_KEY = 'rollcall.payroll-assurance.v1';
   const FILES_KEY = 'rollcall.payroll-assurance.sources.v1';
-  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {}, team: defaultTeam('Payroll ops'), userId: 'u1', policy: defaultPolicy() });
+  const freshStore = () => ({ v: 1, user: 'Payroll ops', workspace: 'Northloom Apparel', theme: 'system', settings: {}, cycles: {}, audit: [], mappings: {}, connectors: {}, team: defaultTeam('Payroll ops'), userId: 'u1', policy: defaultPolicy(), customSources: [], customRules: [] });
   let store = loadStore();
 
   function loadStore() {
@@ -238,6 +240,8 @@
     busy: {},
     importQueue: [],
     auth: {},
+    chat: { open: false, msgs: [], busy: false, draft: '' },
+    ruleDraft: null,
   };
 
   // ----------------------------------------------------------------------------------
@@ -248,6 +252,7 @@
     const def = SRC[key];
     const text = SAMPLE.files[def.file];
     const mode = (state.src[key] && state.src[key].mode) || 'upload';
+    if (def.group === 'custom') { state.src[key] = { mode }; return; }
     if (text === undefined) { state.src[key] = { mode, error: 'Sample file not bundled.' }; return; }
     if (def.kind === 'json') state.src[key] = { json: JSON.parse(text), name: def.file, origin: origin || 'sample', mode, at: nowIso() };
     else state.src[key] = { rows: E.parseCSV(text), name: def.file, origin: origin || 'sample', mode, format: 'csv', at: nowIso() };
@@ -324,6 +329,7 @@
     const before = state.result && cycleId();
     const prevKeys = state.result ? new Set(state.result.exceptions.map((x) => x.key)) : null;
     state.result = E.run(input());
+    runCustomRules(state.result);
     const keys = keyed(state.result.exceptions);
     state.result.exceptions.forEach((x, i) => { x.key = keys[i]; });
     state.lastRun = nowIso();
@@ -438,7 +444,7 @@
       return n ? `<span class="badge ${readiness().preOpen.length ? 'crit' : ''}">${n}</span>` : '';
     }
     if (id === 'people') return `<span class="badge">${r.totals.people}</span>`;
-    if (id === 'controls') return `<span class="badge">${r.totals.checksRun}/${E.CHECKS.length}</span>`;
+    if (id === 'controls') return `<span class="badge">${r.totals.checksRun}/${r.checks.length}</span>`;
     if (id === 'sources') return `<span class="badge">${SOURCES.filter((s) => state.src[s.key] && (state.src[s.key].rows || state.src[s.key].json)).length}/${SOURCES.length}</span>`;
     if (id === 'rules') { const n = Object.keys(store.settings).length; return n ? `<span class="badge">${n} changed</span>` : ''; }
     if (id === 'admin') { const late = r.exceptions.filter(pastSla).length; return late ? `<span class="badge crit" title="Overdue items">${late}</span>` : cyc().hold ? '<span class="badge">Hold</span>' : ''; }
@@ -464,6 +470,7 @@
       <span class="status-chip ${rd.state}" title="${rel ? `Released ${esc(stamp(rel.at))} by ${esc(rel.by)}` : ''}">${STATE_WORD[rd.state]}</span>
       <span class="top-spacer"></span>
       <span class="last-run">Checked ${esc(clock(state.lastRun))}</span>
+      <button class="btn chat-btn" type="button" data-action="chat-toggle" aria-expanded="${!!state.chat.open}" aria-controls="chat">${ICON.chat.replace(/16/g, '15')} <span>Ask AI</span></button>
       <button class="btn" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button>
       <button class="btn" type="button" data-action="rerun">${ICON.refresh} Re-run checks</button>
       ${releaseBtn}`;
@@ -476,6 +483,7 @@
 
   function renderAll() {
     renderShell();
+    renderChat();
     if (!(state.page === 'rules' && state.keepRules)) renderPage();
     if (state.drawer) renderDrawer();
   }
@@ -563,7 +571,7 @@
     $('#page').innerHTML = `
       <div class="page-head">
         <div><span class="eyebrow">Pay cycle ${esc(cycleId())}</span><h1>${esc(periodText(p))}</h1>
-        <p>${esc(store.workspace)}${p.payDate ? ` · pay date ${esc(F.fmtDate(p.payDate))}` : ''} · ${plural(t.people, 'person', 'people')} · ${t.checksRun} of ${E.CHECKS.length} checks ran across WFM, the payroll register, bank activity and the GL</p></div>
+        <p>${esc(store.workspace)}${p.payDate ? ` · pay date ${esc(F.fmtDate(p.payDate))}` : ''} · ${plural(t.people, 'person', 'people')} · ${t.checksRun} of ${r.checks.length} checks ran across WFM, the payroll register, bank activity and the GL</p></div>
       </div>
       ${isSampleWorkspace() ? sampleBanner() : ''}
       <div style="margin-bottom:16px">${flowHtml()}</div>
@@ -663,7 +671,7 @@
   function renderExceptions() {
     const f = state.filters;
     const chips = [];
-    if (f.check) chips.push(['check', `Check: ${f.check} ${CHECK_OF[f.check].title}`]);
+    if (f.check) chips.push(['check', `Check: ${f.check} ${(CHECK_OF[f.check] || {}).title || ''}`]);
     if (f.kind) chips.push(['kind', `Impact: ${KINDS.find((k) => k.kind === f.kind).label}`]);
     const stageOpts = [['', 'All stages'], ['pre', 'Before release'], ['post', 'After settlement']].concat(E.STAGES.map((s) => [s.id, s.title]));
     $('#page').innerHTML = `
@@ -723,15 +731,17 @@
     const impact = x.impact
       ? `<span class="k-${x.impact.kind}">${F.money(x.impact.amount)}</span><small>${esc(KIND_SHORT[x.impact.kind])}${x.impact.estimated ? ' · est.' : ''}</small>`
       : '<small>No $ impact</small>';
-    return `<div class="qrow ${state.detail === x.key ? 'sel' : ''} ${closed ? 'closed' : ''}" role="listitem" data-action="select-ex" data-key="${esc(x.key)}">
+    return `<div class="qrow ${state.detail === x.key ? 'sel' : ''} ${closed ? 'closed' : ''}" data-st="${st}" role="listitem" data-action="select-ex" data-key="${esc(x.key)}">
       <input type="checkbox" class="cb" data-action="toggle-sel" data-key="${esc(x.key)}" aria-label="Select ${esc(x.title)}" ${state.sel.has(x.key) ? 'checked' : ''}>
-      <span class="qid"><span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span><span class="mono">${esc(x.check)} · ${esc(x.id)}</span></span>
+      <span class="qid">${doneOrSev(x, st)}<span class="mono">${esc(x.check)} · ${esc(x.id)}</span></span>
       <button class="qt linkless" type="button" data-action="select-ex" data-key="${esc(x.key)}"><b>${esc(x.title)}</b><span>${esc(who)} · ${esc(STAGE_OF[x.stage].title)}</span></button>
       <span class="qown">${esc(ownerOf(x))}</span>
       <span class="qimp">${impact}</span>
       <span class="qst">${statusPill(st)}</span>
     </div>`;
   }
+  // Approved items read green, dismissed ones neutral; open items keep their severity.
+  const doneOrSev = (x, st) => (st === 'approved' ? '<span class="pill pass">Approved</span>' : st === 'dismissed' ? '<span class="pill plain">Dismissed</span>' : `<span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>`);
   const statusPill = (st) => `<span class="st ${st}"><i aria-hidden="true"></i>${STATUS_LABEL[st]}</span>`;
 
   function renderBulk() {
@@ -790,6 +800,7 @@
           <span class="close-x" style="display:flex;gap:6px">${next ? `<button class="btn small" type="button" data-action="select-ex" data-key="${esc(next)}">Next</button>` : ''}<button class="btn small" type="button" data-action="close-detail">Close</button></span></div>
         <h2>${esc(x.title)}</h2>
         <div class="row">${statusPill(st)}<span class="muted" style="font-size:var(--t-xs)">Owner: ${esc(ownerOf(x))}</span></div>
+        ${(() => { const done = st === 'approved' || st === 'dismissed' ? it.events.filter((e) => e.type === 'status' && e.to === st).slice(-1)[0] : null; return done ? `<div class="done-banner ${st === 'approved' ? 'ok' : 'dis'}"><b>${st === 'approved' ? '✓ Approved' : 'Dismissed'}</b> <span>by ${esc(done.by)} · ${esc(stamp(done.t))}${done.text ? ` — “${esc(done.text)}”` : ''}</span></div>` : ''; })()}
       </div>
       <div class="detail-body">
         ${emp ? `<section><h4>Employee</h4><button class="who" type="button" data-action="open-emp" data-emp="${esc(emp.id)}"><b>${esc(emp.name)}</b><span>${esc(emp.id)}${emp.title ? ' · ' + esc(emp.title) : ''}${emp.location ? ' · ' + esc(emp.location) : ''}</span></button></section>` : ''}
@@ -967,22 +978,25 @@
   function renderControls() {
     const r = state.result;
     $('#page').innerHTML = `
-      <div class="page-head"><div><h1>All checks</h1><p>${E.CHECKS.length} checks across five stages, from WFM time through the payroll register, treasury funding and GL posting. Each reads the loaded data sources and the thresholds on the Rules page. Select a check to see what it found.</p></div></div>
+      <div class="page-head"><div><h1>All checks</h1><p>${r.checks.length} checks across five stages, from WFM time through the payroll register, treasury funding and GL posting. Each reads the loaded data sources and the thresholds on the Rules page. Select a check to see what it found.</p></div></div>
       <div class="check-stages">${r.stages.map((s) => {
         const cs = r.checks.filter((c) => c.stage === s.id);
         const pass = cs.filter((c) => c.ran && (c.status === 'pass' || c.status === 'note')).length;
         return `<section class="check-stage">
           <header><span class="eyebrow">${esc(s.phase)}</span><h3>${esc(s.title)}</h3><span class="sys">${esc(s.systems)}</span><span class="res">${appChip(appOf(cs[0].id))} ${s.ran ? `${pass} of ${cs.length} pass` : 'No data loaded'}${PRE.includes(s.id) ? ' · gates release' : ' · after settlement'}</span></header>
           <ul>${cs.map((c) => {
-            const st = !c.ran ? 'idle' : c.status;
             const list = r.exceptions.filter((x) => x.check === c.id);
             const open = list.filter(isOpen).length;
+            const work = list.filter((x) => x.severity !== 'info');
+            const cleared = c.ran && work.length > 0 && !work.some(isOpen);
+            const st = !c.ran ? 'idle' : cleared ? 'pass' : c.status;
             const res = !c.ran ? '<span class="muted">No data</span>'
               : c.status === 'pass' ? '<span class="pill pass">Pass</span>'
+                : cleared ? `<span class="pill pass">Cleared · ${plural(work.length, 'item')} reviewed</span>`
                 : c.status === 'note' ? `<span class="pill info">${plural(c.count, 'note')}</span>`
                   : `<span class="pill ${c.status === 'fail' ? 'blocker' : 'review'}">${c.count} found${open < c.count ? ` · ${open} open` : ''}</span>`;
             return `<li><button class="check-row" type="button" data-action="check" data-check="${c.id}" ${c.count ? '' : 'aria-disabled="true"'}>
-              <span class="glyph ${st}">${GLYPH[st]}</span><span class="id">${c.id}</span><span class="t">${esc(c.title)}</span><span class="rule">${esc(c.rule)}</span><span class="res">${res}</span>
+              <span class="glyph ${st}">${GLYPH[st]}</span><span class="id">${c.id}</span><span class="t">${esc(c.title)}${c.custom ? ' <span class="pill plain">Your rule</span>' : ''}</span><span class="rule">${esc(c.rule)}</span><span class="res">${res}</span>
             </button></li>`;
           }).join('')}</ul>
         </section>`;
@@ -1009,7 +1023,7 @@
       else if (s.origin === 'api') status = `<span class="conn ok">Synced</span><span>${esc(count)}</span><span class="muted">${esc(clock(s.at))} · ${esc(s.name)}</span>`;
       else status = `<span class="conn ok">Loaded</span><span>${esc(count)}</span><span class="muted mono">${esc(s.name || '')}</span><span class="muted">${s.format === 'pdf' ? 'PDF extract' : s.origin === 'sample' ? 'sample data' : 'your file'}${s.at ? ' · ' + esc(clock(s.at)) : ''}</span>`;
       const dl = window.PA_HOSTED && SAMPLE.files[def.file] ? `<a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl(def.file)}" download="${esc(def.file)}">Sample ${def.kind === 'json' ? 'JSON' : 'CSV'}</a>${def.kind === 'register' && SAMPLE.registerPdfBase64 ? ` <a class="linkish" style="font-size:var(--t-xs)" href="${sampleUrl('payroll_register.pdf')}" download="payroll_register.pdf">Sample PDF</a>` : ''}` : '';
-      const cols = SCHEMA_OF[def.key] ? targetsFor(def.key) : null;
+      const cols = SCHEMA_OF[def.key] ? targetsFor(def.key) : def.group === 'custom' && def.custom.columns.length ? def.custom.columns : null;
       return `<article class="source" id="src-${def.key}">
         <header><span class="src-icon">${ICON[def.icon]}</span><div style="flex:1;min-width:0"><h4>${esc(def.title)}</h4><div class="sys">${esc(def.sys)}</div></div>
           ${def.api ? `<div class="seg" role="group" aria-label="${esc(def.title)} connection">
@@ -1017,7 +1031,8 @@
             <button type="button" data-action="mode" data-key="${def.key}" data-mode="api" aria-pressed="${mode === 'api'}">API</button>
           </div>` : ''}
         </header>
-        <p class="desc">${esc(def.desc)}</p>
+        <p class="desc">${esc(def.desc || 'Added by your team.')}</p>
+        ${def.group === 'custom' ? customMeta(def) : ''}
         <div class="status">${status}</div>
         ${s.error ? `<div class="err" role="alert">${esc(s.error)}</div>` : ''}
         ${mode === 'api' && def.api ? `
@@ -1030,11 +1045,12 @@
         : `<div class="row">
             <span class="btn small file-btn">${loaded && s.origin !== 'sample' ? 'Replace file' : 'Upload file'}<input type="file" id="file-${def.key}" data-key="${def.key}" accept="${accept}" aria-label="Upload ${esc(def.title)}"></span>
             ${def.kind === 'register' ? `<button class="btn small" type="button" data-action="sample-pdf" ${busy ? 'disabled' : ''}>Read sample PDF register</button>` : ''}
-            ${s.origin !== 'sample' || s.format === 'pdf' ? `<button class="linkish" type="button" data-action="sample" data-key="${def.key}" style="font-size:var(--t-xs)">Use sample file</button>` : ''}
+            ${def.group !== 'custom' && (s.origin !== 'sample' || s.format === 'pdf') ? `<button class="linkish" type="button" data-action="sample" data-key="${def.key}" style="font-size:var(--t-xs)">Use sample file</button>` : ''}
             ${dl}
           </div>`}
         ${def.key === 'register' && s.format === 'pdf' && s.rows ? pdfPreview(s) : ''}
-        ${cols ? `<details><summary>Columns (${cols.length}, ${KEY_COLS[def.key].length} required)</summary><code>${esc(cols.join(', '))}</code></details>` : ''}
+        ${def.group === 'custom' && can('data') ? `<div class="row cs-actions"><button class="linkish" type="button" data-action="cs-edit" data-key="${def.key}">Edit</button><button class="linkish danger-link" type="button" data-action="cs-remove" data-key="${def.key}">Remove</button></div>` : ''}
+        ${cols ? `<details><summary>Columns (${cols.length}${KEY_COLS[def.key].length ? `, ${KEY_COLS[def.key].length} required` : ''})</summary><code>${esc(cols.join(', '))}</code></details>` : ''}
       </article>`;
     };
     $('#page').innerHTML = `
@@ -1045,6 +1061,8 @@
       ${importCardHtml()}
       <div class="group-title"><h3>Systems of record</h3><span class="muted">${isSampleWorkspace() ? 'Showing the Northloom Apparel sample cycle (fictional data)' : 'WFM, payroll, bank and ERP data for one pay cycle'}</span></div>
       <div class="sources">${SOURCES.filter((s) => s.group === 'records').map(card).join('')}</div>
+      <div class="group-title"><h3>Your data sources</h3><span class="muted">Anything else your team checks each cycle: benefits, tips, garnishments, expenses, contractor pay</span>${can('data') ? '<span class="spacer"></span><button class="btn small primary" type="button" data-action="cs-new">Add data source</button>' : ''}</div>
+      ${SOURCES.some((s) => s.group === 'custom') ? `<div class="sources">${SOURCES.filter((s) => s.group === 'custom').map(card).join('')}</div>` : '<div class="table-wrap"><div class="empty"><h3>None yet</h3><p>Add a data source, upload its file, then write rules for it on the Rules page.</p></div></div>'}
       <div class="group-title"><h3>Policies and mappings</h3><span class="muted">The rules each check applies. Adjust thresholds on the Rules page.</span></div>
       <div class="sources">${SOURCES.filter((s) => s.group === 'policy').map(card).join('')}</div>`;
   }
@@ -1181,7 +1199,7 @@
   const headerKey = (h) => h.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const sampleRowsCache = {};
   const sampleRows = (kind) => sampleRowsCache[kind] || (sampleRowsCache[kind] = SAMPLE.files[SRC[kind].file] ? E.parseCSV(SAMPLE.files[SRC[kind].file]) : []);
-  const targetsFor = (kind) => Array.from(new Set(KEY_COLS[kind].concat(E.SCHEMAS[kind], Object.keys(sampleRows(kind)[0] || {}))));
+  const targetsFor = (kind) => (isCustomSource(kind) ? [] : Array.from(new Set(KEY_COLS[kind].concat(E.SCHEMAS[kind], Object.keys(sampleRows(kind)[0] || {})))));
   let importSeq = 0;
 
   // Column types come from the sample layout, so dates, times and amounts can be normalized.
@@ -1258,7 +1276,15 @@
       const score = keys * 0.55 + cover * 0.45 + (hints[k].test(n) ? 0.1 : 0);
       if (!best || score > best.score) best = { kind: k, score };
     });
-    return best && best.score >= 0.5 ? best.kind : '';
+    if (best && best.score >= 0.5) return best.kind;
+    // Your data sources: same columns as the last file loaded, or the source's name in the file name.
+    const hs = new Set(headers.map(normH));
+    const mine = SOURCES.filter((s) => s.group === 'custom').map((s) => {
+      const cols = s.custom.columns.map(normH);
+      const overlap = cols.length ? cols.filter((c) => hs.has(c)).length / Math.max(cols.length, hs.size) : 0;
+      return { kind: s.key, score: overlap + (normH(s.title) && n.includes(normH(s.title)) ? 0.6 : 0) };
+    }).sort((a, b) => b.score - a.score)[0];
+    return mine && mine.score >= 0.6 ? mine.kind : '';
   }
   function detectPolicy(j) {
     if (j.steps && j.rates) return 'agreement';
@@ -1316,7 +1342,7 @@
     if (it.error) return { st: 'error', label: 'Error' };
     if (it.kind === 'skip') return { st: 'skip', label: 'Skipped' };
     if (!it.kind) return { st: 'map', label: 'Choose a source' };
-    if (it.type === 'table') {
+    if (it.type === 'table' && !isCustomSource(it.kind)) {
       const miss = KEY_COLS[it.kind].filter((c) => !it.map[c]);
       if (miss.length) return { st: 'map', label: 'Map columns', miss };
     }
@@ -1337,6 +1363,11 @@
     const prev = state.src[it.kind] || {};
     const base = { name: it.name, origin: it.origin || 'upload', mode: prev.mode || 'upload', at: nowIso() };
     if (it.type === 'policy') { state.src[it.kind] = Object.assign(base, { json: it.json }); return; }
+    if (isCustomSource(it.kind)) {
+      state.src[it.kind] = Object.assign(base, { rows: it.rows, format: it.format || 'csv' });
+      SRC[it.kind].custom.columns = it.headers.slice(0, 80);
+      return;
+    }
     state.src[it.kind] = Object.assign(base, { rows: mapRows(it.kind, it.rows, it.map), format: it.format || 'csv', pages: it.pages, problems: it.problems });
     if (it.format !== 'pdf') store.mappings[it.kind] = { sig: it.headers.join('|'), map: it.map };
   }
@@ -1412,8 +1443,8 @@
     const ready = q.filter((it, i) => statuses[i].st === 'ready');
     const blocking = q.filter((it, i) => statuses[i].st === 'map' || statuses[i].st === 'error');
     const options = (it) => {
-      const list = it.type === 'policy' ? SOURCES.filter((s) => s.group === 'policy') : it.format === 'pdf' ? [SRC.register] : SOURCES.filter((s) => s.group === 'records');
-      return `<option value="" disabled ${it.kind ? '' : 'selected'}>Choose a source…</option>${list.map((s) => `<option value="${s.key}" ${it.kind === s.key ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="skip" ${it.kind === 'skip' ? 'selected' : ''}>Don’t import</option>`;
+      const list = it.type === 'policy' ? SOURCES.filter((s) => s.group === 'policy') : it.format === 'pdf' ? [SRC.register] : SOURCES.filter((s) => s.group === 'records' || s.group === 'custom');
+      return `<option value="" disabled ${it.kind ? '' : 'selected'}>Choose a source…</option>${list.map((s) => `<option value="${s.key}" ${it.kind === s.key ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}${it.type === 'table' && it.format !== 'pdf' && can('data') ? '<option value="__new">New data source…</option>' : ''}<option value="skip" ${it.kind === 'skip' ? 'selected' : ''}>Don’t import</option>`;
     };
     const dupe = (it) => it.kind && it.kind !== 'skip' && q.filter((x) => x.kind === it.kind && !x.error).length > 1;
     const pillCls = { ready: 'pass', map: 'review', error: 'blocker', skip: 'plain' };
@@ -1427,9 +1458,9 @@
         return `<tr>
           <td><b class="mono" style="font-size:var(--t-xs)">${esc(it.name)}</b><br><span class="muted" style="font-size:var(--t-xs)">${it.rows ? plural(it.rows.length, 'record') : it.type === 'policy' ? 'JSON document' : ''}${it.format === 'pdf' && it.pages ? ` · PDF, ${plural(it.pages, 'page')}` : ''}</span></td>
           <td>${it.error ? '<span class="muted">—</span>' : `<select data-import-kind="${it.id}" aria-label="Source for ${esc(it.name)}">${options(it)}</select>`}${dupe(it) ? '<br><span class="muted" style="font-size:var(--t-xs)">Another file is set to this source too; the last one is used.</span>' : ''}</td>
-          <td class="wrap">${it.error ? `<span class="neg">${esc(it.error)}</span>` : tbl ? `${matched} of ${targets.length} matched${st.miss ? `<br><span class="neg" style="font-size:var(--t-xs)">Needs ${esc(st.miss.join(', '))}</span>` : ''}` : '<span class="muted">—</span>'}</td>
+          <td class="wrap">${it.error ? `<span class="neg">${esc(it.error)}</span>` : tbl && isCustomSource(it.kind) ? `${plural(it.headers.length, 'column')}, kept as they are` : tbl ? `${matched} of ${targets.length} matched${st.miss ? `<br><span class="neg" style="font-size:var(--t-xs)">Needs ${esc(st.miss.join(', '))}</span>` : ''}` : '<span class="muted">—</span>'}</td>
           <td><span class="pill ${pillCls[st.st]}">${esc(st.label)}</span></td>
-          <td style="text-align:right">${tbl ? `<button class="btn small" type="button" data-action="map-cols" data-id="${it.id}">Map columns</button> ` : ''}<button class="linkish" type="button" data-action="import-remove" data-id="${it.id}" style="font-size:var(--t-xs)">Remove</button></td>
+          <td style="text-align:right">${tbl && !isCustomSource(it.kind) ? `<button class="btn small" type="button" data-action="map-cols" data-id="${it.id}">Map columns</button> ` : ''}<button class="linkish" type="button" data-action="import-remove" data-id="${it.id}" style="font-size:var(--t-xs)">Remove</button></td>
         </tr>`;
       }).join('')}</tbody></table></div>
       <div class="import-foot">
@@ -1590,7 +1621,7 @@
 
   function startNewCycle() {
     const prev = cycleId();
-    SOURCES.filter((s) => s.group === 'records').forEach((s) => { state.src[s.key] = { mode: (state.src[s.key] && state.src[s.key].mode) || 'upload', at: null }; });
+    SOURCES.filter((s) => s.group === 'records' || s.group === 'custom').forEach((s) => { state.src[s.key] = { mode: (state.src[s.key] && state.src[s.key].mode) || 'upload', at: null }; });
     recompute();
     persistSources();
     log('New cycle started', `Cleared WFM, payroll, bank and GL data (previous cycle ${prev} and its history are kept)`, { cycle: prev });
@@ -1665,10 +1696,12 @@
     const rates = ua.rates || {};
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><h1>Rules</h1><p>Thresholds start from the loaded union agreement and employee handbook. Change one and every check re-runs; exceptions, dollar impact and the release brief update with it. Changes are logged.</p></div>
+        <div><h1>Rules</h1><p>Add your own rules on any data source, and adjust the thresholds that come from the union agreement and employee handbook. Every change re-runs the checks and is logged.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="reset-rules" ${Object.keys(store.settings).length && can('rules') ? '' : 'disabled'}>Reset all to policy</button></div>
       </div>
       ${can('rules') ? '' : `<div class="notice" style="margin-bottom:12px"><span>View only: your role (${esc(roleLabel(me()))}) can’t change rules.</span></div>`}
+      ${customRulesHtml()}
+      <div class="group-title"><h3>Policy thresholds</h3><span class="muted">From the union agreement and employee handbook</span></div>
       <div class="rules">
         ${RULE_GROUPS.map((g) => `<section class="rule-card"><div><h4>${esc(g.title)}</h4><p class="src">${esc(g.src)}</p></div>
           ${g.fields.map((f) => `<div class="rule"><label for="rule-${f.key}">${esc(f.label)}${f.unit && f.type !== 'bool' && f.type !== 'select' ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</label>${control(f)}<p class="hint ${Object.prototype.hasOwnProperty.call(store.settings, f.key) ? 'changed' : ''}" id="hint-${f.key}">${hintHtml(f, def)}</p></div>`).join('')}
@@ -1753,6 +1786,10 @@
   const RUNRADAR_TIME = new Set(['T5', 'T6', 'T7', 'T10']);
   const appOf = (x) => {
     const c = typeof x === 'string' ? x : x.check;
+    if (CHECK_OF[c] && CHECK_OF[c].custom) {
+      const st = typeof x === 'string' ? CHECK_OF[c].stage : x.stage;
+      return st === 'payroll' ? 'runradar' : st === 'funding' || st === 'gl' ? 'threeway' : 'feedpulse';
+    }
     if (c[0] === 'F' || c[0] === 'G') return 'threeway';
     if (c[0] === 'P' || RUNRADAR_TIME.has(c)) return 'runradar';
     return 'feedpulse';
@@ -1778,6 +1815,8 @@
     return out;
   }
   function clausesFor(x) {
+    const mine = CHECK_OF[x.check];
+    if (mine && mine.custom) return [{ id: x.check, title: mine.title, doc: 'Rule set by your team', text: mine.rule() }];
     let ids = CHECK_CLAUSES[x.check] || [];
     if (x.check === 'T9') ids = /sick/i.test(x.title) ? ['HB 7.3', 'HB 5.1'] : ['HB 5.1'];
     if (x.check === 'T10') ids = /sick/i.test(x.title) ? ['HB 7.4', 'HB 7.1'] : ['HB 7.4'];
@@ -1809,6 +1848,15 @@
     const emp = x.empId && r.empById[x.empId];
     const c = emp && emp.census;
     const ck = x.check;
+    if (x.custom) {
+      if (c) add('Payroll census', `Census record ${c.emp_id}`, pickRow(c, PICK.census));
+      if (x.row) {
+        const def = SRC[x.source];
+        const safe = Object.fromEntries(Object.entries(x.row).filter(([k, v]) => !SENSITIVE_RE.test(k) && v !== undefined && String(v).trim() !== '').slice(0, 16));
+        add(def ? def.title : 'Data source', x.rowCount > 1 ? `Total of ${x.rowCount} rows for this employee` : `Row from ${def ? def.title : 'the file'}`, safe);
+      }
+      return ev;
+    }
     if (c) add('Payroll census', `Census record ${c.emp_id}`, pickRow(c, PICK.census.concat(['P9', 'T10'].includes(ck) ? PICK.censusPto : [], ck[0] === 'F' ? PICK.censusBank : [])));
     if (x.empId && ['T1', 'T2', 'T3', 'T4', 'T8', 'T9', 'R1', 'R3', 'R4', 'R5', 'T10', 'P3'].includes(ck)) {
       let recs = i.time.filter((t) => t.emp_id === x.empId);
@@ -1918,7 +1966,7 @@
       exception: {
         check: `${x.check} ${CHECK_OF[x.check].title}`, rule: CHECK_OF[x.check].rule(state.result.config),
         application: APP_NAME[appOf(x)], severity: x.severity, employee: x.empId ? m.id(x.empId) : 'whole cycle',
-        title: m.text(x.title), finding: m.text(x.detail), expected: m.text(x.expected || ''), actual: m.text(x.actual || ''),
+        title: m.text(x.custom ? CHECK_OF[x.check].title : x.title), finding: m.text(x.custom ? customFinding(x) : x.detail), expected: m.text(x.expected || ''), actual: m.text(x.actual || ''),
         dollar_impact_from_rules: x.impact ? `${F.money(x.impact.amount)} ${KIND_WORD[x.impact.kind]}${x.impact.estimated ? ' (estimate)' : ''}` : 'none',
         owner: ownerOf(x), suggested_action: m.text(x.action || ''),
       },
@@ -2094,6 +2142,7 @@
             <td class="wrap">${f.loaded ? [f.outside ? `${f.outside} out of period` : '', f.dupes ? `${f.dupes} duplicates` : '', f.blanks.length ? `${f.blanks.length} required fields blank` : ''].filter(Boolean).join(' · ') || '<span class="muted">Period covered, no duplicates</span>' : `<a href="#sources">Load it</a>`}</td>
           </tr>`).join('')}</tbody></table></div>
       </section>
+      ${customSourcesCard()}
       ${alerts.length ? `<div class="group-title"><h3>File alerts</h3><span class="muted">${plural(alerts.length, 'alert')}</span></div>
         <div class="alerts">${alerts.map((a) => `<div class="alert ${a.sev}"><span class="pill ${a.sev}">${a.sev === 'blocker' ? 'Missing' : 'Alert'}</span><span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
       <div class="group-title"><h3>Data exceptions</h3><span class="muted">${open.length} open of ${list.length} · select one to see why it happened</span></div>
@@ -2104,8 +2153,8 @@
 
   function exLine(x, extra) {
     const st = statusOf(x);
-    return `<li><button class="ex-line" type="button" data-action="goto-ex" data-key="${esc(x.key)}">
-      <span class="pill ${x.severity}">${SEV_LABEL[x.severity]}</span>
+    return `<li><button class="ex-line" type="button" data-st="${st}" data-action="goto-ex" data-key="${esc(x.key)}">
+      ${doneOrSev(x, st)}
       <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')}${x.location ? ' · ' + esc(x.location) : ''} · ${esc(ownerOf(x))}</span></span>
       ${extra || `<span class="mono amt">${x.impact ? F.money(x.impact.amount) : ''}</span>`}
       ${statusPill(st)}
@@ -2120,7 +2169,7 @@
     { id: 'pto', label: 'PTO buckets and balances', checks: ['T10', 'P9'] },
     { id: 'math', label: 'Taxes and register math', checks: ['P6', 'P7', 'P8'] },
   ];
-  const rrGroupOf = (c) => RR_GROUPS.find((g) => g.checks.includes(c)) || RR_GROUPS[0];
+  const rrGroupOf = (c) => RR_GROUPS.find((g) => g.checks.includes(c)) || (CHECK_OF[c] && CHECK_OF[c].custom ? { id: 'custom', label: 'Your rules', checks: [] } : RR_GROUPS[0]);
   function renderRunradar() {
     const r = state.result;
     const list = r.exceptions.filter((x) => appOf(x) === 'runradar' && x.severity !== 'info');
@@ -2140,7 +2189,7 @@
         <div class="card-head"><h3>Ranked by dollar impact</h3><span class="muted" style="font-size:var(--t-sm)">${priced.length ? `The top 5 carry ${Math.round((top5 / all) * 100)}% of ${F.money(all)}` : 'Nothing priced'}</span></div>
         ${priced.length ? `<ol class="rr-list">${priced.map((x, k) => {
           const g = rrGroupOf(x.check);
-          return `<li><button class="rr-row" type="button" data-action="goto-ex" data-key="${esc(x.key)}">
+          return `<li><button class="rr-row" type="button" data-st="${statusOf(x)}" data-action="goto-ex" data-key="${esc(x.key)}">
             <span class="rank mono">${k + 1}</span>
             <span class="t"><b>${esc(x.title)}</b><span>${esc(x.empId ? `${x.empId} ${x.empName}` : 'Whole cycle')} · ${esc(g.label)} · ${esc(x.check)}</span></span>
             <span class="rr-bar" aria-hidden="true"><i class="k-${x.impact.kind}" style="width:${Math.max(3, Math.round((x.impact.amount / max) * 100))}%"></i></span>
@@ -2212,7 +2261,7 @@
             <td class="n">${money(row.payroll)}</td>
             <td class="n">${money(row.bank)}${row.bank !== null && row.bankLabel ? `<br><small class="muted">${esc(row.bankLabel)}</small>` : ''}</td>
             <td class="n">${money(row.gl)}${row.gl !== null && row.glLabel ? `<br><small class="muted">${esc(row.glLabel)}</small>` : ''}</td>
-            <td>${row.break ? `<span class="pill blocker">Off by ${F.signedMoney(row.break)}</span>` : '<span class="pill pass">Matches</span>'}${row.open.length && !row.sub ? `<br><button class="linkish" type="button" data-action="goto-ex" data-key="${esc(row.open[0].key)}" style="font-size:var(--t-xs)">${esc(row.open[0].check)} · ${esc(ownerOf(row.open[0]))}</button>` : ''}</td>
+            <td>${row.break ? (!row.open.length && r.exceptions.some((x) => row.checks.includes(x.check) && x.severity !== 'info') ? `<span class="pill pass">Reviewed · off by ${F.signedMoney(row.break)}</span>` : `<span class="pill blocker">Off by ${F.signedMoney(row.break)}</span>`) : '<span class="pill pass">Matches</span>'}${row.open.length && !row.sub ? `<br><button class="linkish" type="button" data-action="goto-ex" data-key="${esc(row.open[0].key)}" style="font-size:var(--t-xs)">${esc(row.open[0].check)} · ${esc(ownerOf(row.open[0]))}</button>` : ''}</td>
           </tr>`).join('')}</tbody></table></div>
       </section>
       <div class="group-title"><h3>Differences to fix</h3><span class="muted">${breaks.filter(isOpen).length} open · each with an owner</span></div>
@@ -2877,7 +2926,7 @@
   const POLICY_LABEL = {
     sod: 'Different person must release', lockAfterRelease: 'Lock pre-release items after release', dismissLimit: 'Dismissal limit',
     approveNote: 'Note to approve a blocker', slaBlockerH: 'Blockers due within', slaReviewH: 'Review items due within', aiExplain: 'AI explanations',
-    aiClusters: 'AI-suggested causes', fixThreshold: 'Count an issue as repeating at', cutoffDays: 'Data due', cutoffTime: 'Data due by',
+    aiClusters: 'AI-suggested causes', aiChat: 'AI chat', fixThreshold: 'Count an issue as repeating at', cutoffDays: 'Data due', cutoffTime: 'Data due by',
   };
   function polFmt(key, v) {
     if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -2941,6 +2990,7 @@
     if (!b || !allow('admin')) { closeModal(); return; }
     const by = store.user;
     store = hydrate(b.store);
+    syncCustomSources();
     try {
       if (b.sources) localStorage.setItem(FILES_KEY, JSON.stringify(b.sources));
       else localStorage.removeItem(FILES_KEY);
@@ -2987,7 +3037,8 @@
 
   const ADMIN_TABS = [['monitor', 'Monitor'], ['team', 'Team and access'], ['policies', 'Policies'], ['data', 'Data and audit']];
   const ADMIN_ACTIONS = new Set(['Action blocked', 'Switched user', 'Name changed', 'Team changed', 'Permission changed', 'Policy changed', 'Admin PIN',
-    'Release hold', 'Hold lifted', 'Payroll released', 'Cycle reopened', 'Rule changed', 'Backup exported', 'Backup restored', 'Workspace cleared']);
+    'Release hold', 'Hold lifted', 'Payroll released', 'Cycle reopened', 'Rule changed', 'Rule created', 'Rule deleted', 'Rule turned on', 'Rule turned off',
+    'Data source added', 'Data source changed', 'Data source removed', 'Backup exported', 'Backup restored', 'Workspace cleared']);
 
   function renderAdmin() {
     const tab = ADMIN_TABS.some(([id]) => id === state.adminTab) ? state.adminTab : 'monitor';
@@ -3063,7 +3114,7 @@
       const tip = g.total ? `${g.done} of ${g.total} reviewed\n${g.s.title}\n${g.c.approved} approved · ${g.c.dismissed} dismissed\n${g.c.escalated} escalated · ${g.c.open} open` : `${g.ran ? 'Nothing found' : 'No data'}\n${g.s.title}`;
       return `<li><button class="stg" type="button" data-action="stage" data-stage="${g.s.id}" data-tip="${esc(tip)}">
         <span class="stg-name"><b>${esc(g.s.title)}</b><small>${esc(g.s.phase)}${PRE.includes(g.s.id) ? ' · gates release' : ' · after settlement'}</small></span>
-        <span class="meter" aria-hidden="true"><i style="width:${w}%"></i></span>
+        <span class="meter${g.total && g.done === g.total ? ' done' : ''}" aria-hidden="true"><i style="width:${w}%"></i></span>
         <span class="stg-val"><b>${g.total ? `${g.done} of ${g.total}` : g.ran ? 'Clean' : 'No data'}</b><small>${g.total ? `${g.c.open + g.c.escalated} open${g.c.escalated ? ` · ${g.c.escalated} escalated` : ''}` : g.ran ? 'nothing found' : 'not loaded'}</small></span>
       </button></li>`;
     };
@@ -3101,6 +3152,11 @@
     }).filter((q) => q.l.length || q.people.length).sort((a, b) => b.blockers - a.blockers || b.l.length - a.l.length || a.o.localeCompare(b.o));
 
     const feedRow = (def) => {
+      if (def.group === 'custom') {
+        const s = state.src[def.key] || {};
+        const n = (s.rows || []).length;
+        return { def, at: n ? s.at : null, pill: n ? ['pass', 'Loaded'] : def.custom.required ? ['blocker', 'Missing'] : ['plain', 'Not loaded'] };
+      }
       if (FEED_KEYS.includes(def.key)) {
         const f = feedStatus(def.key);
         return { def, at: f.received, pill: !f.loaded ? ['blocker', 'Missing'] : f.late ? ['review', `Late ${fmtLate(f.late)}`] : ['pass', 'On time'] };
@@ -3174,7 +3230,7 @@
           <div class="card-head"><h3>Files received</h3><a class="more" href="#sources">Data sources</a></div>
           <div class="table-wrap"><table>
             <thead><tr><th>Source</th><th>Received</th><th>Status</th></tr></thead>
-            <tbody>${SOURCES.filter((s) => s.group === 'records').map(feedRow).map((f) => `<tr><td><b>${esc(f.def.title)}</b><br><span class="muted" style="font-size:var(--t-xs)">${esc(f.def.sys)}</span></td><td class="mono" style="font-size:var(--t-xs)">${f.at ? esc(stamp(f.at)) : '—'}</td><td><span class="pill ${f.pill[0]}">${esc(f.pill[1])}</span></td></tr>`).join('')}</tbody>
+            <tbody>${SOURCES.filter((s) => s.group === 'records' || s.group === 'custom').map(feedRow).map((f) => `<tr><td><b>${esc(f.def.title)}</b><br><span class="muted" style="font-size:var(--t-xs)">${esc(f.def.sys)}</span></td><td class="mono" style="font-size:var(--t-xs)">${f.at ? esc(stamp(f.at)) : '—'}</td><td><span class="pill ${f.pill[0]}">${esc(f.pill[1])}</span></td></tr>`).join('')}</tbody>
           </table></div>
         </section>
       </div>
@@ -3265,6 +3321,7 @@
       <section class="rule-card"><div><h4>AI and checks</h4><p class="src">Data quality, the review queue and repeat issues</p></div>
         ${chk('aiExplain', 'AI explanations in the review queue', 'Off: reviewers see the explanation the rules assemble from the records.')}
         ${chk('aiClusters', 'AI-suggested causes on Repeat issues', 'Off: causes come from the rule templates.')}
+        ${chk('aiChat', 'AI chat', 'The Ask AI panel. Off: it still searches your data and lists the closest records.')}
         <div class="rule"><label for="pol-fixThreshold">Count an issue as repeating at</label><select id="pol-fixThreshold" data-policy="fixThreshold" ${dis}>${[2, 3, 4, 5].map((n) => `<option value="${n}" ${p.fixThreshold === n ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select><p class="hint">The default on Repeat issues and the monitor.</p></div>
         ${num('cutoffDays', 'Data is due', 'days after period end', 'Time records, schedules and the employee list received after this are late.', 1, 0)}
         <div class="rule"><label for="pol-cutoffTime">Data is due by</label><input type="time" id="pol-cutoffTime" data-policy="cutoffTime" value="${esc(p.cutoffTime)}" ${dis}></div>
@@ -3313,6 +3370,691 @@
         ${ed ? '<div><button class="btn small danger" type="button" data-action="reset-workspace">Clear workspace data…</button></div>' : ''}
       </div></section>
     </div>`;
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Your data sources and your rules: added by the team, run beside the built-in checks
+  // ----------------------------------------------------------------------------------
+
+  const STAGE_TITLE = Object.fromEntries(E.STAGES.map((s) => [s.id, s.title]));
+  const SOURCE_STAGE = { census: 'roster', schedules: 'time', time: 'time', register: 'payroll', bank: 'funding', gl: 'gl' };
+  const isCustomSource = (key) => !!(SRC[key] && SRC[key].group === 'custom');
+  const ruleSources = () => SOURCES.filter((s) => s.group === 'records' || s.group === 'custom');
+  // Columns that can identify a person; never shown to the AI and left out of evidence.
+  const SENSITIVE_RE = /(^|_)(first|last|middle|full|employee|legal|preferred|payee)_?name$|^name$|ssn|social_?sec|address|street|city|zip|postal|phone|email|routing|account_?(no|num|number)$|birth|dob/i;
+  const EMP_KEYS = ['empid', 'employee', 'employeeno', 'employeenumber'].concat((SYN.emp_id || []).filter((k) => k !== 'id'));
+  const DATE_KEYS = ['work_date', 'date', 'value_date', 'post_date', 'pay_date', 'txn_date', 'effective_date', 'period_end'];
+  const MAX_RULE_HITS = 200;
+
+  // Mirror store.customSources into the SOURCES list every page already reads.
+  function syncCustomSources() {
+    for (let i = SOURCES.length - 1; i >= 0; i--) if (SOURCES[i].group === 'custom') { delete SRC[SOURCES[i].key]; SOURCES.splice(i, 1); }
+    (store.customSources || []).forEach((d) => {
+      d.columns = d.columns || [];
+      const def = { key: d.key, group: 'custom', kind: 'csv', file: '', title: d.title, sys: d.sys || 'Added by your team', icon: 'plug', api: 'https://example.com/api/rows?from={start}&to={end}', desc: d.desc || '', custom: d };
+      SOURCES.push(def);
+      SRC[d.key] = def;
+      KEY_COLS[d.key] = [];
+    });
+  }
+  const sourceRows = (key) => (state.src[key] && state.src[key].rows) || [];
+  function sourceFields(key) {
+    const rows = sourceRows(key);
+    if (rows.length) return headersOf(rows.slice(0, 300));
+    if (isCustomSource(key)) return SRC[key].custom.columns.slice();
+    return E.SCHEMAS[key] ? E.SCHEMAS[key].slice() : [];
+  }
+  const empField = (fields) => fields.find((f) => f === 'emp_id') || fields.find((f) => EMP_KEYS.includes(normH(f))) || null;
+  const nameField = (fields) => fields.find((f) => /^(employee_?name|name|full_?name)$/i.test(f)) || null;
+
+  // ---- Data source editor
+  function sourceModal(def, opener, importItem) {
+    const d = def ? def.custom : { title: importItem ? upper(importItem.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim()) : '', sys: '', desc: '', stage: 'payroll', owner: 'Payroll', required: false };
+    openModal(`<div class="mh"><h2 id="modalTitle">${def ? 'Edit data source' : 'Add a data source'}</h2></div>
+      <div class="mb">
+        ${def ? '' : '<p>Add any file or system your team checks each pay cycle, such as benefits enrollment, tips, garnishments, expense reimbursements or contractor payments. Then upload its file and write rules for it on the Rules page.</p>'}
+        <label class="field-col" for="csTitle"><b>Name</b><input class="text" id="csTitle" value="${esc(d.title)}" placeholder="e.g. Benefits enrollment" autocomplete="off" autofocus></label>
+        <label class="field-col" for="csSys"><span><b>Where it comes from</b> <span class="muted">optional</span></span><input class="text" id="csSys" value="${esc(d.sys)}" placeholder="e.g. Benefits portal export" autocomplete="off"></label>
+        <label class="field-col" for="csDesc"><span><b>What it contains</b> <span class="muted">optional</span></span><textarea class="text" id="csDesc" placeholder="e.g. One row per employee and plan, with the deduction amount">${esc(d.desc)}</textarea></label>
+        <div class="two-col">
+          <label class="field-col" for="csStage"><b>Step of the pay cycle</b><select id="csStage">${E.STAGES.map((s) => `<option value="${s.id}" ${d.stage === s.id ? 'selected' : ''}>${esc(s.title)}${PRE.includes(s.id) ? ' (before release)' : ' (after payday)'}</option>`).join('')}</select></label>
+          <label class="field-col" for="csOwner"><b>Owner</b><select id="csOwner">${OWNERS.map((o) => `<option ${d.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+        </div>
+        <label class="field" style="color:var(--ink);align-items:flex-start"><input type="checkbox" class="cb" id="csRequired" ${d.required ? 'checked' : ''}> <span><b>Required every pay cycle</b><br><span class="muted">If the file is missing, the review queue gets a blocker. In a step before release, that stops payroll release.</span></span></label>
+        <p class="form-err" id="csErr" hidden></p>
+      </div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="cs-save" data-key="${def ? esc(def.key) : ''}" data-import="${importItem ? esc(importItem.id) : ''}">${def ? 'Save' : 'Add data source'}</button></div>`, opener);
+  }
+  function saveSource(el) {
+    if (!allow('data')) { closeModal(); return; }
+    const title = $('#csTitle').value.trim();
+    const err = $('#csErr');
+    const editing = el.dataset.key ? store.customSources.find((x) => x.key === el.dataset.key) : null;
+    const clash = SOURCES.find((s) => s.title.toLowerCase() === title.toLowerCase() && (!editing || s.key !== editing.key));
+    if (!title || clash) { err.textContent = !title ? 'Give the data source a name.' : `There is already a data source called ${clash.title}.`; err.hidden = false; $('#csTitle').focus(); return; }
+    const fields = { title, sys: $('#csSys').value.trim(), desc: $('#csDesc').value.trim(), stage: $('#csStage').value, owner: $('#csOwner').value, required: $('#csRequired').checked };
+    let d = editing;
+    if (d) {
+      Object.assign(d, fields);
+      log('Data source changed', `${title} · ${STAGE_TITLE[d.stage]} · ${d.owner}${d.required ? ' · required every cycle' : ''}`);
+    } else {
+      d = Object.assign({ key: `cs${Date.now().toString(36)}`, columns: [], created: nowIso(), by: store.user }, fields);
+      store.customSources.push(d);
+      log('Data source added', `${title} · ${STAGE_TITLE[d.stage]} · ${d.owner}${d.required ? ' · required every cycle' : ''}`);
+    }
+    syncCustomSources();
+    if (!state.src[d.key]) state.src[d.key] = { mode: 'upload' };
+    const it = el.dataset.import && state.importQueue.find((x) => x.id === el.dataset.import);
+    if (it) { it.kind = d.key; it.map = {}; }
+    closeModal();
+    recompute();
+    persistSources();
+    renderAll();
+    toast(editing ? `${title} saved` : `${title} added${it ? ' · ready to load' : '. Upload its file below.'}`);
+  }
+  function removeSourceModal(key, opener) {
+    const def = SRC[key];
+    if (!def) return;
+    const used = (store.customRules || []).filter((r) => r.source === key);
+    openModal(`<div class="mh"><h2 id="modalTitle">Remove ${esc(def.title)}?</h2></div>
+      <div class="mb"><p>This removes the data source and its loaded file from this browser.${used.length ? ` ${plural(used.length, 'rule uses', 'rules use')} it and will be turned off: ${esc(used.map((r) => r.name).join(', '))}.` : ''}</p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="cs-remove-confirm" data-key="${esc(key)}">Remove</button></div>`, opener);
+  }
+  function removeSource(key) {
+    if (!allow('data')) { closeModal(); return; }
+    const d = store.customSources.find((x) => x.key === key);
+    if (!d) { closeModal(); return; }
+    store.customSources = store.customSources.filter((x) => x.key !== key);
+    const off = (store.customRules || []).filter((r) => r.source === key && r.enabled);
+    off.forEach((r) => { r.enabled = false; });
+    delete state.src[key];
+    delete store.connectors[key];
+    syncCustomSources();
+    log('Data source removed', `${d.title}${off.length ? ` · turned off ${plural(off.length, 'rule')}` : ''}`);
+    closeModal();
+    recompute();
+    persistSources();
+    renderAll();
+    toast(`${d.title} removed`);
+  }
+  function customMeta(def) {
+    const d = def.custom;
+    const used = (store.customRules || []).filter((r) => r.source === def.key).length;
+    return `<div class="cs-meta"><span class="pill plain">${esc(STAGE_TITLE[d.stage])}</span><span class="pill plain">Owner: ${esc(d.owner)}</span>${d.required ? '<span class="pill review">Required every cycle</span>' : ''}${used ? `<span class="pill info">${plural(used, 'rule')}</span>` : ''}</div>`;
+  }
+  function customSourcesCard() {
+    const list = SOURCES.filter((s) => s.group === 'custom');
+    if (!list.length) return '';
+    return `<section class="card" style="margin-top:16px"><div class="card-head"><h3>Your data sources</h3><a class="more" href="#sources">Data sources</a></div>
+      <div class="table-wrap"><table><thead><tr><th>Source</th><th>Step</th><th>Received</th><th>Status</th><th class="n">Records</th></tr></thead>
+      <tbody>${list.map((s) => {
+        const st = state.src[s.key] || {};
+        const n = (st.rows || []).length;
+        return `<tr><td><b>${esc(s.title)}</b><br><span class="muted" style="font-size:var(--t-xs)">${esc(s.sys)}</span></td><td>${esc(STAGE_TITLE[s.custom.stage])}</td>
+          <td class="mono" style="font-size:var(--t-xs)">${n && st.at ? esc(stamp(st.at)) : '—'}</td>
+          <td>${n ? '<span class="pill pass">Loaded</span>' : s.custom.required ? '<span class="pill blocker">Missing</span>' : '<span class="pill plain">Not loaded</span>'}</td><td class="n">${n || '—'}</td></tr>`;
+      }).join('')}</tbody></table></div></section>`;
+  }
+
+  // ---- Rule engine
+  const OPS = [['gt', 'is more than'], ['gte', 'is at least'], ['lt', 'is less than'], ['lte', 'is at most'], ['eq', 'equals'], ['ne', 'does not equal'],
+    ['contains', 'contains'], ['not_contains', 'does not contain'], ['in', 'is one of'], ['empty', 'is empty'], ['not_empty', 'is not empty']];
+  const OP_WORD = Object.fromEntries(OPS);
+  const NO_VALUE = new Set(['empty', 'not_empty']);
+  // Numbers as files write them: 1,234.56, $12, (45.00). Dates and times are not numbers.
+  function numv(v) {
+    const s = String(v === null || v === undefined ? '' : v).trim();
+    if (!/^\(?-?\$?\s*[\d,]*\.?\d+\)?$/.test(s)) return null;
+    const n = parseFloat(s.replace(/[$,()\s]/g, ''));
+    return Number.isFinite(n) ? (/^\(.*\)$/.test(s) ? -n : n) : null;
+  }
+  function testCond(row, c) {
+    const a = row[c.field];
+    const b = c.cmp === 'field' ? row[c.value] : c.value;
+    const sa = String(a === null || a === undefined ? '' : a).trim(), sb = String(b === null || b === undefined ? '' : b).trim();
+    const la = sa.toLowerCase(), lb = sb.toLowerCase();
+    if (c.op === 'empty') return sa === '';
+    if (c.op === 'not_empty') return sa !== '';
+    if (c.op === 'contains') return lb !== '' && la.includes(lb);
+    if (c.op === 'not_contains') return !la.includes(lb);
+    if (c.op === 'in') return lb.split(',').map((x) => x.trim()).filter(Boolean).includes(la);
+    const na = numv(a), nb = numv(b);
+    const num = na !== null && nb !== null;
+    if (c.op === 'eq') return num ? Math.abs(na - nb) < 0.005 : la === lb;
+    if (c.op === 'ne') return num ? Math.abs(na - nb) >= 0.005 : la !== lb;
+    if (num) return { gt: na > nb, gte: na >= nb, lt: na < nb, lte: na <= nb }[c.op] || false;
+    if (sa === '' || sb === '') return false;
+    return { gt: sa > sb, gte: sa >= sb, lt: sa < sb, lte: sa <= sb }[c.op] || false;
+  }
+  const activeConds = (rule) => (rule.conds || []).filter((c) => c.field && c.op && (NO_VALUE.has(c.op) || String(c.value || '').trim() !== ''));
+  // Rows to test: each row, or one combined row per employee with numbers added up.
+  function ruleRows(rule) {
+    const rows = sourceRows(rule.source);
+    if (rule.scope !== 'employee') return rows.map((row) => ({ row, n: 1 }));
+    const ef = empField(sourceFields(rule.source));
+    if (!ef) return [];
+    const groups = {};
+    rows.forEach((r) => { const id = String(r[ef] || '').trim(); if (id) (groups[id] = groups[id] || []).push(r); });
+    return Object.values(groups).map((list) => {
+      const out = {};
+      headersOf(list).forEach((k) => {
+        const vals = list.map((r) => r[k]).filter((v) => v !== undefined && String(v).trim() !== '');
+        const nums = vals.map(numv);
+        out[k] = k !== ef && vals.length && nums.every((n) => n !== null) ? String(E.util.r2(sum(nums, (n) => n))) : vals[0] || '';
+      });
+      out.row_count = String(list.length);
+      return { row: out, n: list.length };
+    });
+  }
+  function ruleMatches(rule) {
+    const conds = activeConds(rule);
+    if (!conds.length || !SRC[rule.source]) return [];
+    return ruleRows(rule).filter(({ row }) => (rule.match === 'any' ? conds.some((c) => testCond(row, c)) : conds.every((c) => testCond(row, c))));
+  }
+  const fieldLabel = (f) => (f === 'row_count' ? 'number of rows' : f);
+  function condText(c, row) {
+    const target = NO_VALUE.has(c.op) ? '' : c.cmp === 'field' ? `${fieldLabel(c.value)}${row ? ` (${String(row[c.value] || '').trim() || 'blank'})` : ''}` : c.value;
+    if (!row) return `${fieldLabel(c.field)} ${OP_WORD[c.op]}${target !== '' ? ' ' + target : ''}`;
+    const actual = String(row[c.field] === undefined ? '' : row[c.field]).trim() || 'blank';
+    return `${fieldLabel(c.field)} is ${actual} (rule: ${OP_WORD[c.op]}${target !== '' ? ' ' + target : ''})`;
+  }
+  function ruleSummary(rule) {
+    const def = SRC[rule.source];
+    const conds = activeConds(rule);
+    return `${rule.scope === 'employee' ? 'Each employee’s total in' : 'Each row in'} ${def ? def.title.toLowerCase() : 'a removed source'}: ${conds.length ? conds.map((c) => condText(c)).join(rule.match === 'any' ? ' or ' : ' and ') : 'no conditions yet'}`;
+  }
+  const fillTitle = (tpl, row, emp) => String(tpl || '').replace(/\{([^{}]+)\}/g, (m, k) => {
+    const key = k.trim();
+    if (key === 'employee') return emp ? emp.name : '';
+    return row[key] === undefined ? m : String(row[key]);
+  }).trim();
+  // What the AI is told about a match: the same finding, with identifying values hidden.
+  function customFinding(x) {
+    const rule = (store.customRules || []).find((r) => r.id === x.check);
+    if (!rule || !x.row) return x.detail;
+    const safe = Object.assign({}, x.row);
+    Object.keys(safe).forEach((k) => { if (SENSITIVE_RE.test(k)) safe[k] = '[hidden]'; });
+    return `${x.rowCount > 1 ? `Total across ${plural(x.rowCount, 'row')} in` : 'In'} ${SRC[rule.source] ? SRC[rule.source].title : 'the file'}: ${activeConds(rule).map((c) => condText(c, safe)).join('; ')}.`;
+  }
+
+  // Runs after the engine: required files, then every rule that is on. Results join the same lists.
+  function runCustomRules(r) {
+    Object.keys(CHECK_OF).forEach((k) => { if (CHECK_OF[k].custom) delete CHECK_OF[k]; });
+    const added = [];
+    const add = (o) => {
+      const emp = o.empId && r.empById[o.empId];
+      const x = Object.assign({ severity: 'review', impact: null, empId: null, empName: '', date: '', links: [], custom: true }, o);
+      if (emp) { x.empName = emp.name; x.location = emp.location || ''; x.cc = emp.cc || ''; emp.exceptions.push(x); }
+      added.push(x);
+    };
+    const required = SOURCES.filter((s) => s.group === 'custom' && s.custom.required);
+    if (required.length) {
+      CHECK_OF.D1 = { id: 'D1', stage: 'time', title: 'Required files received', custom: true, rule: () => 'Every data source marked as required has a file for this pay cycle.' };
+      required.filter((s) => !sourceRows(s.key).length).forEach((s) => add({
+        check: 'D1', stage: s.custom.stage, severity: 'blocker', source: s.key, owner: s.custom.owner,
+        title: `${s.title} not received`, detail: `${s.title} is required every pay cycle and no file has been loaded for this one.`,
+        action: `Upload this cycle’s ${s.title} file on the Data sources page, or ask a payroll admin to make it optional.`,
+      }));
+    }
+    const ran = new Set(required.length ? ['D1'] : []);
+    (store.customRules || []).forEach((rule) => {
+      const def = SRC[rule.source];
+      CHECK_OF[rule.id] = { id: rule.id, stage: rule.stage, title: rule.name, custom: true, rule: () => ruleSummary(rule) };
+      if (!rule.enabled || !def) return;
+      if (sourceRows(rule.source).length) ran.add(rule.id);
+      const fields = sourceFields(rule.source);
+      const ef = empField(fields), nf = nameField(fields);
+      const conds = activeConds(rule);
+      ruleMatches(rule).slice(0, MAX_RULE_HITS).forEach(({ row, n }) => {
+        const empId = ef ? String(row[ef] || '').trim() || null : null;
+        const emp = empId && r.empById[empId];
+        const amt = rule.amountField ? numv(row[rule.amountField]) : null;
+        add({
+          check: rule.id, stage: rule.stage, severity: rule.severity, owner: rule.owner, source: rule.source, row: Object.assign({}, row), rowCount: n,
+          empId, empName: emp ? emp.name : nf ? String(row[nf] || '') : '',
+          date: rule.scope === 'employee' ? '' : DATE_KEYS.map((k) => row[k]).find((v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))) || '',
+          title: fillTitle(rule.title || rule.name, row, emp) || rule.name,
+          detail: `${n > 1 ? `Total across ${plural(n, 'row')} in` : 'In'} ${def.title}: ${conds.map((c) => condText(c, row)).join('; ')}.`,
+          action: rule.action || 'Check the record and correct it at the source.',
+          impact: amt !== null && Math.abs(amt) >= 0.01 ? { amount: E.util.r2(Math.abs(amt)), kind: rule.amountKind || 'underpaid', estimated: false } : null,
+        });
+      });
+    });
+    const sevRank = { blocker: 0, review: 1, info: 2 };
+    const stageRank = Object.fromEntries(E.STAGES.map((s, i) => [s.id, i]));
+    const seq = {};
+    added.forEach((x) => { seq[x.check] = (seq[x.check] || 0) + 1; x.id = `${x.check}-${String(seq[x.check]).padStart(2, '0')}`; });
+    r.exceptions.push(...added);
+    r.exceptions.sort((a, b) => sevRank[a.severity] - sevRank[b.severity] || stageRank[a.stage] - stageRank[b.stage]);
+    const defs = Object.values(CHECK_OF).filter((c) => c.custom && (c.id === 'D1' || (store.customRules || []).some((x) => x.id === c.id && x.enabled && SRC[x.source])));
+    defs.forEach((c) => {
+      const list = added.filter((x) => x.check === c.id);
+      const worst = list.reduce((w, e) => (sevRank[e.severity] < sevRank[w] ? e.severity : w), 'info');
+      r.checks.push({
+        id: c.id, stage: c.stage, title: c.title, rule: c.rule(), custom: true, ran: ran.has(c.id),
+        count: list.length, blockers: list.filter((e) => e.severity === 'blocker').length,
+        status: !list.length ? 'pass' : list.some((e) => e.severity !== 'info') ? (worst === 'blocker' ? 'fail' : 'warn') : 'note',
+      });
+    });
+    r.stages.forEach((s) => {
+      const list = r.exceptions.filter((x) => x.stage === s.id);
+      s.blockers = list.filter((x) => x.severity === 'blocker').length;
+      s.review = list.filter((x) => x.severity === 'review').length;
+      s.info = list.filter((x) => x.severity === 'info').length;
+    });
+    const t = r.totals;
+    t.exceptions = r.exceptions.length;
+    t.blockers = r.exceptions.filter((x) => x.severity === 'blocker').length;
+    t.review = r.exceptions.filter((x) => x.severity === 'review').length;
+    t.info = r.exceptions.filter((x) => x.severity === 'info').length;
+    t.releaseBlockers = r.exceptions.filter((x) => x.severity === 'blocker' && PRE.includes(x.stage)).length;
+    t.postBlockers = r.exceptions.filter((x) => x.severity === 'blocker' && !PRE.includes(x.stage)).length;
+    t.checksRun = r.checks.filter((c) => c.ran).length;
+    t.checksFailed = r.checks.filter((c) => c.ran && (c.status === 'fail' || c.status === 'warn')).length;
+    t.clean = r.employees.filter((e) => !e.exceptions.some((x) => x.severity !== 'info')).length;
+  }
+
+  // ---- Rule builder
+  const RULE_TEMPLATES = [
+    { name: 'Hourly rate below $20.00', source: 'census', conds: [{ field: 'pay_type', op: 'eq', value: 'Hourly' }, { field: 'hourly_rate', op: 'lt', value: '20' }], severity: 'review', owner: 'HR', title: 'Hourly rate of ${hourly_rate} is below $20.00', action: 'Confirm the rate against the offer letter and the union scale.' },
+    { name: 'More than 80 hours in the pay period', source: 'time', scope: 'employee', conds: [{ field: 'wfm_hours', op: 'gt', value: '80' }], severity: 'review', owner: 'Payroll', title: '{wfm_hours} hours recorded this pay period', action: 'Check the timecard with the store manager before payroll runs.' },
+    { name: 'Shift longer than 12 hours', source: 'time', conds: [{ field: 'wfm_hours', op: 'gt', value: '12' }], severity: 'review', owner: 'Store manager', title: 'Shift of {wfm_hours} hours on {work_date}', action: 'Confirm the punches with the store manager and correct them in WFM.' },
+    { name: 'Direct deposit over $2,500', source: 'bank', conds: [{ field: 'txn_type', op: 'eq', value: 'ACH_CREDIT' }, { field: 'amount', op: 'gt', value: '2500' }], severity: 'info', owner: 'Treasury', title: 'Deposit of ${amount}', action: 'Spot-check the amount against the payroll register.' },
+    { name: 'Net pay of zero or less', source: 'register', conds: [{ field: 'net_pay', op: 'lte', value: '0' }], severity: 'blocker', owner: 'Payroll', title: 'Net pay of {net_pay}', action: 'Review deductions and garnishments before release.' },
+    { name: 'Employee with no cost center', source: 'census', conds: [{ field: 'cost_center', op: 'empty', value: '' }], severity: 'review', owner: 'HR', title: 'No cost center on file', action: 'Add the home cost center so wages post to the right account.' },
+  ];
+  const AMOUNT_KINDS = [['underpaid', 'owed to the employee'], ['overpaid', 'overpaid'], ['tax', 'tax exposure'], ['cash', 'deposit to fix'], ['gl', 'GL to correct'], ['liability', 'PTO liability']];
+  function blankDraft() {
+    return { id: null, name: '', source: 'time', scope: 'row', match: 'all', conds: [{ field: '', op: 'gt', cmp: 'value', value: '' }], severity: 'review', stage: SOURCE_STAGE.time, owner: 'Payroll', title: '', amountField: '', amountKind: 'underpaid', action: '', enabled: true };
+  }
+  function draftFromTemplate(t) {
+    return Object.assign(blankDraft(), JSON.parse(JSON.stringify(t)), { stage: SOURCE_STAGE[t.source] || 'payroll' }, { conds: t.conds.map((c) => Object.assign({ cmp: 'value' }, c)) });
+  }
+  function ruleModal(opener, draft) {
+    state.ruleDraft = draft;
+    openModal(`<div class="mh"><h2 id="modalTitle">${draft.id ? `Edit rule ${esc(draft.id)}` : 'New rule'}</h2></div>
+      <div class="mb" id="rbBody">${builderBody()}</div>
+      <div class="mf"><p class="form-err" id="rbErr" hidden style="margin-right:auto"></p><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="rb-save">${draft.id ? 'Save rule' : 'Create rule'}</button></div>`, opener, true);
+    refreshPreview();
+  }
+  function builderBody() {
+    const d = state.ruleDraft;
+    const fields = sourceFields(d.source);
+    const ef = empField(fields);
+    const all = d.scope === 'employee' ? fields.concat(['row_count']) : fields;
+    const fsel = (attrs, val, blank) => `<select ${attrs}><option value="" ${val ? '' : 'selected'}>${blank}</option>${all.map((f) => `<option value="${esc(f)}" ${f === val ? 'selected' : ''}>${esc(fieldLabel(f))}</option>`).join('')}${val && !all.includes(val) ? `<option value="${esc(val)}" selected>${esc(val)}</option>` : ''}</select>`;
+    return `
+      ${d.id ? '' : `<div><span class="eyebrow">Start from a template</span><div class="tpl-row" style="margin-top:6px">${RULE_TEMPLATES.map((t, k) => `<button class="chip-btn" type="button" data-action="rb-template" data-t="${k}">${esc(t.name)}</button>`).join('')}</div></div>`}
+      <label class="field-col" for="rbName"><b>Rule name</b><input class="text" id="rbName" data-rd="name" value="${esc(d.name)}" placeholder="e.g. Shift longer than 12 hours" autocomplete="off"></label>
+      <div class="rb-section"><h4>What to check</h4>
+        <div class="two-col">
+          <label class="field-col" for="rbSource"><b>Data source</b><select id="rbSource" data-rd="source">${ruleSources().map((s) => `<option value="${s.key}" ${d.source === s.key ? 'selected' : ''}>${esc(s.title)}${sourceRows(s.key).length ? '' : ' (no file yet)'}</option>`).join('')}</select></label>
+          <label class="field-col" for="rbScope"><b>Check</b><select id="rbScope" data-rd="scope"><option value="row" ${d.scope !== 'employee' ? 'selected' : ''}>Each row</option><option value="employee" ${d.scope === 'employee' ? 'selected' : ''} ${ef ? '' : 'disabled'}>Each employee’s total${ef ? '' : ' (needs an employee ID column)'}</option></select></label>
+        </div>
+        <div class="rb-match">Flag it when <select data-rd="match" aria-label="Match"><option value="all" ${d.match !== 'any' ? 'selected' : ''}>all</option><option value="any" ${d.match === 'any' ? 'selected' : ''}>any</option></select> of these are true:</div>
+        <div class="rb-conds">${d.conds.map((c, i) => `<div class="rb-cond">
+          ${fsel(`data-rc="field" data-i="${i}" aria-label="Column"`, c.field, 'Choose a column…')}
+          <select data-rc="op" data-i="${i}" aria-label="Test">${OPS.map(([v, l]) => `<option value="${v}" ${c.op === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+          ${NO_VALUE.has(c.op) ? '<span></span><span></span>' : `<select data-rc="cmp" data-i="${i}" aria-label="Compare with"><option value="value" ${c.cmp !== 'field' ? 'selected' : ''}>a value</option><option value="field" ${c.cmp === 'field' ? 'selected' : ''}>another column</option></select>
+          ${c.cmp === 'field' ? fsel(`data-rc="value" data-i="${i}" aria-label="Other column"`, c.value, 'Choose a column…') : `<input class="text" data-rc="value" data-i="${i}" value="${esc(c.value)}" placeholder="${c.op === 'in' ? 'A, B, C' : 'Value'}" aria-label="Value" autocomplete="off">`}`}
+          <button class="linkish" type="button" data-action="rb-cond-remove" data-i="${i}" ${d.conds.length === 1 ? 'disabled' : ''}>Remove</button>
+        </div>`).join('')}</div>
+        <div><button class="btn small" type="button" data-action="rb-cond-add">Add a condition</button></div>
+        ${fields.length ? '' : '<p class="muted" style="font-size:var(--t-xs)">This source has no file yet, so its columns are unknown. Upload a file first, or type column names exactly as they appear in the file.</p>'}
+      </div>
+      <div class="rb-section"><h4>When it finds something</h4>
+        <div class="two-col">
+          <label class="field-col" for="rbSev"><b>Level</b><select id="rbSev" data-rd="severity">${[['blocker', 'Blocker: must be fixed'], ['review', 'Review: someone should look'], ['info', 'Info: just a note']].map(([v, l]) => `<option value="${v}" ${d.severity === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="field-col" for="rbStage"><b>Step of the pay cycle</b><select id="rbStage" data-rd="stage">${E.STAGES.map((s) => `<option value="${s.id}" ${d.stage === s.id ? 'selected' : ''}>${esc(s.title)}${PRE.includes(s.id) ? ' (before release)' : ' (after payday)'}</option>`).join('')}</select></label>
+          <label class="field-col" for="rbOwner"><b>Owner</b><select id="rbOwner" data-rd="owner">${OWNERS.map((o) => `<option ${d.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+          <label class="field-col" for="rbAmt"><span><b>Dollar impact</b> <span class="muted">optional</span></span><span class="rb-amt">${fsel('id="rbAmt" data-rd="amountField"', d.amountField, 'None')}<select data-rd="amountKind" aria-label="Counts as" ${d.amountField ? '' : 'disabled'}>${AMOUNT_KINDS.map(([v, l]) => `<option value="${v}" ${d.amountKind === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></span></label>
+        </div>
+        ${d.severity === 'blocker' && PRE.includes(d.stage) ? '<p class="notice warn" style="margin:0">Blockers in this step stop payroll release until someone approves or dismisses them.</p>' : ''}
+        <label class="field-col" for="rbTitle"><span><b>Title in the review queue</b> <span class="muted">optional · use {column} to include a value</span></span><input class="text" id="rbTitle" data-rd="title" value="${esc(d.title)}" placeholder="${esc(d.name || 'Uses the rule name')}" autocomplete="off"></label>
+        <label class="field-col" for="rbAction"><span><b>Suggested fix</b> <span class="muted">optional</span></span><textarea class="text" id="rbAction" data-rd="action" placeholder="What the owner should do">${esc(d.action)}</textarea></label>
+      </div>
+      <div class="rb-preview" id="rbPreview" aria-live="polite"></div>`;
+  }
+  function draftProblem(d, saving) {
+    if (saving && !d.name.trim()) return 'Give the rule a name.';
+    const conds = d.conds.filter((c) => c.field || String(c.value || '').trim());
+    if (!conds.length) return 'Add at least one condition: choose a column and a test.';
+    const bad = conds.find((c) => !c.field || (!NO_VALUE.has(c.op) && String(c.value || '').trim() === ''));
+    if (bad) return bad.field ? `Give a ${bad.cmp === 'field' ? 'column' : 'value'} for “${fieldLabel(bad.field)} ${OP_WORD[bad.op]}”.` : 'Choose a column for each condition.';
+    if (d.scope === 'employee' && !empField(sourceFields(d.source))) return 'This source has no employee ID column, so it can only check each row.';
+    return '';
+  }
+  let previewTimer = null;
+  function refreshPreview(delay) {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      const el = $('#rbPreview');
+      const d = state.ruleDraft;
+      if (!el || !d) return;
+      const def = SRC[d.source];
+      const problem = draftProblem(d, false);
+      if (problem) { el.innerHTML = `<span class="muted">${esc(problem)}</span>`; return; }
+      if (!sourceRows(d.source).length) { el.innerHTML = `<span class="muted">${esc(def.title)} has no file loaded yet. The rule will run as soon as one arrives.</span>`; return; }
+      const hits = ruleMatches(d);
+      const fields = sourceFields(d.source);
+      const cols = Array.from(new Set([empField(fields), d.scope === 'employee' ? 'row_count' : DATE_KEYS.find((k) => fields.includes(k))].concat(activeConds(d).flatMap((c) => [c.field, c.cmp === 'field' ? c.value : null]), [d.amountField]).filter(Boolean))).slice(0, 6);
+      el.innerHTML = `<b>${hits.length ? `Finds ${plural(hits.length, 'match', 'matches')} in this pay cycle` : 'Finds nothing in this pay cycle'}</b>${hits.length > MAX_RULE_HITS ? ` <span class="muted">· the review queue shows the first ${MAX_RULE_HITS}</span>` : ''}
+        ${hits.length ? `<div class="table-wrap"><table><thead><tr>${cols.map((c) => `<th>${esc(fieldLabel(c))}</th>`).join('')}</tr></thead><tbody>${hits.slice(0, 5).map(({ row }) => `<tr>${cols.map((c) => `<td>${esc(row[c] === undefined ? '' : row[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${hits.length > 5 ? `<span class="muted" style="font-size:var(--t-xs)">and ${hits.length - 5} more</span>` : ''}` : ''}`;
+    }, delay || 0);
+  }
+  function rerenderBuilder(focusSel) {
+    const body = $('#rbBody');
+    if (!body) return;
+    body.innerHTML = builderBody();
+    refreshPreview();
+    if (focusSel) { const f = body.querySelector(focusSel); if (f) f.focus(); }
+  }
+  function onDraftField(el, structural) {
+    const d = state.ruleDraft;
+    if (!d) return;
+    const k = el.dataset.rd;
+    d[k] = el.value;
+    if (k === 'source') {
+      d.stage = isCustomSource(d.source) ? SRC[d.source].custom.stage : SOURCE_STAGE[d.source] || d.stage;
+      if (isCustomSource(d.source)) d.owner = SRC[d.source].custom.owner;
+      if (d.scope === 'employee' && !empField(sourceFields(d.source))) d.scope = 'row';
+    }
+    if (structural || ['source', 'scope', 'severity', 'stage', 'amountField'].includes(k)) rerenderBuilder(`[data-rd="${k}"]`);
+    else refreshPreview(k === 'name' || k === 'title' || k === 'action' ? 250 : 0);
+  }
+  function onDraftCond(el) {
+    const d = state.ruleDraft;
+    if (!d) return;
+    const c = d.conds[Number(el.dataset.i)];
+    if (!c) return;
+    const k = el.dataset.rc;
+    const before = { op: c.op, cmp: c.cmp };
+    c[k] = el.value;
+    if (k === 'cmp') c.value = '';
+    if (k === 'op' && NO_VALUE.has(c.op)) c.value = '';
+    if (k === 'cmp' || (k === 'op' && NO_VALUE.has(before.op) !== NO_VALUE.has(c.op))) rerenderBuilder(`[data-rc="${k}"][data-i="${el.dataset.i}"]`);
+    else refreshPreview(k === 'value' && el.tagName === 'INPUT' ? 200 : 0);
+  }
+  function saveRule() {
+    if (!allow('rules')) { closeModal(); return; }
+    const d = state.ruleDraft;
+    const err = $('#rbErr');
+    const problem = draftProblem(d, true);
+    if (problem) { err.textContent = problem; err.hidden = false; return; }
+    const clean = {
+      name: d.name.trim(), source: d.source, scope: d.scope === 'employee' ? 'employee' : 'row', match: d.match === 'any' ? 'any' : 'all',
+      conds: d.conds.filter((c) => c.field).map((c) => ({ field: c.field, op: c.op, cmp: c.cmp === 'field' ? 'field' : 'value', value: NO_VALUE.has(c.op) ? '' : String(c.value).trim() })),
+      severity: d.severity, stage: d.stage, owner: d.owner, title: d.title.trim(), amountField: d.amountField, amountKind: d.amountKind, action: d.action.trim(),
+    };
+    let rule = d.id && store.customRules.find((x) => x.id === d.id);
+    const hits = ruleMatches(Object.assign({}, clean)).length;
+    if (rule) {
+      Object.assign(rule, clean, { updated: nowIso(), updatedBy: store.user });
+      log('Rule changed', `${rule.id} ${rule.name}: ${ruleSummary(rule)} · ${SEV_LABEL[rule.severity].toLowerCase()} · finds ${hits}`);
+    } else {
+      const n = store.customRules.reduce((m, x) => Math.max(m, Number(String(x.id).slice(1)) || 0), 0) + 1;
+      rule = Object.assign({ id: `C${n}`, enabled: true, created: nowIso(), by: store.user }, clean);
+      store.customRules.push(rule);
+      log('Rule created', `${rule.id} ${rule.name}: ${ruleSummary(rule)} · ${SEV_LABEL[rule.severity].toLowerCase()} · finds ${hits}`);
+    }
+    state.ruleDraft = null;
+    closeModal();
+    recompute();
+    renderAll();
+    toast(`${rule.name} saved · finds ${plural(hits, 'match', 'matches')} in this pay cycle`);
+  }
+  function toggleRule(id, on) {
+    if (!allow('rules')) { renderRules(); return; }
+    const rule = store.customRules.find((x) => x.id === id);
+    if (!rule) return;
+    rule.enabled = on;
+    log(on ? 'Rule turned on' : 'Rule turned off', `${rule.id} ${rule.name}`);
+    recompute();
+    renderAll();
+    toast(`${rule.name} ${on ? 'on' : 'off'}`);
+  }
+  function deleteRuleModal(id, opener) {
+    const rule = store.customRules.find((x) => x.id === id);
+    if (!rule) return;
+    openModal(`<div class="mh"><h2 id="modalTitle">Delete ${esc(rule.name)}?</h2></div>
+      <div class="mb"><p>The rule stops running and its items leave the review queue. Notes and statuses already recorded stay in the activity log. To pause it instead, turn it off.</p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="rule-delete-confirm" data-id="${esc(id)}">Delete rule</button></div>`, opener);
+  }
+  function deleteRule(id) {
+    if (!allow('rules')) { closeModal(); return; }
+    const rule = store.customRules.find((x) => x.id === id);
+    if (!rule) { closeModal(); return; }
+    store.customRules = store.customRules.filter((x) => x.id !== id);
+    log('Rule deleted', `${rule.id} ${rule.name}`);
+    if (state.filters.check === id) state.filters.check = null;
+    closeModal();
+    recompute();
+    renderAll();
+    toast(`${rule.name} deleted`);
+  }
+  function customRulesHtml() {
+    const ed = can('rules');
+    const rules = store.customRules || [];
+    const counts = {};
+    state.result.exceptions.forEach((x) => { counts[x.check] = (counts[x.check] || 0) + 1; });
+    return `<div class="group-title" style="margin-top:0"><h3>Your rules</h3><span class="muted">Checks your team adds. They run on every import and send what they find to the review queue.</span>${ed ? '<span class="spacer"></span><button class="btn small primary" type="button" data-action="rule-new">New rule</button>' : ''}</div>
+      ${rules.length ? `<div class="table-wrap"><table class="my-rules">
+        <thead><tr><th>Rule</th><th>What it checks</th><th class="n">Found</th><th>Level</th><th>Owner</th><th>On</th><th></th></tr></thead>
+        <tbody>${rules.map((rule) => {
+          const live = rule.enabled && SRC[rule.source];
+          return `<tr>
+          <td><b>${esc(rule.name)}</b><br><span class="muted mono" style="font-size:var(--t-xs)">${esc(rule.id)} · ${esc(STAGE_TITLE[rule.stage])}</span></td>
+          <td class="wrap">${esc(ruleSummary(rule))}${SRC[rule.source] ? '' : ' <span class="pill review">Source removed</span>'}</td>
+          <td class="n">${!live ? '<span class="muted">—</span>' : counts[rule.id] ? `<button class="linkish" type="button" data-action="check" data-check="${esc(rule.id)}">${counts[rule.id]}</button>` : '0'}</td>
+          <td><span class="pill ${rule.severity}">${SEV_LABEL[rule.severity]}</span></td>
+          <td>${esc(rule.owner)}</td>
+          <td><input type="checkbox" class="cb" data-rule-on="${esc(rule.id)}" ${rule.enabled ? 'checked' : ''} ${ed && SRC[rule.source] ? '' : 'disabled'} aria-label="${esc(rule.name)} on"></td>
+          <td style="text-align:right;white-space:nowrap">${ed ? `<button class="btn small" type="button" data-action="rule-edit" data-id="${esc(rule.id)}">Edit</button> <button class="linkish" type="button" data-action="rule-delete" data-id="${esc(rule.id)}">Delete</button>` : ''}</td></tr>`;
+        }).join('')}</tbody></table></div>`
+      : `<section class="card"><div class="card-body" style="padding-top:16px;display:grid;gap:10px">
+          <p style="font-size:var(--t-sm)">No rules of your own yet. Start from a template or build one on any data source, including ones you add.</p>
+          ${ed ? `<div class="tpl-row">${RULE_TEMPLATES.map((t, k) => `<button class="chip-btn" type="button" data-action="rule-new" data-t="${k}">${esc(t.name)}</button>`).join('')}</div>` : ''}
+        </div></section>`}`;
+  }
+
+  // ----------------------------------------------------------------------------------
+  // Ask AI: a chat panel that answers from this cycle's data. The browser finds the
+  // records that match the question (retrieval), hides names, and sends only those.
+  // ----------------------------------------------------------------------------------
+
+  const STOP = new Set('a an the and or of to in on for is are was were be been with by at from this that these those it its as what which who whom how why when where do does did can could should would will i me my we our you your they them their there here any all some much many more most less than then into about over under per vs show tell give list find me please'.split(' '));
+  const SYNONYMS = {
+    owed: ['underpaid', 'owed'], underpaid: ['underpaid', 'owed'], short: ['underpaid', 'short'], overpaid: ['overpaid'], overtime: ['overtime', 'ot', 'premium'],
+    ot: ['overtime', 'ot'], sunday: ['sunday', 'premium'], sick: ['sick'], vacation: ['vacation', 'vac', 'pto'], pto: ['pto', 'vacation', 'vac', 'sick'],
+    deposit: ['deposit', 'ach', 'bank'], deposits: ['deposit', 'ach', 'bank'], bank: ['bank', 'ach', 'deposit'], ledger: ['ledger', 'gl', 'journal', 'account'],
+    gl: ['gl', 'ledger', 'journal'], tax: ['tax', 'withholding', 'remit'], taxes: ['tax', 'withholding', 'remit'], release: ['blocker', 'release'],
+    blocking: ['blocker'], blocked: ['blocker'], blockers: ['blocker'], stopping: ['blocker'], punch: ['punch', 'check-in', 'check-out', 'meal'],
+    punches: ['punch', 'meal', 'check-out'], lunch: ['meal', 'lunch'], policy: ['policy', 'handbook', 'agreement'], handbook: ['handbook', 'policy'],
+    union: ['union', 'agreement', 'cba'], repeat: ['repeat', 'recurring'], recurring: ['recurring', 'repeat'], late: ['late', 'cutoff'],
+    rate: ['rate', 'hourly_rate'], hire: ['hire', 'hire_date'], fired: ['termination', 'term_date'], terminated: ['termination', 'term_date'],
+  };
+  const KIND_LABEL = { summary: 'Cycle summary', exception: 'Exception', employee: 'Employee', policy: 'Policy', check: 'Check', reconciliation: 'Bank and ledger', repeat: 'Repeat issue', row: 'Data row' };
+  const tokenize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9_\- ]/g, ' ').split(/\s+/).map((w) => w.replace(/^-+|-+$/g, '')).filter((w) => w && !STOP.has(w));
+
+  function ragChunks() {
+    const r = state.result, rd = readiness(), oi = openImpact(), p = r.period;
+    const chunks = [];
+    const push = (kind, label, text, nav, extra) => chunks.push(Object.assign({ kind, label, text, nav }, extra || {}));
+    push('summary', `Pay cycle ${cycleId()}`, `Pay cycle ${cycleId()}, ${p.start} to ${p.end}, pay date ${p.payDate || 'unknown'}. Status: ${STATE_WORD[rd.state]}${rd.hold ? ` (on hold: ${rd.hold.reason})` : ''}. ${rd.preOpen.length} of ${rd.pre.length} pre-release blockers open; ${rd.postOpen.length} funding and GL blockers open. Gross pay ${F.money(r.regTotals.gross)}, net pay ${F.money(r.regTotals.net)}, employer taxes ${F.money(r.regTotals.erTax)}, ${r.totals.onRegister} employees on the register, ${r.totals.census} in the census. Open dollar impact: ${KINDS.map((k) => `${k.label.toLowerCase()} ${F.money(oi.amount[k.kind])}`).join('; ')}. ${r.exceptions.filter(isOpen).length} of ${r.exceptions.length} exceptions open.`, { type: 'page', page: 'overview' }, { always: true });
+    r.exceptions.forEach((x) => push('exception', `${x.check} · ${x.title}${x.empId ? ` · ${x.empName}` : ''}`,
+      `Exception ${x.id} (${x.check} ${CHECK_OF[x.check].title}), ${SEV_LABEL[x.severity]}, status ${STATUS_LABEL[statusOf(x)]}, step ${STAGE_OF[x.stage].title}. ${x.title}. ${x.detail} ${x.empId ? `Employee ${x.empId} ${x.empName}${x.location ? ', ' + x.location : ''}.` : 'Whole cycle.'} Owner ${ownerOf(x)}.${x.impact ? ` Dollar impact ${F.money(x.impact.amount)} ${KIND_WORD[x.impact.kind]}.` : ''}${x.action ? ` Suggested fix: ${x.action}` : ''}${lastNote(x) ? ` Latest note: ${lastNote(x)}` : ''}`,
+      { type: 'ex', key: x.key }, { empId: x.empId, check: x.check, open: isOpen(x), sev: x.severity, money: !!x.impact }));
+    r.employees.forEach((e) => {
+      const open = e.exceptions.filter((x) => x.severity !== 'info' && isOpen(x));
+      const R = e.register;
+      push('employee', `${e.name} (${e.id})`, `Employee ${e.id} ${e.name}: ${e.title || 'no job title'}, ${e.location || 'no location'}${e.cc ? ' ' + e.cc : ''}, ${e.cls ? e.cls.label : 'not in payroll'}. WFM hours ${E.util.r2(e.wfmWorked + e.wfmPto)}${R ? `; register gross ${F.money(E.util.num(R.gross_pay))}, net ${F.money(E.util.num(R.net_pay))}` : '; not on the register'}${e.expectedGross !== null && e.expectedGross !== undefined ? `; validated gross ${F.money(e.expectedGross)}` : ''}. ${open.length ? `Open items: ${open.map((x) => `${x.check} ${x.title}`).join('; ')}.` : 'No open items.'}`,
+        { type: 'emp', id: e.id }, { empId: e.id });
+    });
+    Object.values(allClauses()).forEach((c) => push('policy', `${c.id} ${c.title}`, `Policy ${c.id} ${c.title} (${c.doc}): ${c.text}`, null));
+    r.checks.forEach((c) => push('check', `${c.id} ${c.title}`, `Check ${c.id} ${c.title}${c.custom ? ' (a rule your team added)' : ''}: ${c.rule} ${c.ran ? `Found ${c.count}.` : 'Not run: no data.'}`, { type: 'check', id: c.id }, { check: c.id }));
+    threeWayRows().filter((row) => !row.sub).forEach((row) => push('reconciliation', `Bank and ledger: ${row.item}`, `Bank and ledger match for ${row.item}: payroll register ${F.money(row.payroll)}${row.bank !== null && row.bank !== undefined ? `, bank ${F.money(row.bank)}` : ''}${row.gl !== null && row.gl !== undefined ? `, general ledger ${F.money(row.gl)}` : ''}. ${row.break ? `Off by ${F.signedMoney(row.break)}.` : 'Matches.'}`, { type: 'page', page: 'threeway' }));
+    fixClusters(state.fixThreshold || store.policy.fixThreshold).recurring.forEach((c) => push('repeat', `Repeat issue: ${c.label}`, `Repeat issue: ${c.label}${c.dim ? ` at ${c.dim}` : ''}, seen in ${c.periods} of ${c.perPeriod.length} pay periods, ${c.occurrences} times, ${plural(c.people.size, 'person', 'people')}, usual owner ${c.owner}.`, { type: 'page', page: 'fixflow' }));
+    const RAG_PICK = { census: PICK.census, schedules: ['emp_id'].concat(PICK.sched), time: ['emp_id'].concat(PICK.time, ['location']), register: PICK.reg.concat(['fed_wh', 'state_wh', 'k401_ee', 'medical_ee']), bank: PICK.bank, gl: PICK.gl };
+    ruleSources().forEach((s) => sourceRows(s.key).forEach((row, i) => {
+      const keys = RAG_PICK[s.key] || Object.keys(row).filter((k) => !SENSITIVE_RE.test(k)).slice(0, 16);
+      const ef = empField(Object.keys(row));
+      const id = ef ? String(row[ef] || '').trim() : '';
+      push('row', `${s.title} · row ${i + 1}${id ? ` · ${id}` : ''}`, `${s.title} row: ${Object.entries(pickRow(row, keys)).map(([k, v]) => `${k} ${v}`).join(', ')}`,
+        id && state.result.empById[id] ? { type: 'emp', id } : { type: 'page', page: 'sources' }, { empId: id, source: s.key });
+    }));
+    return chunks;
+  }
+
+  // Keyword retrieval with a few payroll-aware boosts: people and check IDs named in the question,
+  // open blockers for release questions, policy text for policy questions, priced items for money.
+  function retrieve(question, k) {
+    const chunks = ragChunks();
+    const ql = question.toLowerCase();
+    const terms = new Set(tokenize(question).flatMap((w) => SYNONYMS[w] || [w]));
+    const people = new Set(state.result.employees.filter((e) => {
+      if (ql.includes(e.id.toLowerCase())) return true;
+      const n = String(e.name || '').toLowerCase();
+      return n && (ql.includes(n) || n.split(' ').some((part) => part.length > 3 && new RegExp(`\\b${part.replace(/[^a-z]/g, '')}\\b`).test(ql)));
+    }).map((e) => e.id));
+    const checks = new Set((question.match(/\b[TRPFGCD]\d{1,2}\b/gi) || []).map((s) => s.toUpperCase()));
+    const docs = chunks.map((c) => tokenize(c.text));
+    const df = {};
+    docs.forEach((toks) => new Set(toks).forEach((t) => { df[t] = (df[t] || 0) + 1; }));
+    const N = chunks.length;
+    const wantsRelease = /release|block|stop|hold|ready|payday/.test(ql);
+    const wantsPolicy = /policy|handbook|agreement|union|allowed|entitled|clause|rule says|supposed to/.test(ql);
+    const wantsMoney = /owe|owed|underpaid|overpaid|money|dollar|\$|cost|impact|how much/.test(ql);
+    const scored = chunks.map((c, i) => {
+      if (c.always) return { c, s: 0 };
+      const tf = {};
+      docs[i].forEach((t) => { tf[t] = (tf[t] || 0) + 1; });
+      let s = 0;
+      terms.forEach((t) => { if (tf[t]) s += Math.log(1 + N / df[t]) * (tf[t] / (tf[t] + 1.2)); });
+      if (c.empId && people.has(c.empId)) s += c.kind === 'row' ? 3 : 6;
+      if (c.check && checks.has(c.check)) s += 5;
+      if (c.kind === 'exception' && c.open) s += 0.5;
+      if (wantsRelease && c.kind === 'exception' && c.open && c.sev === 'blocker') s += 2.5;
+      if (wantsPolicy && c.kind === 'policy') s += 1.5;
+      if (wantsMoney && c.money && c.open) s += 1.5;
+      if (c.kind === 'row') s *= 0.75;
+      return { c, s };
+    }).filter((x) => x.s > 0.4).sort((a, b) => b.s - a.s);
+    return [chunks.find((c) => c.always)].concat(scored.slice(0, k || 14).map((x) => x.c));
+  }
+
+  function chatPayload(question, refs) {
+    const m = masker();
+    const hist = [];
+    const msgs = state.chat.msgs;
+    for (let i = msgs.length - 2; i >= 0 && hist.length < 2; i--) {
+      if (msgs[i].role === 'user' && msgs[i + 1] && msgs[i + 1].answer) hist.unshift({ question: m.text(msgs[i].text), answer: msgs[i + 1].answer });
+    }
+    return {
+      company: 'Retail apparel employer, NY and NJ stores (synthetic demo data)',
+      question: m.text(question),
+      earlier: hist,
+      records: refs.map((c, i) => ({ ref: `R${i + 1}`, type: KIND_LABEL[c.kind], text: m.text(c.text).slice(0, 700) })),
+    };
+  }
+
+  const chatAiOn = () => !!(state.ai && state.ai.available && store.policy.aiChat && can('ai'));
+  async function askChat(question) {
+    question = String(question || '').trim();
+    if (!question || state.chat.busy) return;
+    const refs = retrieve(question, 14);
+    const m = masker();
+    const msgRefs = refs.map((c, i) => ({ ref: `R${i + 1}`, kind: c.kind, label: c.label, text: c.text, nav: c.nav }));
+    state.chat.msgs.push({ role: 'user', text: question, at: nowIso() });
+    state.chat.draft = '';
+    if (!chatAiOn()) {
+      const why = !store.policy.aiChat ? 'AI chat is turned off by a payroll admin.' : !can('ai') ? `Your role (${roleLabel(me())}) can’t use the AI.` : 'The AI service isn’t connected on this deployment.';
+      state.chat.msgs.push({ role: 'ai', local: true, refs: msgRefs, why });
+      renderChat();
+      return;
+    }
+    state.chat.busy = true;
+    renderChat();
+    try {
+      const j = await callAi('chat', chatPayload(question, refs));
+      const data = j.data || {};
+      state.chat.msgs.push({ role: 'ai', answer: String(data.answer || ''), follow: (data.follow_ups || []).slice(0, 3).map(String), refs: msgRefs, model: j.model, at: nowIso() });
+      log('Asked the AI', `“${m.text(question).slice(0, 160)}” · answered from ${plural(refs.length, 'record')}`);
+    } catch (e) {
+      state.chat.msgs.push({ role: 'ai', local: true, refs: msgRefs, why: e.message });
+    }
+    state.chat.busy = false;
+    renderChat();
+  }
+
+  const CHAT_SUGGEST = ['What’s stopping payroll from being released?', 'Who is owed money this cycle, and how much?', 'Summarize the bank and ledger differences', 'Which store keeps missing lunch check-ins?', 'What does the handbook say about sick time?'];
+  function chatShow(s) {
+    const m = masker();
+    return can('unmask') && state.chatNames !== false ? m.unmask(s) : m.text(s);
+  }
+  function chatAnswerHtml(msg, idx) {
+    if (msg.local) {
+      const top = msg.refs.filter((x) => x.kind !== 'summary').slice(0, 6);
+      return `<div class="msg ai local"><p class="msg-note">${esc(msg.why)} The closest records in your data:</p>
+        ${top.length ? `<ol class="msg-refs">${top.map((x) => `<li><button type="button" class="linkish" data-action="chat-ref" data-m="${idx}" data-ref="${x.ref}">${esc(chatShow(x.label))}</button><span>${esc(KIND_LABEL[x.kind])}</span></li>`).join('')}</ol>` : '<p class="muted">Nothing matched. Try other words, a person’s name or a check ID like P4.</p>'}</div>`;
+    }
+    const lines = esc(chatShow(msg.answer)).split(/\n/).map((l) => l.trim()).filter(Boolean);
+    let html = '', list = false;
+    lines.forEach((l) => {
+      const li = /^([-•*]|\d+[.)])\s+/.test(l);
+      if (li && !list) { html += '<ul>'; list = true; }
+      if (!li && list) { html += '</ul>'; list = false; }
+      html += li ? `<li>${l.replace(/^([-•*]|\d+[.)])\s+/, '')}</li>` : `<p>${l}</p>`;
+    });
+    if (list) html += '</ul>';
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[(R\d+)\]/g, (mm, ref) => (msg.refs.some((x) => x.ref === ref) ? `<button type="button" class="cite" data-action="chat-ref" data-m="${idx}" data-ref="${ref}">${ref}</button>` : mm));
+    const cited = msg.refs.filter((x) => msg.answer.includes(`[${x.ref}]`));
+    return `<div class="msg ai">${html}
+      ${cited.length ? `<details class="msg-src" id="msgsrc-${idx}"><summary>${plural(cited.length, 'source')}</summary><ol>${cited.map((x) => `<li id="msgref-${idx}-${x.ref}"><button type="button" class="linkish" data-action="chat-ref" data-m="${idx}" data-ref="${x.ref}">${x.ref} · ${esc(chatShow(x.label))}</button><span>${esc(chatShow(x.text).slice(0, 220))}</span></li>`).join('')}</ol></details>` : ''}
+      ${msg.follow && msg.follow.length ? `<div class="msg-follow">${msg.follow.map((f) => `<button class="chip-btn" type="button" data-action="chat-ask" data-q="${esc(chatShow(f))}">${esc(chatShow(f))}</button>`).join('')}</div>` : ''}
+      <span class="msg-meta">${esc(msg.model || 'AI')} · from ${plural(msg.refs.length, 'record')} in your data, names hidden</span></div>`;
+  }
+  function renderChat() {
+    const el = $('#chat');
+    if (!el) return;
+    const open = !!state.chat.open;
+    el.hidden = !open;
+    $('#shell').classList.toggle('chat-open', open);
+    const tb = document.querySelector('[data-action="chat-toggle"]');
+    if (tb) tb.setAttribute('aria-expanded', open);
+    if (!open) return;
+    const msgs = state.chat.msgs;
+    const ai = chatAiOn();
+    const suggest = CHAT_SUGGEST.concat(isSampleWorkspace() ? ['Show everything for Diego Santos'] : []);
+    el.innerHTML = `
+      <header class="chat-head"><span class="chat-icon" aria-hidden="true">${ICON.chat}</span><div><h2 id="chatTitle">Ask about this pay cycle</h2>
+        <small>${ai ? `Answers from your data sources, written by ${esc(state.ai.model)}. Names are hidden from the AI.` : 'Searches your data sources. The AI isn’t available here, so you get the closest records.'}</small></div>
+        <button class="btn small chat-x" type="button" data-action="chat-close" aria-label="Close the chat">${ICON.close}</button></header>
+      <div class="chat-tools">${can('unmask') ? `<label class="field"><input type="checkbox" class="cb" id="chatNames" ${state.chatNames !== false ? 'checked' : ''}> Show real names</label>` : '<span class="muted">Names stay hidden for your role</span>'}<span class="spacer"></span>${msgs.length ? '<button class="linkish" type="button" data-action="chat-clear">Clear</button>' : ''}</div>
+      <div class="chat-log" id="chatLog">${msgs.length ? msgs.map((msg, i) => (msg.role === 'user' ? `<div class="msg user">${esc(msg.text)}</div>` : chatAnswerHtml(msg, i))).join('')
+        : `<div class="chat-empty"><p>Ask anything about ${esc(cycleId())}: who is owed money, why an item was flagged, what a policy says, or what is in any of your data sources.</p><div class="msg-follow">${suggest.map((q) => `<button class="chip-btn" type="button" data-action="chat-ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}
+        ${state.chat.busy ? '<div class="msg ai busy" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Reading your data…</div>' : ''}</div>
+      <form class="chat-form" id="chatForm"><textarea id="chatInput" rows="2" aria-label="Your question" placeholder="Ask about pay, people, files or policy" ${state.chat.busy ? 'disabled' : ''}>${esc(state.chat.draft || '')}</textarea><button class="btn primary" type="submit" ${state.chat.busy ? 'disabled' : ''}>Ask</button></form>`;
+    const lg = $('#chatLog');
+    if (lg) lg.scrollTop = lg.scrollHeight;
+  }
+  function chatRef(el) {
+    const msg = state.chat.msgs[Number(el.dataset.m)];
+    const x = msg && msg.refs.find((y) => y.ref === el.dataset.ref);
+    if (!x) return;
+    const narrow = !window.matchMedia('(min-width: 1181px)').matches;
+    if (!x.nav) {
+      const d = $(`#msgsrc-${el.dataset.m}`);
+      if (d) { d.open = true; const li = $(`#msgref-${el.dataset.m}-${x.ref}`); if (li) { li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash'); li.scrollIntoView({ block: 'nearest' }); } }
+      return;
+    }
+    if (narrow) { state.chat.open = false; renderChat(); }
+    if (x.nav.type === 'ex' && exByKey(x.nav.key)) {
+      state.filters = { status: 'all', sev: { blocker: true, review: true, info: true }, stage: '', check: null, kind: null, owner: '', q: '' };
+      state.detail = x.nav.key;
+      if (state.page === 'exceptions') renderExceptions(); else go('exceptions');
+    } else if (x.nav.type === 'emp' && state.result.empById[x.nav.id]) openDrawer(x.nav.id, el);
+    else if (x.nav.type === 'check' && CHECK_OF[x.nav.id]) filterExceptions({ check: x.nav.id, status: 'all' });
+    else if (x.nav.type === 'page') go(x.nav.page);
   }
 
   // ----------------------------------------------------------------------------------
@@ -3815,6 +4557,24 @@
       scheduleRerun(`${f.label} reset to policy`);
     } else if (a === 'reset-rules') { store.settings = {}; save(); renderRules(); scheduleRerun('All rules reset to policy'); }
     else if (a === 'theme') { store.theme = el.dataset.theme; save(); applyTheme(); renderSettings(); }
+    else if (a === 'cs-new') { if (allow('data')) sourceModal(null, el); }
+    else if (a === 'cs-edit') { if (allow('data')) sourceModal(SRC[el.dataset.key], el); }
+    else if (a === 'cs-save') saveSource(el);
+    else if (a === 'cs-remove') { if (allow('data')) removeSourceModal(el.dataset.key, el); }
+    else if (a === 'cs-remove-confirm') removeSource(el.dataset.key);
+    else if (a === 'rule-new') { if (allow('rules')) ruleModal(el, el.dataset.t !== undefined ? draftFromTemplate(RULE_TEMPLATES[Number(el.dataset.t)]) : blankDraft()); }
+    else if (a === 'rule-edit') { const rule = store.customRules.find((x) => x.id === el.dataset.id); if (rule && allow('rules')) ruleModal(el, Object.assign(blankDraft(), JSON.parse(JSON.stringify(rule)))); }
+    else if (a === 'rule-delete') { if (allow('rules')) deleteRuleModal(el.dataset.id, el); }
+    else if (a === 'rule-delete-confirm') deleteRule(el.dataset.id);
+    else if (a === 'rb-template') { const keep = state.ruleDraft && state.ruleDraft.id; state.ruleDraft = Object.assign(draftFromTemplate(RULE_TEMPLATES[Number(el.dataset.t)]), { id: keep || null }); rerenderBuilder('#rbName'); }
+    else if (a === 'rb-cond-add') { state.ruleDraft.conds.push({ field: '', op: 'gt', cmp: 'value', value: '' }); rerenderBuilder(`[data-rc="field"][data-i="${state.ruleDraft.conds.length - 1}"]`); }
+    else if (a === 'rb-cond-remove') { state.ruleDraft.conds.splice(Number(el.dataset.i), 1); rerenderBuilder(); }
+    else if (a === 'rb-save') saveRule();
+    else if (a === 'chat-toggle') { state.chat.open = !state.chat.open; renderChat(); if (state.chat.open) { const f = $('#chatInput'); if (f) f.focus(); } }
+    else if (a === 'chat-close') { state.chat.open = false; renderChat(); const b = document.querySelector('[data-action="chat-toggle"]'); if (b) b.focus(); }
+    else if (a === 'chat-clear') { state.chat.msgs = []; renderChat(); }
+    else if (a === 'chat-ask') askChat(el.dataset.q);
+    else if (a === 'chat-ref') chatRef(el);
     else if (a === 'admin-tab') { if (!$('#modal').hidden) closeModal(); state.adminTab = el.dataset.tab; if (state.page === 'admin') renderAdmin(); else go('admin'); }
     else if (a === 'hold-open') { if (allow('admin')) holdModal(el); }
     else if (a === 'hold-confirm') confirmHold();
@@ -3832,12 +4592,13 @@
     else if (a === 'restore-pick') { const f = $('#restoreFile'); if (f) f.click(); }
     else if (a === 'restore-confirm') confirmRestore();
     else if (a === 'reset-workspace') openModal(`<div class="mh"><h2 id="modalTitle">Clear workspace data?</h2></div>
-        <div class="mb"><p>This deletes every status, note, reassignment, release record, rule change and activity entry stored in this browser, and reloads the sample cycle. Team, roles and policies are kept. It can’t be undone.</p></div>
+        <div class="mb"><p>This deletes every status, note, reassignment, release record, rule change and activity entry stored in this browser, and reloads the sample cycle. Team, roles, policies, your rules and your data sources are kept. It can’t be undone.</p></div>
         <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="confirm-reset">Clear data</button></div>`, el);
     else if (a === 'confirm-reset') {
-      const keep = { user: store.user, workspace: store.workspace, theme: store.theme, team: store.team, userId: store.userId, policy: store.policy };
+      const keep = { user: store.user, workspace: store.workspace, theme: store.theme, team: store.team, userId: store.userId, policy: store.policy, customSources: (store.customSources || []).map((d) => Object.assign({}, d)), customRules: store.customRules };
       const by = store.user;
       store = hydrate(Object.assign(freshStore(), keep));
+      syncCustomSources();
       try { localStorage.removeItem(FILES_KEY); } catch (e) { /* nothing stored */ }
       SOURCES.forEach((s) => { state.src[s.key] = { mode: 'upload' }; loadSample(s.key); });
       state.detail = null;
@@ -3858,7 +4619,8 @@
     else if (t.id === 'importFiles' && t.files && t.files.length) { enqueueFiles(Array.from(t.files)); t.value = ''; }
     else if (t.matches('[data-import-kind]')) {
       const it = state.importQueue.find((x) => x.id === t.dataset.importKind);
-      if (it) { it.kind = t.value; it.map = it.type === 'table' && it.kind && it.kind !== 'skip' ? autoMap(it.kind, it.headers) : {}; renderImportQueue(); }
+      if (it && t.value === '__new') { t.value = it.kind || ''; if (allow('data')) sourceModal(null, t, it); }
+      else if (it) { it.kind = t.value; it.map = it.type === 'table' && it.kind && it.kind !== 'skip' ? autoMap(it.kind, it.headers) : {}; renderImportQueue(); }
     } else if (t.matches('[data-map-col]')) {
       const id = ($('#modal [data-action="save-map"]') || {}).dataset;
       const it = id && state.importQueue.find((x) => x.id === id.id);
@@ -3885,6 +4647,10 @@
       toast(`Assigned ${plural(n, 'exception')} to ${t.value}${skippedText(pt)}`);
     } else if (t.id === 'setName') { const v = t.value.trim(); if (v && v !== store.user) { const was = store.user; store.user = v; me().name = v; log('Name changed', `${was} → ${v}`); renderShell(); toast('Name saved'); } }
     else if (t.id === 'setWs') { const v = t.value.trim(); if (v && v !== store.workspace) { store.workspace = v; save(); renderShell(); toast('Company name saved'); } }
+    else if (t.matches('select[data-rd]')) onDraftField(t);
+    else if (t.matches('select[data-rc]')) onDraftCond(t);
+    else if (t.matches('[data-rule-on]')) toggleRule(t.dataset.ruleOn, t.checked);
+    else if (t.id === 'chatNames') { state.chatNames = t.checked; renderChat(); }
     else if (t.id === 'setUser') switchUser(t.value, t);
     else if (t.matches('[data-team]')) teamChange(t);
     else if (t.matches('[data-perm]')) permChange(t);
@@ -3900,10 +4666,20 @@
     else if (t.matches('[data-conn-auth]')) state.auth[t.dataset.connAuth] = t.value;
     else if (t.id === 'setAiCode') state.aiCode = t.value.trim();
     else if (t.matches('input[type="number"][data-rule]')) onRuleInput(t);
+    else if (t.matches('input[data-rd], textarea[data-rd]')) onDraftField(t);
+    else if (t.matches('input[data-rc]')) onDraftCond(t);
+    else if (t.id === 'chatInput') state.chat.draft = t.value;
+  });
+  document.addEventListener('submit', (ev) => {
+    if (ev.target.id !== 'chatForm') return;
+    ev.preventDefault();
+    askChat(($('#chatInput') || {}).value);
   });
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && ev.target.id === 'pinIn') { ev.preventDefault(); const b = $('#modal [data-action="pin-ok"]'); if (b) checkPin(b.dataset.id); return; }
     if (ev.key === 'Enter' && ev.target.id === 'tmName') { ev.preventDefault(); addMember(); return; }
+    if (ev.key === 'Enter' && !ev.shiftKey && ev.target.id === 'chatInput') { ev.preventDefault(); askChat(ev.target.value); return; }
+    if (ev.key === 'Escape' && state.chat.open && $('#modal').hidden && ev.target.closest && ev.target.closest('#chat')) { state.chat.open = false; renderChat(); const b = document.querySelector('[data-action="chat-toggle"]'); if (b) b.focus(); return; }
     if (ev.key !== 'Escape') return;
     if (!$('#modal').hidden) closeModal();
     else if (popover) closePopover();
@@ -3937,6 +4713,7 @@
 
   function boot() {
     SAMPLE = window.NORTHLOOM_SAMPLE || SAMPLE;
+    syncCustomSources();
     restoreSources();
     recompute();
     if (!store.audit.some((a) => a.cycle === cycleId())) log('Checks run', `${state.result.totals.checksRun} checks · ${state.result.totals.blockers} blockers, ${state.result.totals.review} to review`, { by: 'Rollcall' });

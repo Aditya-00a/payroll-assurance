@@ -1,4 +1,4 @@
-// Rollcall.ai Payroll Integrity AI: the language model behind Variance Voice and FixFlow Clusters.
+// Rollcall.ai Payroll Assurance: the language model behind "Why it happened", suggested causes and Ask AI.
 //
 // The browser sends masked records only (synthetic employee IDs, no names, accounts or routing
 // numbers). The rules have already calculated every dollar; the model explains and groups.
@@ -7,6 +7,7 @@
 //   POST /api/ai { task, payload }    -> { model, provider, data }
 //        task "explain":  one exception, its cited records and policy clauses -> explanation
 //        task "clusters": recurring exception groups across pay periods      -> root cause and fix
+//        task "chat":     a question plus the records the browser retrieved   -> answer with citations
 //
 // Runs on Groq. Set GROQ_API_KEY in the Vercel project to turn it on. Optional: GROQ_MODEL to use
 // a different Groq model, and AI_ACCESS_CODE, which callers must send as the x-access-code header.
@@ -16,7 +17,7 @@ const PROVIDER = 'Groq';
 const MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const MAX_BODY = 60000;
 
-const SYSTEM = `You are Variance Voice, the explanation layer of Rollcall.ai's Payroll Integrity AI. Reviewers in payroll, HR, treasury and accounting read your output before they approve, dismiss or escalate a payroll exception.
+const SYSTEM = `You are the AI assistant in Rollcall.ai Payroll Assurance. Reviewers in payroll, HR, treasury and accounting read your output before they approve, dismiss or escalate a payroll exception and before payroll is released.
 
 How the system works:
 - Deterministic rules detected each exception and calculated every dollar amount. Never recalculate, adjust or invent amounts; use the figures you are given.
@@ -78,6 +79,25 @@ const CLUSTER_SCHEMA = {
   },
 };
 
+const CHAT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['answer', 'citations', 'follow_ups'],
+  properties: {
+    answer: { type: 'string', description: 'A plain-language answer: one to six short sentences, or a short list with one item per line starting with "- ". Cite records as [R#]. If the records do not answer the question, say so and name the page to check.' },
+    citations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['ref', 'why'],
+        properties: { ref: { type: 'string' }, why: { type: 'string', description: 'What this record contributes, in one short sentence.' } },
+      },
+    },
+    follow_ups: { type: 'array', items: { type: 'string' }, description: 'Up to three short follow-up questions the reviewer might ask next.' },
+  },
+};
+
 const client = process.env.GROQ_API_KEY ? new Groq({ timeout: 45000, maxRetries: 1 }) : null;
 
 function prompt(task, payload) {
@@ -86,6 +106,13 @@ function prompt(task, payload) {
       name: 'variance_voice_explanation',
       schema: EXPLAIN_SCHEMA,
       text: `Explain this payroll exception for the reviewer. Use only the records and policy clauses below.\n\n${JSON.stringify(payload, null, 2)}`,
+    };
+  }
+  if (task === 'chat') {
+    return {
+      name: 'payroll_chat_answer',
+      schema: CHAT_SCHEMA,
+      text: `Answer the reviewer's question using only the records below, which were retrieved from this pay cycle's data sources. Cite the records you use as [R#]. Quote dollar figures exactly as given; never recalculate them. The app's pages are Overview, Review queue, People, Data quality, Pay accuracy, Bank and ledger, Repeat issues, Data sources and Rules.\n\n${JSON.stringify(payload, null, 2)}`,
     };
   }
   return {
@@ -148,7 +175,7 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: 'bad_json' }); }
   }
   const task = body && body.task;
-  if (task !== 'explain' && task !== 'clusters') return res.status(400).json({ error: 'bad_task' });
+  if (task !== 'explain' && task !== 'clusters' && task !== 'chat') return res.status(400).json({ error: 'bad_task' });
   const raw = JSON.stringify(body.payload || {});
   if (raw.length > MAX_BODY) return res.status(413).json({ error: 'too_large', message: 'The request is too large.' });
   if (looksUnmasked(raw)) return res.status(422).json({ error: 'unmasked', message: 'The request contains unmasked identifiers.' });
