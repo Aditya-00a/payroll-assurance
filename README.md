@@ -13,6 +13,8 @@ The app opens on a sign-in page with two options.
 - **Employer** is for the payroll, HR, store, treasury and accounting teams. Pick your name from the team list. Payroll admins also enter the admin PIN when one is set. You land on *My work*.
 - **Employee** is for anyone on the payroll. Enter your employee ID and the last 4 digits of the bank account your pay goes to. In the sample, use **E1012** and **4471**. After 5 wrong tries, employee sign-in is locked for 5 minutes on that device. Sign-ins, sign-outs and failed tries are logged.
 
+**Team password.** Before the sign-in page, the site can ask for one password shared by the whole team. To turn it on, add `SITE_PASSWORD` in the Vercel project (Settings → Environment Variables, for Production) and redeploy. The check runs on Vercel (`middleware.js`) before any page, file or AI request is served. Each device remembers the password for 30 days, changing it signs everyone out, and `/__signout` forgets it on one device. Without the variable, the site stays open.
+
 **This is demo sign-in.** It runs in the browser, and anyone with the link can sign in as anyone on the team. For production, sign people in through your company's single sign-on (Okta, Microsoft Entra or Google) and keep the data on a server. See *Notes*.
 
 ### What employees see
@@ -193,6 +195,7 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 
 ## Files
 
+- `middleware.js` — the team password check that runs on Vercel before anything is served (turned on by `SITE_PASSWORD`).
 - `api/ai.mjs` — the AI function behind *Why it happened* and suggested causes (Vercel, Groq).
 - `app/brand/` — logo mark, wordmark, favicon and app icon.
 - `app/` — source. `index.html` is the shell and styles, `app.js` holds the pages, workflow, release gate, admin console, roles and persistence, `engine.js` holds the checks, and `sample-data.js` has the sample files embedded. `index.html` is written without an `<html>` wrapper; `build_dist.py` adds one.
@@ -200,6 +203,7 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 - `data/` — the sample files to upload: census, schedules, time records, register (CSV and PDF), bank activity, GL journal, union agreement, handbook and finance rules with numbered policy clauses, GL mapping, and `exception_history.json` (five earlier pay periods for Repeat issues). `seeded_issues.json` lists what was planted.
 - `generator/generate_data.py` — builds the sample cycle from the same rules the engine checks
 - `tests/engine.test.js` — regression test against the seeded issues
+- `tests/middleware.test.mjs` — tests for the team password check
 
 ## Notes
 

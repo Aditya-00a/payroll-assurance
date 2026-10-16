@@ -3,13 +3,14 @@
   "private": true,
   "description": "Rollcall.ai Payroll Integrity AI: static app in public/ plus the api/ai function for Variance Voice and FixFlow Clusters.",
   "scripts": {
-    "test": "node tests/engine.test.js",
+    "test": "node tests/engine.test.js && node tests/middleware.test.mjs",
     "build:public": "python3 build_dist.py"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@vercel/functions": "3.9.9",
     "groq-sdk": "^1.6.0"
   }
 }
