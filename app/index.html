@@ -832,6 +832,22 @@ body.signed-out .shell, body.signed-out .chat, body.signed-out .drawer { display
 .si-demo { color: #aab6d8; font-size: var(--t-xs); line-height: 1.55; }
 .si-demo b { color: #fff; }
 .si-tag { font-family: var(--f-display); font-weight: 600; font-size: var(--t-sm); background: var(--brand-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.who-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 3px 10px 3px 3px; color: var(--ink); text-align: left; }
+.who-btn:hover { background: var(--surface-2); }
+.who-btn .avatar { width: 30px; height: 30px; font-size: var(--t-xs); }
+.who-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.who-txt .who-k { font-size: var(--t-2xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.who-txt b { font-size: var(--t-sm); font-weight: 700; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.who-txt small { font-size: var(--t-2xs); color: var(--muted); white-space: nowrap; }
+.who-btn svg { color: var(--muted); }
+.who-pop { min-width: 290px; }
+.who-head { display: flex; gap: 10px; align-items: center; padding: 8px 10px 6px; }
+.who-head .avatar { width: 34px; height: 34px; font-size: var(--t-xs); }
+.who-head b { display: block; font-size: var(--t-md); }
+.who-head small { display: block; color: var(--muted); font-size: var(--t-xs); }
+.who-can { padding: 0 10px 6px; font-size: var(--t-xs); color: var(--ink-2); }
+@media (max-width: 1400px) { .who-txt .who-k { display: none; } }
+@media (max-width: 860px) { .who-txt { display: none; } .who-btn { padding: 3px; } .who-btn svg { display: none; } }
 .side-out { display: block; margin-top: 8px; background: none; border: 1px solid rgba(255, 255, 255, 0.18); color: var(--side-ink); border-radius: var(--r-sm); padding: 4px 10px; font-size: var(--t-xs); font-weight: 600; }
 .side-out:hover { background: var(--side-2); color: var(--side-active); }
 

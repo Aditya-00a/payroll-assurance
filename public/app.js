@@ -474,7 +474,8 @@
       <button class="btn chat-btn" type="button" data-action="chat-toggle" aria-expanded="${!!state.chat.open}" aria-controls="chat">${ICON.chat.replace(/16/g, '15')} <span>Ask AI</span></button>
       <button class="btn" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button>
       <button class="btn" type="button" data-action="rerun">${ICON.refresh} Re-run checks</button>
-      ${releaseBtn}`;
+      ${releaseBtn}
+      ${whoButton(store.user, roleLabel(me()))}`;
   }
 
   function renderPage() {
@@ -4362,7 +4363,7 @@
       <span class="status-chip ${st.chip}">${esc(st.word)}</span>
       <span class="top-spacer"></span>
       ${store.policy.aiEmployees !== false ? `<button class="btn chat-btn" type="button" data-action="chat-toggle" aria-expanded="${!!state.chat.open}" aria-controls="chat">${ICON.chat.replace(/16/g, '15')} <span>Ask about my pay</span></button>` : ''}
-      <button class="btn" type="button" data-action="sign-out">Sign out</button>`;
+      ${whoButton((myEmp() || {}).name || session.empId, 'Employee')}`;
   }
   function empBadge(id) {
     if (id !== 'me-help') return '';
@@ -4640,6 +4641,35 @@
     if (state.page !== x.nav.page) go(x.nav.page);
     if (x.nav.anchor) setTimeout(() => { const n = document.getElementById(x.nav.anchor); if (n) { n.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); } }, 60);
     return true;
+  }
+
+  // Who is signed in: always visible top right, with switching and sign-out a click away.
+  const whoButton = (name, role) => `<button class="who-btn" type="button" data-action="user-menu" aria-haspopup="true" aria-expanded="false" title="Signed in as ${esc(name)} · ${esc(role)}">
+      <span class="avatar" aria-hidden="true">${esc(initials(name))}</span><span class="who-txt"><span class="who-k">Signed in as</span><b>${esc(name)}</b><small>${esc(role)}</small></span>${ICON.chevron}</button>`;
+  function userMenu(btn) {
+    if (popover && popover.dataset.kind === 'user') { closePopover(); return; }
+    closePopover();
+    const rect = btn.getBoundingClientRect();
+    const e = myEmp(), m = me();
+    popover = document.createElement('div');
+    popover.className = 'popover who-pop';
+    popover.dataset.kind = 'user';
+    popover.setAttribute('role', 'menu');
+    popover.style.top = `${rect.bottom + window.scrollY + 6}px`;
+    popover.style.left = `${Math.max(8, Math.min(rect.right + window.scrollX - 290, window.innerWidth - 298))}px`;
+    popover.innerHTML = isEmp()
+      ? `<div class="who-head"><span class="avatar" aria-hidden="true">${esc(initials(e ? e.name : session.empId))}</span><span><b>${esc(e ? e.name : session.empId)}</b><small>Employee · ${esc(session.empId)} · ${esc(store.workspace)}</small></span></div><hr>
+        <button type="button" role="menuitem" data-action="go-page" data-page="me"><b>My pay</b><small>Your pay, deposits and time off</small></button>
+        <button type="button" role="menuitem" data-action="sign-out"><b>Sign out</b><small>Back to the sign-in page</small></button>`
+      : `<div class="who-head"><span class="avatar" aria-hidden="true">${esc(initials(m.name))}</span><span><b>${esc(m.name)}</b><small>${esc(roleLabel(m))}${m.queue ? ` · ${esc(m.queue)} queue` : ''} · ${esc(store.workspace)}</small></span></div>
+        <p class="who-can">${esc(capsText(m))}.</p><hr>
+        <button type="button" role="menuitem" data-action="go-page" data-page="home"><b>My work</b><small>Your queue and what's left before release</small></button>
+        <button type="button" role="menuitem" data-action="go-page" data-page="settings"><b>Switch person</b><small>Work as someone else on the team</small></button>
+        <button type="button" role="menuitem" data-action="sign-out"><b>Sign out</b><small>Back to the sign-in page</small></button>`;
+    document.body.appendChild(popover);
+    btn.setAttribute('aria-expanded', 'true');
+    const first = popover.querySelector('button');
+    if (first) first.focus();
   }
 
   // ----------------------------------------------------------------------------------
@@ -4970,6 +5000,7 @@
     if (a === 'sign-out') signOut();
     else if (a === 'si-mode') { state.signinMode = el.dataset.mode; state.signinErr = ''; renderSignin(); const f = $(state.signinMode === 'employee' ? '#siEmp' : '#siUser'); if (f && !f.disabled) f.focus(); }
     else if (a === 'quick-approve') quickApprove(el.dataset.key);
+    else if (a === 'user-menu') userMenu(el);
     else if (a === 'undo') runUndo();
     else if (a === 'shortcuts') shortcutsModal(el);
     else if (a === 'q-send') sendQuestion();
@@ -5279,10 +5310,10 @@
 
   let popover = null;
   function closePopover() {
-    if (popover) { popover.remove(); popover = null; const b = document.querySelector('[data-action="cycle-menu"]'); if (b) b.setAttribute('aria-expanded', 'false'); }
+    if (popover) { popover.remove(); popover = null; document.querySelectorAll('[data-action="cycle-menu"], [data-action="user-menu"]').forEach((b) => b.setAttribute('aria-expanded', 'false')); }
   }
   function cycleMenu(btn) {
-    if (popover) { closePopover(); return; }
+    if (popover) { const was = popover.dataset.kind; closePopover(); if (was !== 'user') return; }
     const rect = btn.getBoundingClientRect();
     const rd = readiness();
     const others = Object.entries(store.cycles).filter(([id, c]) => id !== cycleId() && (Object.values(c.items).some((i) => i.events.length) || c.released));
@@ -5344,7 +5375,7 @@
   }
 
   document.addEventListener('click', (ev) => {
-    if (popover && !popover.contains(ev.target) && !ev.target.closest('[data-action="cycle-menu"]')) closePopover();
+    if (popover && !popover.contains(ev.target) && !ev.target.closest('[data-action="cycle-menu"], [data-action="user-menu"]')) closePopover();
     const el = ev.target.closest('[data-action]');
     if (!el) return;
     const a = el.dataset.action;
