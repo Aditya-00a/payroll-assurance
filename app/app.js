@@ -3096,7 +3096,7 @@
     const aiOn = !!(state.ai && state.ai.available && store.policy.aiExplain);
     const thr = state.fixThreshold || store.policy.fixThreshold;
     const fx = fixClusters(thr);
-    const apps = appStatus();
+    const checks = releaseChecks();
 
     const tile = (label, value, sub, o) => {
       o = o || {};
@@ -3204,6 +3204,8 @@
         ${tile('AI explanations', String(aiN), aiOn ? 'this cycle' : store.policy.aiExplain ? 'AI service not connected' : 'turned off in Policies', { cls: aiN ? '' : 'zero' })}
       </div>
 
+      <div style="margin-top:16px">${flowHtml()}</div>
+
       <div class="grid adm-2">
         <section class="card">
           <div class="card-head"><h3>Review progress by stage</h3><span class="muted" style="font-size:var(--t-sm)">Approved or dismissed, of everything found</span></div>
@@ -3237,8 +3239,8 @@
 
       <div class="grid adm-2">
         <section class="card">
-          <div class="card-head"><h3>Checks</h3><span class="muted" style="font-size:var(--t-sm)">Each step of the cycle</span></div>
-          <ul class="adm-list">${APPS.map((a) => `<li><button type="button" data-action="go-page" data-page="${a.id}"><span class="t"><b>${esc(a.name)}</b><span>${esc(apps[a.id].text)}</span></span><span class="pill ${STEP_PILL[apps[a.id].state][0]}">${STEP_PILL[apps[a.id].state][1]}</span></button></li>`).join('')}</ul>
+          <div class="card-head"><h3>Before release</h3><span class="muted" style="font-size:var(--t-sm)">${rd.released ? 'Released' : `${checks.filter((c) => c.ok).length} of ${checks.length} done`}</span></div>
+          ${rd.released ? `<div class="card-pad"><p>${esc(cycleId())} was released ${esc(stamp(rd.released.at))} by ${esc(rd.released.by)}.</p></div>` : `<ol class="rel-check adm-check">${checks.map(checkItemHtml).join('')}</ol>`}
         </section>
         <section class="card">
           <div class="card-head"><h3>Files received</h3><a class="more" href="#sources">Data sources</a></div>
@@ -3249,9 +3251,40 @@
         </section>
       </div>
 
-      <section class="card" style="margin-top:16px">
+      <div class="grid adm-2" style="margin-top:16px">
+      ${adminEmployeesCard()}
+      <section class="card">
         <div class="card-head"><h3>Admin activity</h3><span class="muted" style="font-size:var(--t-sm)">Role and policy changes, holds, releases, user switches and blocked actions</span><a class="more" href="#activity">Full log</a></div>
         ${adminLog.length ? `<ul class="feed">${adminLog.map(feedItem).join('')}</ul>` : '<div class="empty"><p>Nothing yet. Role changes, policy changes, holds, releases and blocked actions show up here.</p></div>'}
+      </section>
+      </div>`;
+  }
+
+  // What employees are doing: questions waiting for payroll, sign-ins and failed sign-ins.
+  function adminEmployeesCard() {
+    const qs = state.result.exceptions.filter((x) => x.check === 'Q1');
+    const waiting = qs.filter(isOpen);
+    const answered = qs.filter((x) => statusOf(x) === 'approved').length;
+    const since = Date.now() - 7 * 864e5;
+    const recent = store.audit.filter((a) => new Date(a.t).getTime() >= since);
+    const signIns = recent.filter((a) => a.action === 'Signed in' && / · employee$/.test(a.detail)).length;
+    const fails = recent.filter((a) => a.action === 'Sign-in failed').length;
+    const latest = qs.slice().sort((a, b) => ageH(a) - ageH(b)).slice(0, 4);
+    const onOff = (v) => (v ? 'on' : 'off');
+    return `<section class="card">
+        <div class="card-head"><h3>Employees</h3><button class="more linkish" type="button" data-action="admin-tab" data-tab="policies">Employee access</button></div>
+        <div class="facts">
+          <div><span>Questions waiting</span><b>${waiting.length}</b></div>
+          <div><span>Oldest waiting</span><b>${waiting.length ? hrs(Math.max(...waiting.map(ageH))) : '—'}</b></div>
+          <div><span>Answered this cycle</span><b>${answered}</b></div>
+          <div><span>Employee sign-ins, last 7 days</span><b>${signIns}</b></div>
+        </div>
+        ${fails ? `<div class="card-pad"><div class="notice warn">${plural(fails, 'failed sign-in')} in the last 7 days. The admin activity log has the details.</div></div>` : ''}
+        ${latest.length ? `<ul class="mw-list">${latest.map((x) => `<li class="mw-row q" data-st="${statusOf(x)}"><span class="pill ${isOpen(x) ? 'review' : 'pass'}">${isOpen(x) ? 'Waiting' : statusOf(x) === 'approved' ? 'Answered' : 'Closed'}</span>
+            <button class="mw-t linkless" type="button" data-action="goto-ex" data-key="${esc(x.key)}"><b>${esc(x.empName)} · ${esc(x.title.replace(/^Question about /, ''))}</b><span>${esc(x.detail)}</span></button>
+            <span class="mw-age">${esc(ago(item(x).seen || nowIso()))}</span><span></span></li>`).join('')}</ul>`
+          : '<div class="empty"><p>No questions from employees this cycle.</p></div>'}
+        <p class="card-sub" style="padding:10px 16px 14px">Employee sign-in is ${onOff(store.policy.employeePortal !== false)} · employee AI questions are ${onOff(store.policy.aiEmployees !== false)}.${waiting.length ? ' <button class="linkish" type="button" data-action="check" data-check="Q1">Open the questions in the review queue</button>' : ''}</p>
       </section>`;
   }
 
