@@ -135,6 +135,11 @@ a { color: var(--accent); }
 .nav a[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 3px; background: linear-gradient(180deg, #3653fd, #fd328e 60%, #fe812b); }
 .nav a .badge { margin-left: auto; font-family: var(--f-mono); font-size: var(--t-2xs); padding: 1px 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: var(--side-ink); }
 .nav a .badge.crit { background: #d92d20; color: #fff; }
+.nav-sub { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px 21px; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.nav .nav-sub a { padding: 5px 10px; font-size: var(--t-sm); font-weight: 600; color: var(--side-muted); }
+.nav .nav-sub a:hover { color: var(--side-active); }
+.nav .nav-sub a[aria-current="page"] { color: var(--side-active); background: var(--side-2); }
+.nav a.in-section { color: var(--side-active); }
 .side-foot { margin-top: auto; font-size: var(--t-2xs); color: var(--side-muted); padding: 0 10px; line-height: 1.5; }
 .side-foot b { color: var(--side-ink); font-weight: 600; }
 

@@ -151,7 +151,7 @@
       { id: 'people', label: 'People', icon: 'people' },
     ] },
     { group: 'Checks and records', items: [
-      { id: 'feedpulse', label: 'Checks', icon: 'quality', match: ['feedpulse', 'runradar', 'threeway', 'fixflow'], tab: 'Checks' },
+      { id: 'feedpulse', label: 'Checks', icon: 'quality', match: ['feedpulse', 'runradar', 'threeway', 'fixflow'], tab: 'Checks', sub: true },
       { id: 'reports', label: 'Reports', icon: 'file', match: ['reports', 'activity'], tab: 'Reports' },
     ] },
     { group: 'Setup', items: [
@@ -452,8 +452,16 @@
   }
 
   function renderNav() {
-    $('#nav').innerHTML = (isEmp() ? EMP_NAV : NAV).map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => `
-      <a href="#${(i.tab && state.lastTab[i.tab]) || i.id}" ${(i.match || [i.id]).includes(state.page) ? 'aria-current="page"' : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>`).join('')}`).join('');
+    // Checks lists its four checks underneath, so each one is a click away from anywhere.
+    const subNav = (i) => {
+      const tabs = (SUBTABS.find(([name]) => name === i.tab) || [, []])[1];
+      return `<div class="nav-sub" role="group" aria-label="${esc(i.label)}">${tabs.map(([id, label]) => `<a href="#${id}" ${id === state.page ? 'aria-current="page"' : ''} title="${esc(APP_BY_ID[id] ? APP_BY_ID[id].q : label)}"><span>${esc(label)}</span>${subNavBadge(id)}</a>`).join('')}</div>`;
+    };
+    $('#nav').innerHTML = (isEmp() ? EMP_NAV : NAV).map((g) => `<div class="nav-label">${esc(g.group)}</div>${g.items.map((i) => {
+      const here = (i.match || [i.id]).includes(state.page);
+      return `
+      <a href="#${(i.tab && state.lastTab[i.tab]) || i.id}" ${here ? (i.sub ? 'class="in-section"' : 'aria-current="page"') : ''}>${ICON[i.icon]}<span>${esc(i.label)}</span>${navBadge(i.id)}</a>${i.sub && !isEmp() ? subNav(i) : ''}`;
+    }).join('')}`).join('');
   }
 
   function renderTopbar() {
@@ -4997,6 +5005,11 @@
     el.hidden = false;
     el.setAttribute('aria-label', grp[0]);
     el.innerHTML = `<div class="subtab-row">${grp[1].map(([id, label]) => `<a href="#${id}" ${id === state.page ? 'aria-current="page"' : ''}${APP_BY_ID[id] ? ` data-tip="${esc(`${label}\n${APP_BY_ID[id].q}`)}"` : ''}>${esc(label)}${subBadge(id)}</a>`).join('')}</div>`;
+  }
+  function subNavBadge(id) {
+    if (!['feedpulse', 'runradar', 'threeway'].includes(id)) return '';
+    const n = state.result.exceptions.filter((x) => appOf(x) === id && isOpen(x) && x.severity !== 'info').length;
+    return n ? `<span class="badge">${n}</span>` : '';
   }
   function subBadge(id) {
     const r = state.result;

@@ -82,7 +82,7 @@ Every demo case in the use case is seeded in the sample cycle, and the Overview'
 ## Working faster
 
 - **My work** is the employer's home page. It shows the items in your queue, overdue ones first and then blockers, each with an *Approve* button. It also shows what's left before release, open employee questions, your recent actions, and, for admins, open and overdue work by queue.
-- **A shorter sidebar.** *Checks* holds Data quality, Pay accuracy, Bank and ledger and Repeat issues as tabs. *Rules* holds All checks. *Reports* holds the Activity log. Each sidebar link remembers the last tab you used.
+- **A shorter sidebar.** *Checks* lists FeedPulse, RunRadar, Three-Way True and FixFlow Clusters underneath it in the sidebar, each with its open count, and as tabs on the page. *Rules* holds All checks. *Reports* holds the Activity log. Each sidebar link remembers the last tab you used.
 - **Faster reviewing.** Every row in the review queue has an approve button. Approving or dismissing moves you to the next item. Every change shows *Undo* for 8 seconds, and undoing is logged. In the review queue, these keyboard shortcuts work when you aren't typing in a box:
 
   | Key | Does |
