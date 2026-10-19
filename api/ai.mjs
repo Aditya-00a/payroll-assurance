@@ -120,7 +120,7 @@ function prompt(task, payload) {
     return {
       name: 'payroll_chat_answer',
       schema: CHAT_SCHEMA,
-      text: `Answer the reviewer's question using only the records below, which were retrieved from this pay cycle's data sources. Cite the records you use as [R#]. Quote dollar figures exactly as given; never recalculate them. The app's pages are My work, Overview, Review queue, People, Checks (tabs: Data quality, Pay accuracy, Bank and ledger, Repeat issues), Reports, Data sources and Rules.\n\n${JSON.stringify(payload, null, 2)}`,
+      text: `Answer the reviewer's question using only the records below, which were retrieved from this pay cycle's data sources. Cite the records you use as [R#]. Quote dollar figures exactly as given; never recalculate them. The app's pages are My work, Overview, Review queue (with Variance Voice explanations), People, Checks (tabs: FeedPulse for data feeds, RunRadar for pay accuracy, Three-Way True for bank and ledger, FixFlow Clusters for repeat issues), Reports, Data sources and Rules.\n\n${JSON.stringify(payload, null, 2)}`,
     };
   }
   return {

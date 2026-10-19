@@ -32,15 +32,15 @@ An admin can turn employee sign-in and the employee AI chat on or off under *Adm
 
 One tool checks each bi-weekly payroll in five steps, from the time clock to the general ledger. Each step answers one question:
 
-| Step | In the app | Question | Runs | Checks |
+| Step | In the app | What it does | Runs | Checks |
 |---|---|---|---|---|
-| 1 | **Data quality** | Did the data arrive complete and on time? | Before release | Files on time against the due time, completeness, period coverage and duplicates; T1 punches, T2 manager overrides, T3 rounding, T4 schedule vs actual, T8 daily max, T9 pay codes (including sick days coded as vacation), R1–R5 roster and start dates |
-| 2 | **Pay accuracy** | Is everyone paid the right amount? | Before release | T5 short weeks, T6 overtime due, T7 part-time cap, T10 balances, P1–P10 rates, union scale, overtime and Sunday premium, time-off balances and register math, ranked by dollar impact |
-| 3 | **Review queue** | Has a person checked every exception? | Every step | Each exception comes with *Why it happened*: the source records it relies on ([R1], [R2]…), the policy clause (HB, CBA or FIN clause ids), an owner and a next step. The reviewer approves, dismisses (with a reason) or escalates. |
-| 4 | **Bank and ledger** | Do payroll, the bank and the ledger agree? | After funding and posting | Register ↔ bank/ACH ↔ GL for net pay, taxes by jurisdiction, benefits, wages and employer taxes; F1–F7 and G1–G7. Each difference has an owner. |
-| 5 | **Repeat issues** | What keeps going wrong? | Across periods | Exceptions from the last 6 pay periods, grouped by store, manager and type. Anything seen in 3 or more periods is flagged with a likely cause and a fix. |
+| 1 | **FeedPulse** (Data quality) | Identify missing, late or abnormal data feeds. | Before release | Files on time against the due time, completeness, period coverage and duplicates; T1 punches, T2 manager overrides, T3 rounding, T4 schedule vs actual, T8 daily max, T9 pay codes (including sick days coded as vacation), R1–R5 roster and start dates |
+| 2 | **RunRadar** (Pay accuracy) | Prioritize material payroll movements for review. | Before release | T5 short weeks, T6 overtime due, T7 part-time cap, T10 balances, P1–P10 rates, union scale, overtime and Sunday premium, time-off balances and register math, ranked by dollar impact |
+| 3 | **Variance Voice** (in the Review queue) | Produce evidence-based explanations of exceptions. | Every step | Each exception comes with the source records it relies on ([R1], [R2]…), the policy clause (HB, CBA or FIN clause ids), an owner and a next step. The reviewer approves, dismisses (with a reason) or escalates. |
+| 4 | **Three-Way True** (Bank and ledger) | Reconcile payroll, payment files and the general ledger. | After funding and posting | Register ↔ bank/ACH ↔ GL for net pay, taxes by jurisdiction, benefits, wages and employer taxes; F1–F7 and G1–G7. Each difference has an owner. |
+| 5 | **FixFlow Clusters** (Repeat issues) | Group repeated corrections to reveal systemic causes. | Across periods | Exceptions from the last 6 pay periods, grouped by store, manager and type. Anything seen in 3 or more periods is flagged with a likely cause and a fix. |
 
-The *Payroll Integrity AI: Use Case Requirements* document (Oct 15, 2026) calls these five steps FeedPulse, RunRadar, Variance Voice, Three-Way True and FixFlow Clusters. The app uses the plain names above.
+The names follow the *Payroll Integrity AI: Use Case Requirements* document (Oct 15, 2026). Each page shows its one-line purpose under the name, with the plain-words area above it.
 
 Every demo case in the use case is seeded in the sample cycle, and the Overview's *Sample cases to try* links to each one:
 
@@ -96,6 +96,9 @@ Every demo case in the use case is seeded in the sample cycle, and the Overview'
   | U or Ctrl+Z | Undo the last change |
   | ? | Show the shortcuts |
 
+- **Reset demo.** In the menu under your name (top right), on My work, on the Admin console and on the sign-in page. It puts the sample company back exactly as it started, in this browser only.
+- **Import or connect payroll.** The top bar, My work and the Admin console open one choice: import payroll files, or connect a payroll system's report (the payroll register in API mode on Data sources).
+- **Who is signed in** shows at the top right, with a menu to switch person or sign out.
 - **Release checklist.** *Release payroll* lists what's left: data loaded, required files, pre-release blockers by owner, any hold, whether you can release, and the different-person rule. Each item links to where you fix it. When everything is done, it opens the approval.
 - **Plain-word tooltips.** Payroll terms such as GL, ACH, WFM, PTO, census, payroll register, blocker, exempt, carryover and accrual are underlined the first time they appear on a page. Hover over one, or tap it, for a short definition.
 

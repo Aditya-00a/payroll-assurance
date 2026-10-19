@@ -472,8 +472,8 @@
       <span class="top-spacer"></span>
       <span class="last-run">Checked ${esc(clock(state.lastRun))}</span>
       <button class="btn chat-btn" type="button" data-action="chat-toggle" aria-expanded="${!!state.chat.open}" aria-controls="chat">${ICON.chat.replace(/16/g, '15')} <span>Ask AI</span></button>
-      <button class="btn" type="button" data-action="go-import">${ICON.upload.replace(/18/g, '14')} Import files</button>
-      <button class="btn" type="button" data-action="rerun">${ICON.refresh} Re-run checks</button>
+      <button class="btn" type="button" data-action="add-data" title="Import payroll files or connect a payroll system" aria-label="Import or connect payroll">${ICON.upload.replace(/18/g, '14')} <span class="tb-label tb-import">Import or connect</span></button>
+      <button class="btn" type="button" data-action="rerun" title="Re-run checks" aria-label="Re-run checks">${ICON.refresh} <span class="tb-label tb-rerun">Re-run checks</span></button>
       ${releaseBtn}
       ${whoButton(store.user, roleLabel(me()))}`;
   }
@@ -578,6 +578,7 @@
       <div class="page-head">
         <div><span class="eyebrow">Pay cycle ${esc(cycleId())}</span><h1>${esc(periodText(p))}</h1>
         <p>${esc(store.workspace)}${p.payDate ? ` · pay date ${esc(F.fmtDate(p.payDate))}` : ''} · ${plural(t.people, 'person', 'people')} · ${t.checksRun} of ${r.checks.length} checks ran across WFM, the payroll register, bank activity and the GL</p></div>
+        <div class="actions"><button class="btn small primary" type="button" data-action="admin-tab" data-tab="monitor">${ICON.key.replace(/16/g, '14')} Go to Admin console</button></div>
       </div>
       ${isSampleWorkspace() ? sampleBanner() : ''}
       <div style="margin-bottom:16px">${flowHtml()}</div>
@@ -682,7 +683,7 @@
     const stageOpts = [['', 'All stages'], ['pre', 'Before release'], ['post', 'After settlement']].concat(E.STAGES.map((s) => [s.id, s.title]));
     $('#page').innerHTML = `
       <div class="page-head">
-        <div><span class="eyebrow">Step 3 of 5</span><h1>Review queue</h1><p>Every exception the checks found. Select one to see why it happened, the records behind it and the policy that applies, then approve, dismiss or escalate it. Blockers in the time, roster and register checks must be approved or dismissed before payroll can be released.</p></div>
+        <div><span class="eyebrow">Step 3 of 5 · Variance Voice</span><h1>Review queue</h1><p class="ph-what">Variance Voice: ${esc(APP_BY_ID.exceptions.q)}</p><p>Every exception the checks found. Select one to see why it happened, the records behind it and the policy that applies, then approve, dismiss or escalate it. Blockers in the time, roster and register checks must be approved or dismissed before payroll can be released.</p></div>
         <div class="actions"><button class="btn small" type="button" data-action="shortcuts" title="Press ? for keyboard shortcuts">Keyboard shortcuts</button><button class="btn small" type="button" data-action="export-ex">${ICON.download} Export CSV</button></div>
       </div>
       <div class="toolbar">
@@ -1785,13 +1786,15 @@
   // ----------------------------------------------------------------------------------
 
   const APPS = [
-    { id: 'feedpulse', num: 1, name: 'Data quality', q: 'Did the data arrive complete and on time?' },
-    { id: 'runradar', num: 2, name: 'Pay accuracy', q: 'Is everyone paid the right amount?' },
-    { id: 'exceptions', num: 3, name: 'Review queue', q: 'Has a person checked every exception?' },
-    { id: 'threeway', num: 4, name: 'Bank and ledger', q: 'Do payroll, the bank and the ledger agree?' },
-    { id: 'fixflow', num: 5, name: 'Repeat issues', q: 'What keeps going wrong?' },
+    { id: 'feedpulse', num: 1, name: 'FeedPulse', plain: 'Data quality', q: 'Identify missing, late or abnormal data feeds.' },
+    { id: 'runradar', num: 2, name: 'RunRadar', plain: 'Pay accuracy', q: 'Prioritize material payroll movements for review.' },
+    { id: 'exceptions', num: 3, name: 'Variance Voice', plain: 'Review queue', q: 'Produce evidence-based explanations of exceptions.' },
+    { id: 'threeway', num: 4, name: 'Three-Way True', plain: 'Bank and ledger', q: 'Reconcile payroll, payment files and the general ledger.' },
+    { id: 'fixflow', num: 5, name: 'FixFlow Clusters', plain: 'Repeat issues', q: 'Group repeated corrections to reveal systemic causes.' },
   ];
   const APP_BY_ID = Object.fromEntries(APPS.map((a) => [a.id, a]));
+  // Page heading for a check: its name, its one-line purpose, and the plain-words area above.
+  const appHead = (id) => { const a = APP_BY_ID[id]; return `<span class="eyebrow">Step ${a.num} of 5 · ${esc(a.plain)}</span><h1>${esc(a.name)}</h1><p class="ph-what">${esc(a.q)}</p>`; };
   const RUNRADAR_TIME = new Set(['T5', 'T6', 'T7', 'T10']);
   const appOf = (x) => {
     const c = typeof x === 'string' ? x : x.check;
@@ -1804,7 +1807,7 @@
     if (c[0] === 'P' || RUNRADAR_TIME.has(c)) return 'runradar';
     return 'feedpulse';
   };
-  const APP_NAME = { feedpulse: 'Data quality', runradar: 'Pay accuracy', threeway: 'Bank and ledger', question: 'Employee question' };
+  const APP_NAME = { feedpulse: 'FeedPulse', runradar: 'RunRadar', threeway: 'Three-Way True', question: 'Employee question' };
   const appChip = (id) => `<span class="appchip" data-app="${id}">${esc(APP_NAME[id] || APP_BY_ID[id === 'variance' ? 'exceptions' : id].name)}</span>`;
 
   // ---- Policy clauses cited by each check
@@ -2073,8 +2076,8 @@
       ? `Written by ${esc(cached.model || 'the AI')} from the records below, with names hidden · ${esc(stamp(cached.at))}`
       : !store.policy.aiExplain ? 'Put together from the records by the rules. AI explanations are turned off by a payroll admin.'
         : state.ai && state.ai.available ? `Put together from the records by the rules.${can('ai') ? ' Ask the AI for a written explanation.' : ''}` : 'Put together from the records by the rules. The AI service isn’t connected on this deployment.';
-    return `<section class="vv" aria-label="Why it happened">
-      <div class="vv-head"><b>Why it happened</b><span class="spacer"></span>${fromAi && can('unmask') ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
+    return `<section class="vv" aria-label="Variance Voice: why it happened">
+      <div class="vv-head"><b>Variance Voice</b><span class="vv-sub">Why it happened, with the evidence</span><span class="spacer"></span>${fromAi && can('unmask') ? `<label class="field vv-unmask"><input type="checkbox" class="cb" id="unmaskToggle" ${unmask ? 'checked' : ''}> Show real names</label>` : ''}${aiBtn}</div>
       <p class="vv-source">${sourceLine}</p>
       ${err ? `<p class="form-err">${esc(err)}</p>` : ''}
       ${fromAi ? `<p class="vv-summary">${citeHtml(data.summary, unmask)}</p>` : ''}
@@ -2139,7 +2142,7 @@
     const order = ['T1', 'T2', 'T9', 'R1', 'R2', 'R3', 'R5', 'R4', 'T3', 'T4', 'T8'];
     const checkIds = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">Step 1 of 5</span><h1>Data quality</h1><p>Did this cycle’s data arrive complete and on time? Before payroll runs, we check the time records, schedules and employee list for late or missing files, people in timekeeping but not in payroll, time outside employment dates, missed punches, manager overrides and miscoded time.</p></div></div>
+      <div class="page-head"><div>${appHead('feedpulse')}<p>Did this cycle’s data arrive complete and on time? Before payroll runs, we check the time records, schedules and employee list for late or missing files, people in timekeeping but not in payroll, time outside employment dates, missed punches, manager overrides and miscoded time.</p></div></div>
       <section class="card">
         <div class="card-head"><h3>Files received</h3><span class="muted" style="font-size:var(--t-sm)">Due by ${esc(F.fmtDate(feeds[0].due.slice(0, 10)))} ${esc(feeds[0].due.slice(11, 16))}</span></div>
         <div class="table-wrap"><table>
@@ -2195,7 +2198,7 @@
     const top5 = sum(priced.slice(0, 5), (x) => x.impact.amount);
     const label = { underpaid: 'Owed to employees', overpaid: 'Overpaid', tax: 'Tax exposure', liability: 'PTO liability' };
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">Step 2 of 5</span><h1>Pay accuracy</h1><p>Which problems change someone’s pay? We check hours against each pay class (35 hours for union staff, 40 for full time, the 30-hour part-time cap), overtime (1.5× over 35 hours for union staff and over 40 for other hourly staff, 2× on Sundays, none for salaried exempt staff), pay rates against the employee list and the union scale, and whether time off came out of the right balance. The rules put a dollar amount on every problem.</p></div></div>
+      <div class="page-head"><div>${appHead('runradar')}<p>Which problems change someone’s pay? We check hours against each pay class (35 hours for union staff, 40 for full time, the 30-hour part-time cap), overtime (1.5× over 35 hours for union staff and over 40 for other hourly staff, 2× on Sundays, none for salaried exempt staff), pay rates against the employee list and the union scale, and whether time off came out of the right balance. The rules put a dollar amount on every problem.</p></div></div>
       <div class="kpis rr-kpis">${payKinds.map((k) => `<div class="kpi"><span class="label">${label[k]}</span><span class="value ${tot[k] ? '' : 'zero'}">${F.money(tot[k])}</span><span class="sub">open, from ${plural(openPriced.filter((x) => x.impact.kind === k).length, 'exception')}</span></div>`).join('')}</div>
       <section class="card" style="margin-top:16px">
         <div class="card-head"><h3>Ranked by dollar impact</h3><span class="muted" style="font-size:var(--t-sm)">${priced.length ? `The top 5 carry ${Math.round((top5 / all) * 100)}% of ${F.money(all)}` : 'Nothing priced'}</span></div>
@@ -2258,7 +2261,7 @@
     const matched = regRows.filter((x) => Math.abs((ach[x.emp_id] || 0) - num(x.net_pay)) < 0.01 && !returned.has(x.emp_id)).length;
     const money = (v) => (v === null || v === undefined ? '<span class="muted">—</span>' : F.money(v));
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">Step 4 of 5</span><h1>Bank and ledger</h1><p>Do payroll, the bank and the general ledger agree? After payroll is funded and posted, we match net pay to the direct deposits and bank activity, taxes and deductions to the payments sent, and the payroll register to the ledger entries. Every difference gets an owner.</p></div></div>
+      <div class="page-head"><div>${appHead('threeway')}<p>Do payroll, the bank and the general ledger agree? After payroll is funded and posted, we match net pay to the direct deposits and bank activity, taxes and deductions to the payments sent, and the payroll register to the ledger entries. Every difference gets an owner.</p></div></div>
       <div class="kpis tw-kpis">
         <div class="kpi"><span class="label">Totals that match</span><span class="value">${rows.filter((x) => !x.break).length} of ${rows.length}</span><span class="sub">register · bank · GL</span></div>
         <div class="kpi"><span class="label">Differences</span><span class="value ${breaks.length ? '' : 'zero'}" style="${breaks.length ? 'color:var(--crit)' : ''}">${breaks.filter(isOpen).length}</span><span class="sub">open, ${breaks.length} found</span></div>
@@ -2436,7 +2439,7 @@
       </article>`;
     };
     $('#page').innerHTML = `
-      <div class="page-head"><div><span class="eyebrow">Step 5 of 5</span><h1>Repeat issues</h1><p>What keeps going wrong? We look at the exceptions from the last ${N} pay periods, group them by store, manager and type, flag anything seen in ${thr} or more periods, and suggest the cause and a fix.</p></div>
+      <div class="page-head"><div>${appHead('fixflow')}<p>What keeps going wrong? We look at the exceptions from the last ${N} pay periods, group them by store, manager and type, flag anything seen in ${thr} or more periods, and suggest the cause and a fix.</p></div>
         <div class="actions"><label class="field" for="fixThr">Flag at
           <select id="fixThr">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === thr ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select></label>
           ${state.ai && state.ai.available && store.policy.aiClusters && can('ai') && recurring.length ? `<button class="btn small primary" type="button" data-action="ai-clusters" ${state.aiBusy === 'clusters' ? 'disabled' : ''}>${state.aiBusy === 'clusters' ? 'Writing…' : ai ? 'Suggest causes again' : 'Suggest causes with AI'}</button>` : ''}</div>
@@ -3053,7 +3056,7 @@
   const ADMIN_TABS = [['monitor', 'Monitor'], ['team', 'Team and access'], ['policies', 'Policies'], ['data', 'Data and audit']];
   const ADMIN_ACTIONS = new Set(['Action blocked', 'Switched user', 'Name changed', 'Team changed', 'Permission changed', 'Policy changed', 'Admin PIN',
     'Release hold', 'Hold lifted', 'Payroll released', 'Cycle reopened', 'Rule changed', 'Rule created', 'Rule deleted', 'Rule turned on', 'Rule turned off',
-    'Data source added', 'Data source changed', 'Data source removed', 'Backup exported', 'Backup restored', 'Workspace cleared', 'Signed in', 'Signed out', 'Sign-in failed']);
+    'Data source added', 'Data source changed', 'Data source removed', 'Backup exported', 'Backup restored', 'Workspace cleared', 'Signed in', 'Signed out', 'Sign-in failed', 'Demo reset']);
 
   function renderAdmin() {
     const tab = ADMIN_TABS.some(([id]) => id === state.adminTab) ? state.adminTab : 'monitor';
@@ -3062,7 +3065,7 @@
       <div class="page-head">
         <div><span class="eyebrow">Admin console · ${esc(cycleId())}</span><h1>Payroll admin</h1>
         <p>Watch the cycle across every queue and application, and set who can do what: team and roles, release controls, review policy and the AI. Every change here is logged.</p></div>
-        <div class="actions"><span class="who-chip">${esc(store.user)} · ${esc(roleLabel(me()))}</span></div>
+        <div class="actions">${demoButtons()}</div>
       </div>
       <div class="toolbar">
         <div class="seg" role="group" aria-label="Admin console section">${ADMIN_TABS.map(([id, l]) => `<button type="button" data-action="admin-tab" data-tab="${id}" aria-pressed="${tab === id}">${l}</button>`).join('')}</div>
@@ -3216,7 +3219,7 @@
             <tbody>${stages.map((g) => `<tr><td>${esc(g.s.title)}</td><td class="n">${g.total}</td><td class="n">${g.c.approved}</td><td class="n">${g.c.dismissed}</td><td class="n">${g.c.escalated}</td><td class="n">${g.c.open}</td></tr>`).join('')}</tbody></table></div></details>
         </section>
         <section class="card">
-          <div class="card-head"><h3>Repeat issues by pay period</h3><a class="more" href="#fixflow">Repeat issues</a></div>
+          <div class="card-head"><h3>FixFlow Clusters by pay period</h3><a class="more" href="#fixflow">FixFlow Clusters</a></div>
           <p class="card-sub">How often the ${plural(fx.recurring.length, 'repeat issue')} showed up each period (an issue counts once it’s seen in ${thr} or more periods)</p>
           ${chart}
         </section>
@@ -3366,11 +3369,11 @@
         ${num('slaBlockerH', 'Blockers are due within', 'hours', 'Open blockers older than this show as overdue.', 1, 1)}
         ${num('slaReviewH', 'Review items are due within', 'hours', 'The same, for review items.', 1, 1)}
       </section>
-      <section class="rule-card"><div><h4>AI and checks</h4><p class="src">Data quality, the review queue and repeat issues</p></div>
-        ${chk('aiExplain', 'AI explanations in the review queue', 'Off: reviewers see the explanation the rules assemble from the records.')}
-        ${chk('aiClusters', 'AI-suggested causes on Repeat issues', 'Off: causes come from the rule templates.')}
+      <section class="rule-card"><div><h4>AI and checks</h4><p class="src">FeedPulse, Variance Voice and FixFlow Clusters</p></div>
+        ${chk('aiExplain', 'AI explanations in Variance Voice', 'Off: reviewers see the explanation the rules assemble from the records.')}
+        ${chk('aiClusters', 'AI-suggested causes in FixFlow Clusters', 'Off: causes come from the rule templates.')}
         ${chk('aiChat', 'AI chat', 'The Ask AI panel. Off: it still searches your data and lists the closest records.')}
-        <div class="rule"><label for="pol-fixThreshold">Count an issue as repeating at</label><select id="pol-fixThreshold" data-policy="fixThreshold" ${dis}>${[2, 3, 4, 5].map((n) => `<option value="${n}" ${p.fixThreshold === n ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select><p class="hint">The default on Repeat issues and the monitor.</p></div>
+        <div class="rule"><label for="pol-fixThreshold">Count an issue as repeating at</label><select id="pol-fixThreshold" data-policy="fixThreshold" ${dis}>${[2, 3, 4, 5].map((n) => `<option value="${n}" ${p.fixThreshold === n ? 'selected' : ''}>${n}+ periods</option>`).join('')}</select><p class="hint">The default in FixFlow Clusters and the monitor.</p></div>
         ${num('cutoffDays', 'Data is due', 'days after period end', 'Time records, schedules and the employee list received after this are late.', 1, 0)}
         <div class="rule"><label for="pol-cutoffTime">Data is due by</label><input type="time" id="pol-cutoffTime" data-policy="cutoffTime" value="${esc(p.cutoffTime)}" ${dis}></div>
         <div class="rule"><span>Mask names, IDs and bank details</span><span class="pill pass" style="justify-self:end">Always on</span><p class="hint">Applied before anything is sent to the AI. Not configurable.</p></div>
@@ -3927,7 +3930,7 @@
     union: ['union', 'agreement', 'cba'], repeat: ['repeat', 'recurring'], recurring: ['recurring', 'repeat'], late: ['late', 'cutoff'],
     rate: ['rate', 'hourly_rate'], hire: ['hire', 'hire_date'], fired: ['termination', 'term_date'], terminated: ['termination', 'term_date'],
   };
-  const KIND_LABEL = { summary: 'Cycle summary', exception: 'Exception', employee: 'Employee', policy: 'Policy', check: 'Check', reconciliation: 'Bank and ledger', repeat: 'Repeat issue', row: 'Data row' };
+  const KIND_LABEL = { summary: 'Cycle summary', exception: 'Exception', employee: 'Employee', policy: 'Policy', check: 'Check', reconciliation: 'Three-Way True', repeat: 'FixFlow Clusters', row: 'Data row' };
   const tokenize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9_\- ]/g, ' ').split(/\s+/).map((w) => w.replace(/^-+|-+$/g, '')).filter((w) => w && !STOP.has(w));
 
   function ragChunks() {
@@ -3946,7 +3949,7 @@
     });
     Object.values(allClauses()).forEach((c) => push('policy', `${c.id} ${c.title}`, `Policy ${c.id} ${c.title} (${c.doc}): ${c.text}`, null));
     r.checks.forEach((c) => push('check', `${c.id} ${c.title}`, `Check ${c.id} ${c.title}${c.custom ? ' (a rule your team added)' : ''}: ${c.rule} ${c.ran ? `Found ${c.count}.` : 'Not run: no data.'}`, { type: 'check', id: c.id }, { check: c.id }));
-    threeWayRows().filter((row) => !row.sub).forEach((row) => push('reconciliation', `Bank and ledger: ${row.item}`, `Bank and ledger match for ${row.item}: payroll register ${F.money(row.payroll)}${row.bank !== null && row.bank !== undefined ? `, bank ${F.money(row.bank)}` : ''}${row.gl !== null && row.gl !== undefined ? `, general ledger ${F.money(row.gl)}` : ''}. ${row.break ? `Off by ${F.signedMoney(row.break)}.` : 'Matches.'}`, { type: 'page', page: 'threeway' }));
+    threeWayRows().filter((row) => !row.sub).forEach((row) => push('reconciliation', `Three-Way True: ${row.item}`, `Bank and ledger match for ${row.item}: payroll register ${F.money(row.payroll)}${row.bank !== null && row.bank !== undefined ? `, bank ${F.money(row.bank)}` : ''}${row.gl !== null && row.gl !== undefined ? `, general ledger ${F.money(row.gl)}` : ''}. ${row.break ? `Off by ${F.signedMoney(row.break)}.` : 'Matches.'}`, { type: 'page', page: 'threeway' }));
     fixClusters(state.fixThreshold || store.policy.fixThreshold).recurring.forEach((c) => push('repeat', `Repeat issue: ${c.label}`, `Repeat issue: ${c.label}${c.dim ? ` at ${c.dim}` : ''}, seen in ${c.periods} of ${c.perPeriod.length} pay periods, ${c.occurrences} times, ${plural(c.people.size, 'person', 'people')}, usual owner ${c.owner}.`, { type: 'page', page: 'fixflow' }));
     const RAG_PICK = { census: PICK.census, schedules: ['emp_id'].concat(PICK.sched), time: ['emp_id'].concat(PICK.time, ['location']), register: PICK.reg.concat(['fed_wh', 'state_wh', 'k401_ee', 'medical_ee']), bank: PICK.bank, gl: PICK.gl };
     ruleSources().forEach((s) => sourceRows(s.key).forEach((row, i) => {
@@ -4210,6 +4213,7 @@
         </div>
         <p class="si-demo"><b>Demo sign-in.</b> Accounts and data live in this browser, and anyone with the link can sign in as anyone on the team. A production setup signs people in through your company’s single sign-on and keeps the data on a server.</p>
         <p class="si-tag">Everyone Accounted For</p>
+        <p class="si-reset"><button class="linkish" type="button" data-action="demo-reset">Reset the demo to its original state</button></p>
       </div>`;
   }
 
@@ -4660,17 +4664,87 @@
     popover.innerHTML = isEmp()
       ? `<div class="who-head"><span class="avatar" aria-hidden="true">${esc(initials(e ? e.name : session.empId))}</span><span><b>${esc(e ? e.name : session.empId)}</b><small>Employee · ${esc(session.empId)} · ${esc(store.workspace)}</small></span></div><hr>
         <button type="button" role="menuitem" data-action="go-page" data-page="me"><b>My pay</b><small>Your pay, deposits and time off</small></button>
+        <button type="button" role="menuitem" data-action="demo-reset"><b>Reset demo</b><small>Put the sample company back as it started</small></button>
         <button type="button" role="menuitem" data-action="sign-out"><b>Sign out</b><small>Back to the sign-in page</small></button>`
       : `<div class="who-head"><span class="avatar" aria-hidden="true">${esc(initials(m.name))}</span><span><b>${esc(m.name)}</b><small>${esc(roleLabel(m))}${m.queue ? ` · ${esc(m.queue)} queue` : ''} · ${esc(store.workspace)}</small></span></div>
         <p class="who-can">${esc(capsText(m))}.</p><hr>
         <button type="button" role="menuitem" data-action="go-page" data-page="home"><b>My work</b><small>Your queue and what's left before release</small></button>
         <button type="button" role="menuitem" data-action="go-page" data-page="settings"><b>Switch person</b><small>Work as someone else on the team</small></button>
+        <button type="button" role="menuitem" data-action="add-data"><b>Import or connect payroll</b><small>Bring in your own files or a payroll system</small></button>
+        <button type="button" role="menuitem" data-action="demo-reset"><b>Reset demo</b><small>Put the sample company back as it started</small></button><hr>
         <button type="button" role="menuitem" data-action="sign-out"><b>Sign out</b><small>Back to the sign-in page</small></button>`;
     document.body.appendChild(popover);
     btn.setAttribute('aria-expanded', 'true');
     const first = popover.querySelector('button');
     if (first) first.focus();
   }
+
+  // ---- Reset the demo: the sample company exactly as it started, in this browser.
+  function resetDemoModal(opener) {
+    openModal(`<div class="mh"><h2 id="modalTitle">Reset the demo?</h2></div>
+      <div class="mb"><p>This puts the sample company, Northloom Apparel, back exactly as it started. Every approval, dismissal, note, employee question, release, rule change, team change, imported file and activity entry in this browser is cleared.</p>
+        <p class="muted">Only this browser is affected.${signedIn() ? ' You stay signed in.' : ''}</p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="button" data-action="demo-reset-confirm">Reset the demo</button></div>`, opener);
+  }
+  function resetDemo() {
+    const keep = session, by = signedIn() ? actorName() : 'Sign-in page';
+    try { [STORE_KEY, FILES_KEY, LOCK_KEY].forEach((k) => localStorage.removeItem(k)); } catch (e) { /* in memory only */ }
+    store = hydrate(freshStore());
+    syncCustomSources();
+    SOURCES.forEach((d) => { state.src[d.key] = { mode: 'upload' }; loadSample(d.key); });
+    Object.assign(state, { detail: null, drawer: null, importQueue: [], chat: { open: false, msgs: [], busy: false, draft: '' }, unmask: false, fixThreshold: null, lastTab: {}, ruleDraft: null, adminTab: 'monitor', signinErr: '', signinEmp: '' });
+    state.filters = { status: 'unresolved', sev: { blocker: true, review: true, info: false }, stage: '', check: null, kind: null, owner: '', q: '' };
+    state.sel.clear();
+    undoFn = null;
+    state.result = null;
+    recompute();
+    log('Checks run', `${state.result.totals.checksRun} checks · ${state.result.totals.blockers} blockers, ${state.result.totals.review} to review`, { by: 'Rollcall' });
+    if (keep) { writeSession(keep); checkSession(); }
+    log('Demo reset', `Sample company restored by ${by}`, { by });
+    closeModal();
+    if (!signedIn()) { renderSignin(); toast('The demo is back to its original state'); return; }
+    $('#drawer').hidden = true;
+    $('#scrim').hidden = true;
+    document.body.style.overflow = '';
+    history.replaceState(null, '', `#${isEmp() ? 'me' : 'home'}`);
+    route();
+    renderChat();
+    toast('The demo is back to its original state');
+  }
+
+  // ---- Bring in payroll data: import files, or connect a payroll system's report.
+  function addDataModal(opener) {
+    openModal(`<div class="mh"><h2 id="modalTitle">Bring in payroll data</h2></div>
+      <div class="mb"><p>Check your own pay cycle instead of the sample company. Every check runs as soon as the data arrives.</p>
+        <div class="add-opts">
+          <button type="button" class="add-opt" data-action="add-import"><span class="add-ic" aria-hidden="true">${ICON.upload}</span><span><b>Import payroll files</b><span>Exports from your time system, the payroll register (CSV, JSON or the printed PDF), the bank file and the general ledger. Columns are matched for you, and anything unusual is mapped once.</span></span></button>
+          <button type="button" class="add-opt" data-action="add-connect"><span class="add-ic" aria-hidden="true">${ICON.plug}</span><span><b>Connect a payroll system</b><span>Pull the payroll register straight from your payroll system. Paste the address of its report, which must return CSV or JSON, then sync it each pay cycle.</span></span></button>
+        </div>
+        <p class="muted">Files are read in this browser and aren’t uploaded anywhere. To go back to the sample company, use Reset demo.</p></div>
+      <div class="mf"><button class="btn" type="button" data-action="close-modal">Cancel</button></div>`, opener);
+  }
+  function openImport() {
+    closeModal();
+    go('sources');
+    setTimeout(() => { const c = $('#importCard'); if (c) { c.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); const b = $('#importFiles'); if (b) b.focus(); } }, 80);
+  }
+  function openConnect() {
+    if (!allow('data')) { closeModal(); return; }
+    const src = state.src.register || (state.src.register = {});
+    src.mode = 'api';
+    persistSources();
+    closeModal();
+    if (state.page === 'sources') renderSources(); else go('sources');
+    setTimeout(() => {
+      const c = $('#src-register');
+      if (!c) return;
+      c.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+      const u = document.querySelector('[data-conn-url="register"]');
+      if (u) u.focus({ preventScroll: true });
+    }, 80);
+  }
+  const demoButtons = () => `<button class="btn small" type="button" data-action="add-data">${ICON.upload.replace(/18/g, '14')} Import or connect payroll</button><button class="btn small" type="button" data-action="demo-reset">${ICON.refresh} Reset demo</button>`;
 
   // ----------------------------------------------------------------------------------
   // My work: the employer's landing page. Their queue first, then what blocks release.
@@ -4712,7 +4786,7 @@
     $('#page').innerHTML = `
       <div class="page-head"><div><span class="eyebrow">${esc(cycleId())} · ${esc(periodText(p))}</span><h1>${esc(greeting())}, ${esc(firstName(m.name))}</h1>
         <p>${esc(roleLabel(m))} · showing ${esc(queueName)}. ${rd.state === 'released' ? `${cycleId()} is released.` : payIn !== null ? (payIn > 0 ? `Pay date in ${plural(payIn, 'day')}.` : payIn === 0 ? 'Pay date is today.' : `Pay date was ${plural(-payIn, 'day')} ago.`) : ''}</p></div>
-        <div class="actions"><button class="btn small" type="button" data-action="shortcuts">Keyboard shortcuts</button></div></div>
+        <div class="actions">${demoButtons()}<button class="btn small" type="button" data-action="shortcuts">Keyboard shortcuts</button></div></div>
       <div class="kpis mw-kpis">
         ${tile(m.queue ? 'Waiting for you' : 'Open blockers', mine.length, m.queue ? `Open in ${m.queue}` : 'Across every queue', m.queue ? `data-action="filter-owner" data-owner="${esc(m.queue)}"` : 'data-action="go-blockers"')}
         ${tile('Overdue', late.length, late.length ? 'Past the due time an admin set' : 'Nothing past due', '', late.length ? 'warn' : '')}
@@ -4909,7 +4983,7 @@
   // ----------------------------------------------------------------------------------
 
   const SUBTABS = [
-    ['Checks', [['feedpulse', 'Data quality'], ['runradar', 'Pay accuracy'], ['threeway', 'Bank and ledger'], ['fixflow', 'Repeat issues']]],
+    ['Checks', [['feedpulse', 'FeedPulse'], ['runradar', 'RunRadar'], ['threeway', 'Three-Way True'], ['fixflow', 'FixFlow Clusters']]],
     ['Rules', [['rules', 'Rules'], ['controls', 'All checks']]],
     ['Reports', [['reports', 'Reports'], ['activity', 'Activity log']]],
   ];
@@ -4922,7 +4996,7 @@
     state.lastTab[grp[0]] = state.page;
     el.hidden = false;
     el.setAttribute('aria-label', grp[0]);
-    el.innerHTML = `<div class="subtab-row">${grp[1].map(([id, label]) => `<a href="#${id}" ${id === state.page ? 'aria-current="page"' : ''}>${esc(label)}${subBadge(id)}</a>`).join('')}</div>`;
+    el.innerHTML = `<div class="subtab-row">${grp[1].map(([id, label]) => `<a href="#${id}" ${id === state.page ? 'aria-current="page"' : ''}${APP_BY_ID[id] ? ` data-tip="${esc(`${label}\n${APP_BY_ID[id].q}`)}"` : ''}>${esc(label)}${subBadge(id)}</a>`).join('')}</div>`;
   }
   function subBadge(id) {
     const r = state.result;
@@ -5001,6 +5075,11 @@
     else if (a === 'si-mode') { state.signinMode = el.dataset.mode; state.signinErr = ''; renderSignin(); const f = $(state.signinMode === 'employee' ? '#siEmp' : '#siUser'); if (f && !f.disabled) f.focus(); }
     else if (a === 'quick-approve') quickApprove(el.dataset.key);
     else if (a === 'user-menu') userMenu(el);
+    else if (a === 'demo-reset') resetDemoModal(el);
+    else if (a === 'demo-reset-confirm') resetDemo();
+    else if (a === 'add-data') addDataModal(el);
+    else if (a === 'add-import') openImport();
+    else if (a === 'add-connect') openConnect();
     else if (a === 'undo') runUndo();
     else if (a === 'shortcuts') shortcutsModal(el);
     else if (a === 'q-send') sendQuestion();
