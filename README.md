@@ -207,6 +207,7 @@ Leaves are out of scope, as agreed on the call. Everyone in the sample is active
 - `generator/generate_data.py` — builds the sample cycle from the same rules the engine checks
 - `tests/engine.test.js` — regression test against the seeded issues
 - `tests/middleware.test.mjs` — tests for the team password check
+- `docs/AI-that-has-your-back-Sydney-demo.pdf` — Sydney's 7-minute demo script: the five use cases end to end, one sample case each, with what to say, what's on screen and what to click. Reset the demo before running it. `docs/` is not part of the deployed site.
 
 ## Notes
 
